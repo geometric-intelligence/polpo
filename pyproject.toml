@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+authors = [{ name = "Luís F. Pereira", email = "luisfpereira@ucsb.edu" }]
+name = "dash_gi"
+dynamic = ["version"]
+readme = "README.rst"
+description = "Dash in the geometric intelligence lab."
+license = { file = "LICENSE.md" }
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Development Status :: 2 - Pre-Alpha",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3",
+]
+requires-python = ">= 3.9"
+dependencies = ["dash", "nibabel", "tdqm"] # TODO: make some of these optional
+
+[project.urls]
+repository = "http://github.com/luisfpereira/dash-gi"
+
+[tool.setuptools.dynamic]
+version = { attr = "dash_gi.__version__" }
+
+[tool.setuptools.packages.find]
+include = ["dash_gi", "dash_gi.*"]
+
+[tool.ruff]
+extend-include = ["*.ipynb"]
+
+[tool.ruff.lint]
+extend-select = ["I", "D"]
+ignore = ["E731"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "numpy"
+
+[tool.ruff.lint.per-file-ignores]
+"*/__init__.py" = ["F401"]
+"tests/*" = ["D"]
