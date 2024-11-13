@@ -3,16 +3,22 @@
 import abc
 
 import dash_bootstrap_components as dbc
-from dash import dcc, html
+import plotly.graph_objects as go
+from dash import Input, Output, dcc, html
 
-from .callbacks import create_update_nii_plot_basic, create_update_session_info
+from .callbacks import (
+    create_show_mesh,
+    create_view_model_update,
+)
+from .models import MriSlices, PdDfLookupModel
+from .plot import SlicePlotter
 from .style import STYLE as S
 from .utils import unnest_list
 
 
 class Component(abc.ABC):
-    def __init__(self, prefix_id=""):
-        self.prefix_id = prefix_id
+    def __init__(self, id_prefix=""):
+        self.id_prefix = id_prefix
 
     @abc.abstractmethod
     def to_dash(self):
@@ -20,32 +26,60 @@ class Component(abc.ABC):
         pass
 
 
-class BaseComponentGroup(Component, abc.ABC):
-    def __init__(self, components, prefix_id=""):
-        self.components = components
-        super().__init__(prefix_id)
+class VarDefComponent(Component, abc.ABC):
+    def __init__(self, var_def, id_prefix="", id_suffix=""):
+        super().__init__(id_prefix)
+        self.var_def = var_def
+        self.id_suffix = id_suffix
 
     @property
-    def prefix_id(self):
-        return self._prefix_id
+    def id(self):
+        return f"{self.id_prefix}{self.var_def.id}{self.id_suffix}"
 
-    @prefix_id.setter
-    def prefix_id(self, value):
-        self._prefix_id = value
+
+class IdComponent(Component, abc.ABC):
+    # TODO: improve these abstractions
+    def __init__(self, id_, id_prefix="", id_suffix=""):
+        super().__init__(id_prefix)
+        self.id_ = id_
+        self.id_suffix = id_suffix
+
+    @property
+    def id(self):
+        return f"{self.id_prefix}{self.id_}{self.id_suffix}"
+
+
+class BaseComponentGroup(Component, abc.ABC):
+    def __init__(self, components, id_prefix=""):
+        self.components = components
+        super().__init__(id_prefix)
+
+    @property
+    def id_prefix(self):
+        return self._id_prefix
+
+    @id_prefix.setter
+    def id_prefix(self, value):
+        self._id_prefix = value
         if value:
             for component in self.components:
-                component.prefix_id = value
+                component.id_prefix = value
 
 
 class ComponentGroup(BaseComponentGroup):
-    def __init__(self, components, prefix_id="", title=None):
-        super().__init__(components, prefix_id)
+    def __init__(self, components, id_prefix="", title=None):
+        super().__init__(components, id_prefix)
         self.title = title
 
     def __getitem__(self, index):
         return self.components[index]
 
-    def to_dash(self):
+    def to_dash(self, data=None):
+        if data is not None:
+            return unnest_list(
+                [component.to_dash(value) for component, value in zip(self, data)]
+            )
+
         title_label = (
             [
                 dbc.Label(
@@ -60,20 +94,25 @@ class ComponentGroup(BaseComponentGroup):
             else []
         )
 
-        return title_label + unnest_list(
-            [component.to_dash() for component in self.components]
-        )
+        return title_label + unnest_list([component.to_dash() for component in self])
+
+    def as_output(self):
+        return unnest_list(component.as_output() for component in self)
+
+    def as_empty_output(self):
+        return unnest_list(component.as_empty_output() for component in self)
+
+    def as_input(self):
+        return unnest_list(component.as_input() for component in self)
 
 
-class Slider(Component):
+class Slider(VarDefComponent):
     """A slider."""
 
-    def __init__(self, var_def, step=1, prefix_id="", label_style=None):
-        super().__init__(prefix_id)
+    def __init__(self, var_def, step=1, id_prefix="", label_style=None):
+        super().__init__(var_def=var_def, id_prefix=id_prefix, id_suffix="-slider")
         # TODO: think more about this design
-        # TODO: add a prefix to the id
 
-        self.var_def = var_def
         self.step = step
 
         # TODO: can default be set for the general app instead?
@@ -84,11 +123,7 @@ class Slider(Component):
         self.label_style = (label_style or {}).update(default_label_style)
 
     def __repr__(self):
-        return f"Slider({self.var_def.id})"
-
-    @property
-    def id(self):
-        return f"{self.prefix_id}{self.var_def.id}-slider"
+        return f"Slider({self.id})"
 
     def to_dash(self):
         # TODO: allow to config from config file, e.g. label_style
@@ -115,22 +150,17 @@ class Slider(Component):
 
         return [label, slider]
 
+    def as_input(self):
+        return [Input(self.id, "drag_value")]
 
-class DepVar(Component):
-    def __init__(self, var_def, prefix_id=""):
-        super().__init__(prefix_id)
-        self.var_def = var_def
 
+class DepVar(VarDefComponent):
     def __repr__(self):
         return f"DepVar({self.var_def.id})"
 
-    @property
-    def id(self):
-        return f"{self.prefix_id}{self.var_def.id}"
-
     def to_dash(self, value=None):
         if value:
-            return f"self.var_def.label: {value}"
+            return [f"{self.var_def.label}: {value}"]
 
         return [
             html.Div(
@@ -142,38 +172,65 @@ class DepVar(Component):
             )
         ]
 
+    def as_output(self):
+        return [Output(self.id, "children")]
 
-class GraphRow(Component):
-    def __init__(self, id_="nii", n_graphs=3, prefix_id=""):
-        super().__init__(prefix_id)
-        self.id_ = id_
-        self.n_graphs = n_graphs
+    def as_empty_output(self):
+        return [""]
 
-    @property
-    def id(self):
-        return f"{self.prefix_id}{self.id_}-plot"
 
-    def get_id(self, index):
-        return f"{self.id}-{index}"
+class Graph(IdComponent):
+    # TODO: any links with dash-vtk abstractions?
 
-    def ids(self):
-        return [self.get_id(index) for index in range(self.n_graphs)]
+    def __init__(self, id_, plotter=None, id_prefix="", id_suffix=""):
+        # TODO: add reasonable default plotter
+        super().__init__(id_, id_prefix, id_suffix)
+        self.plotter = plotter
 
-    def to_dash(self):
+    def to_dash(self, data=None):
+        if data is not None:
+            return [self.plotter.plot(data)]
+
+        return [
+            dcc.Graph(
+                id=self.id,
+                config={"displayModeBar": False},
+            )
+        ]
+
+    def as_output(self):
+        return [Output(self.id, "figure")]
+
+    def as_empty_output(self):
+        return [go.Figure()]
+
+
+class GraphRow(ComponentGroup):
+    def __init__(self, n_graphs=3, graphs=None, id_prefix=""):
+        # NB: `n_graphs`` is ignored if `graphs` is not None
+
+        if graphs is None:
+            graphs = [
+                Graph(id_="plot", id_suffix=f"-{index}") for index in range(n_graphs)
+            ]
+
+        super().__init__(components=graphs, id_prefix=id_prefix)
+
+    def to_dash(self, data=None):
+        if data is not None:
+            return super().to_dash(data)
+
         return [
             dbc.Row(
                 [
                     dbc.Col(
                         html.Div(
-                            dcc.Graph(
-                                id=self.get_id(index),
-                                config={"displayModeBar": False},
-                            ),
+                            graph.to_dash(),
                             style={"paddingTop": "0px"},
                         ),
                         sm=4,
                     )
-                    for index in range(self.n_graphs)
+                    for graph in self
                 ],
                 align="center",
                 style={
@@ -183,6 +240,45 @@ class GraphRow(Component):
                 },
             )
         ]
+
+
+class MriSliders(ComponentGroup):
+    def __init__(self, components, trims=((20, 40), 50, 70), id_prefix="", title=None):
+        super().__init__(components, id_prefix=id_prefix, title=title)
+        self.trims = [(trim, trim) if isinstance(trim, int) else trim for trim in trims]
+
+    def update_lims(self, mri_data):
+        self[0].var_def.default_value = self[0].var_def.default_value or 1
+        self[0].var_def.max_value = min(self[0].var_def.max_value, len(mri_data))
+        for slider, trim in zip(self[1:], self.trims):
+            var_def = slider.var_def
+            min_value = var_def.min_value or trim[0]
+            max_value = var_def.max_value or (mri_data[0].shape[0] - 1 - trim[1])
+            var_def.default_value = (
+                var_def.default_value or (max_value - min_value) // 2 + min_value
+            )
+            var_def.min_value = min_value
+            var_def.max_value = max_value
+
+
+class MriGraphRow(GraphRow):
+    # NB: just syntax sugar
+
+    def __init__(self):
+        titles = ("Side View", "Front View", "Top View")
+        x_labels = ("Y", "X", "X")
+        y_labels = ("Z", "Z", "Y")
+        graphs = [
+            Graph(
+                id_="plot",
+                id_suffix=f"-{index}",
+                plotter=SlicePlotter(title=title, x_label=x_label, y_label=y_label),
+            )
+            for index, (title, x_label, y_label) in enumerate(
+                zip(titles, x_labels, y_labels)
+            )
+        ]
+        super().__init__(id_prefix="nii-", graphs=graphs)
 
 
 class MriExplorer(BaseComponentGroup):
@@ -200,42 +296,43 @@ class MriExplorer(BaseComponentGroup):
         hormones_df,
         sliders,
         session_info,
-        trims=((20, 40), 50, 70),
         graph_row=None,
-        prefix_id="",
+        id_prefix="",
     ):
         if graph_row is None:
-            graph_row = GraphRow()
+            graph_row = MriGraphRow()
 
+        # TODO: used to train the model and to update the controller
         self.mri_data = mri_data
         self.hormones_df = hormones_df
+
+        # NB: an input view
         self.sliders = sliders
+        # NB: an output view of the brain data
         self.graph_row = graph_row
+        # NB: a model of the brain data
+        self.mri_model = MriSlices(self.mri_data)
+
+        # NB: a view of the hormones data
         self.session_info = session_info
-
-        super().__init__([sliders, graph_row, session_info], prefix_id)
-
-        self.trims = [(trim, trim) if isinstance(trim, int) else trim for trim in trims]
-
-    def _update_slider_lims(self):
-        sliders = self.sliders
-
-        sliders[0].var_def.default_value = sliders[0].var_def.default_value or 1
-        sliders[0].var_def.max_value = min(
-            sliders[0].var_def.max_value, len(self.mri_data)
+        # NB: a model of the hormones data
+        self.session_info_model = PdDfLookupModel(
+            df=hormones_df,
+            output_keys=[elem.var_def.id for elem in session_info],
+            tar=1,
         )
-        for slider, trim in zip(sliders[1:], self.trims):
-            var_def = slider.var_def
-            min_value = var_def.min_value or trim[0]
-            max_value = var_def.max_value or (self.mri_data[0].shape[0] - 1 - trim[1])
-            var_def.default_value = (
-                var_def.default_value or (max_value - min_value) // 2 + min_value
-            )
-            var_def.min_value = min_value
-            var_def.max_value = max_value
+
+        super().__init__([sliders, graph_row, session_info], id_prefix)
+
+    def _create_callbacks(self):
+        create_view_model_update(self.sliders, self.graph_row, self.mri_model)
+        create_view_model_update(
+            self.sliders[0], self.session_info, self.session_info_model
+        )
 
     def to_dash(self):
-        self._update_slider_lims()
+        if hasattr(self.slides, "update_lims"):
+            self.sliders.update_lims(self.mri_data)
 
         # TODO: allow it as input?
         instructions_text = dbc.Row(
@@ -304,12 +401,86 @@ class MriExplorer(BaseComponentGroup):
             },
         )
 
-        # TODO: move to other place?
-        plot_ids = self.graph_row.ids()
-        slider_ids = [slider.id for slider in self.sliders]
-        create_update_nii_plot_basic(self.mri_data, plot_ids, slider_ids)
-
-        session_ids = [elem.id for elem in self.session_info]
-        create_update_session_info(self.hormones_df, slider_ids[0], self.session_info)
+        self._create_callbacks()
 
         return [instructions_text, plots, sliders_and_session]
+
+
+class MeshGraph(IdComponent):
+    # TODO: give it a suffix of plot?
+
+    def to_dash(self, mesh=None):
+        # TODO: accept figure/mesh for update? may need to rename if the case
+        # TODO: this handles meshes for now
+        if mesh is None:
+            return [
+                dcc.Graph(
+                    id=self.id,
+                )
+            ]
+
+        # TODO: define layout at startup
+        layout = go.Layout(
+            margin=go.layout.Margin(
+                l=0,
+                r=0,
+                b=0,
+                t=0,
+            ),
+            width=700,
+            height=700,
+            scene=dict(
+                aspectmode="data", xaxis_title="x", yaxis_title="y", zaxis_title="z"
+            ),
+        )
+
+        # TODO: need to get access to previous image for nicer transition
+
+        # TODO: create an update() method instead of calling this again?
+
+        # TODO: update
+        mesh_pred = mesh.vertices
+        faces = mesh.faces
+
+        fig = go.Figure(
+            data=[
+                go.Mesh3d(
+                    x=mesh_pred[:, 0],
+                    y=mesh_pred[:, 1],
+                    z=mesh_pred[:, 2],
+                    colorbar_title="z",
+                    # vertexcolor=vertex_colors, # TODO: uncomment
+                    # i, j and k give the vertices of triangles
+                    i=faces[:, 0],
+                    j=faces[:, 1],
+                    k=faces[:, 2],
+                    name="y",
+                )
+            ],
+            layout=layout,
+        )
+        return fig
+
+
+class MeshExplorer(BaseComponentGroup):
+    def __init__(self, mesh_data, graph, sliders, id_prefix=""):
+        # TODO: adapt sliders to get toggle button
+
+        # TODO: controller instead of sliders? apply same in MRI explorer
+        # TODO: allow also for controlled? like in MRI explorer
+
+        self.mesh_data = mesh_data
+        self.graph = graph
+        self.sliders = sliders
+
+    def to_dash(self):
+        # TODO: update
+
+        # TODO: add callback
+
+        graph = self.graph.to_dash()
+        sliders = self.sliders.to_dash()
+
+        create_show_mesh(self.mesh_data, self.graph, self.sliders)
+
+        return [graph, sliders]

@@ -4,6 +4,7 @@ import warnings
 
 import nibabel as nib
 import pandas as pd
+from geomfum.shape import TriangleMesh
 from tqdm import tqdm
 
 # TODO: rename to data_processing? maybe have a folder?
@@ -132,3 +133,44 @@ class PdCsvReader:
 
     def apply(self, data):
         return pd.read_csv(data, delimiter=",")
+
+
+class MeshLoader(DataLoader):
+    # TODO: remove or rewrite
+
+    def __init__(self, filename):
+        self.filename = filename
+
+    def load(self):
+        return TriangleMesh.from_file(self.filename)
+
+
+class Data:
+    def __init__(self, X, y=None):
+        self.X = X
+        self.y = y
+
+    def __getitem__(self, index):
+        # TODO: check
+        if index == 0:
+            return self.X
+
+        elif index == 1:
+            return self.y
+
+        raise IndexError("Index can only be 1 or 2")
+
+
+class ModelLoader(DataLoader):
+    # TODO: create variants
+
+    def __init__(self, data, model):
+        self.data = data
+        self.model = model
+
+    def load(self):
+        X, y = self.data
+
+        # TODO: fit only if data?
+        # TODO: wrap if pd?
+        return self.model.fit(X, y=y)

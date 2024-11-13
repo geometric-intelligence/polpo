@@ -1,7 +1,7 @@
+import abc
+
 import numpy as np
 import plotly.graph_objects as go
-
-# TODO: move to other library?
 
 
 def return_nii_plot(
@@ -72,3 +72,31 @@ def plot_slice_as_plotly(
     # fig.update_layout(title=title, xaxis_title=x_label, yaxis_title=y_label)
 
     return fig
+
+
+class Plotter(abc.ABC):
+    @abc.abstractmethod
+    def plot(self, data):
+        pass
+
+
+class SlicePlotter(Plotter):
+    # TODO: can be further improved
+    # TODO: explore plotly.graph_objects and check if it should be a component
+
+    def __init__(
+        self, cmap="gray", title="Slice Visualization", x_label="X", y_label="Y"
+    ):
+        self.cmap = cmap
+        self.title = title
+        self.x_label = x_label
+        self.y_label = y_label
+
+    def plot(self, data):
+        return plot_slice_as_plotly(
+            data,
+            cmap=self.cmap,
+            title=self.title,
+            x_label=self.x_label,
+            y_label=self.y_label,
+        )
