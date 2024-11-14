@@ -7,10 +7,15 @@ import plotly.graph_objects as go
 from dash import Input, Output, dcc, html
 
 from .callbacks import (
-    create_show_mesh,
+    create_button_toggler_for_view_model_update,
     create_view_model_update,
 )
-from .models import MriSlices, PdDfLookupModel
+from .models import (
+    ConstantOutputModel,
+    LinearMeshVertexScaling,
+    MriSlices,
+    PdDfLookupModel,
+)
 from .plot import SlicePlotter
 from .style import STYLE as S
 from .utils import unnest_list
@@ -22,8 +27,14 @@ class Component(abc.ABC):
 
     @abc.abstractmethod
     def to_dash(self):
-        # NB: expects list[dash.Component] as output
+        # NB: returns list[dash.Component]
         pass
+
+    def as_output(self, component_property, allow_duplicate=False):
+        return [Output(self.id, component_property, allow_duplicate=allow_duplicate)]
+
+    def prefix(self, name):
+        return f"{self.id_prefix}{name}"
 
 
 class VarDefComponent(Component, abc.ABC):
@@ -54,6 +65,12 @@ class BaseComponentGroup(Component, abc.ABC):
         self.components = components
         super().__init__(id_prefix)
 
+    def __getitem__(self, index):
+        return self.components[index]
+
+    def __len__(self):
+        return len(self.components)
+
     @property
     def id_prefix(self):
         return self._id_prefix
@@ -70,9 +87,6 @@ class ComponentGroup(BaseComponentGroup):
     def __init__(self, components, id_prefix="", title=None):
         super().__init__(components, id_prefix)
         self.title = title
-
-    def __getitem__(self, index):
-        return self.components[index]
 
     def to_dash(self, data=None):
         if data is not None:
@@ -96,8 +110,13 @@ class ComponentGroup(BaseComponentGroup):
 
         return title_label + unnest_list([component.to_dash() for component in self])
 
-    def as_output(self):
-        return unnest_list(component.as_output() for component in self)
+    def as_output(self, component_property=None, allow_duplicate=False):
+        return unnest_list(
+            component.as_output(
+                component_property=component_property, allow_duplicate=allow_duplicate
+            )
+            for component in self
+        )
 
     def as_empty_output(self):
         return unnest_list(component.as_empty_output() for component in self)
@@ -172,8 +191,9 @@ class DepVar(VarDefComponent):
             )
         ]
 
-    def as_output(self):
-        return [Output(self.id, "children")]
+    def as_output(self, component_property=None, allow_duplicate=False):
+        component_property = component_property or "children"
+        return [Output(self.id, component_property, allow_duplicate=allow_duplicate)]
 
     def as_empty_output(self):
         return [""]
@@ -198,8 +218,9 @@ class Graph(IdComponent):
             )
         ]
 
-    def as_output(self):
-        return [Output(self.id, "figure")]
+    def as_output(self, component_property=None, allow_duplicate=False):
+        component_property = component_property or "figure"
+        return [Output(self.id, component_property, allow_duplicate=allow_duplicate)]
 
     def as_empty_output(self):
         return [go.Figure()]
@@ -331,10 +352,9 @@ class MriExplorer(BaseComponentGroup):
         )
 
     def to_dash(self):
-        if hasattr(self.slides, "update_lims"):
+        if hasattr(self.sliders, "update_lims"):
             self.sliders.update_lims(self.mri_data)
 
-        # TODO: allow it as input?
         instructions_text = dbc.Row(
             [
                 html.P(
@@ -406,81 +426,129 @@ class MriExplorer(BaseComponentGroup):
         return [instructions_text, plots, sliders_and_session]
 
 
-class MeshGraph(IdComponent):
-    # TODO: give it a suffix of plot?
-
-    def to_dash(self, mesh=None):
-        # TODO: accept figure/mesh for update? may need to rename if the case
-        # TODO: this handles meshes for now
-        if mesh is None:
-            return [
-                dcc.Graph(
-                    id=self.id,
-                )
-            ]
-
-        # TODO: define layout at startup
-        layout = go.Layout(
-            margin=go.layout.Margin(
-                l=0,
-                r=0,
-                b=0,
-                t=0,
-            ),
-            width=700,
-            height=700,
-            scene=dict(
-                aspectmode="data", xaxis_title="x", yaxis_title="y", zaxis_title="z"
-            ),
-        )
-
-        # TODO: need to get access to previous image for nicer transition
-
-        # TODO: create an update() method instead of calling this again?
-
-        # TODO: update
-        mesh_pred = mesh.vertices
-        faces = mesh.faces
-
-        fig = go.Figure(
-            data=[
-                go.Mesh3d(
-                    x=mesh_pred[:, 0],
-                    y=mesh_pred[:, 1],
-                    z=mesh_pred[:, 2],
-                    colorbar_title="z",
-                    # vertexcolor=vertex_colors, # TODO: uncomment
-                    # i, j and k give the vertices of triangles
-                    i=faces[:, 0],
-                    j=faces[:, 1],
-                    k=faces[:, 2],
-                    name="y",
-                )
-            ],
-            layout=layout,
-        )
-        return fig
-
-
 class MeshExplorer(BaseComponentGroup):
-    def __init__(self, mesh_data, graph, sliders, id_prefix=""):
-        # TODO: adapt sliders to get toggle button
-
-        # TODO: controller instead of sliders? apply same in MRI explorer
-        # TODO: allow also for controlled? like in MRI explorer
-
-        self.mesh_data = mesh_data
+    def __init__(
+        self,
+        mesh_data,
+        graph,
+        hormone_sliders,
+        week_sliders,
+        id_prefix="",
+    ):
+        # TODO: disallow ids and control it from here
         self.graph = graph
-        self.sliders = sliders
+        self.hormone_sliders = hormone_sliders
+        self.week_sliders = week_sliders
+
+        # TODO: an experiment, just for debugging
+        self.hormone_mesh_model = ConstantOutputModel(mesh_data)
+        self.week_mesh_model = LinearMeshVertexScaling(mesh_data)
+
+        super().__init__(
+            [self.graph, self.hormone_sliders, self.week_sliders], id_prefix=id_prefix
+        )
+
+        self._toggler_button_id = "button"
+        self._week_sliders_card_id = "gest_week_slider_container"
+        self._hormone_sliders_card_id = "hormone_slider_container"
 
     def to_dash(self):
-        # TODO: update
-
-        # TODO: add callback
+        instructions_text = dbc.Row(
+            [
+                html.P(
+                    [
+                        "Use the hormone sliders or the gestational week slider to adjust observe the predicted shape changes in the left hippocampal formation.",
+                        html.Br(),
+                    ],
+                    style={
+                        "fontSize": S.text_fontsize,
+                        "fontFamily": S.text_fontfamily,
+                    },
+                ),
+            ],
+        )
 
         graph = self.graph.to_dash()
-        sliders = self.sliders.to_dash()
+        week_sliders = self.week_sliders.to_dash()
+        hormone_sliders = self.hormone_sliders.to_dash()
 
-        create_show_mesh(self.mesh_data, self.graph, self.sliders)
+        week_slider_card = HideableComponent(
+            id_=self._week_sliders_card_id,
+            dash_component=dbc.Card(
+                dbc.Stack(
+                    week_sliders,
+                    gap=3,
+                ),
+                body=True,
+            ),
+            id_prefix=self.id_prefix,
+        )
 
-        return [graph, sliders]
+        hormone_sliders_card = HideableComponent(
+            id_=self._hormone_sliders_card_id,
+            dash_component=dbc.Card(
+                dbc.Stack(
+                    hormone_sliders,
+                    gap=3,
+                ),
+                body=True,
+            ),
+            id_prefix=self.id_prefix,
+        )
+
+        toggle_id = self.prefix(self._toggler_button_id)
+        sliders_column = [
+            html.Button(
+                "Click Here to Toggle Between Gestational Week vs Hormone Value Prediction",
+                id=toggle_id,
+                n_clicks=0,
+            ),
+            dbc.Row(week_slider_card.to_dash()),
+            dbc.Row(hormone_sliders_card.to_dash()),
+        ]
+
+        out = [
+            instructions_text,
+            dbc.Row(
+                [
+                    dbc.Col(
+                        html.Div(
+                            graph,
+                            style={"paddingTop": "0px"},
+                        ),
+                        sm=4,
+                        width=700,
+                    ),
+                    dbc.Col(sm=3, width=100),
+                    dbc.Col(sliders_column, sm=4, width=700),
+                ],
+                align="center",
+                style={
+                    "marginLeft": S.margin_side,
+                    "marginRight": S.margin_side,
+                    "marginTop": "50px",
+                },
+            ),
+        ]
+
+        create_button_toggler_for_view_model_update(
+            output_view=self.graph,
+            input_views=[self.week_sliders, self.hormone_sliders],
+            models=[self.week_mesh_model, self.hormone_mesh_model],
+            toggle_id=toggle_id,
+            hideable_components=[week_slider_card, hormone_sliders_card],
+        )
+
+        return out
+
+
+class HideableComponent(IdComponent):
+    def __init__(self, id_, dash_component, id_prefix="", id_suffix=""):
+        super().__init__(id_, id_prefix, id_suffix)
+        self.dash_component = dash_component
+
+    def to_dash(self):
+        return html.Div(
+            children=[self.dash_component],
+            id=self.id,
+        )

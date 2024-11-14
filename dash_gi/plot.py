@@ -100,3 +100,46 @@ class SlicePlotter(Plotter):
             x_label=self.x_label,
             y_label=self.y_label,
         )
+
+
+class MeshPlotter(Plotter):
+    # TODO: can be further improved
+    def __init__(self):
+        self.layout = go.Layout(
+            margin=go.layout.Margin(
+                l=0,
+                r=0,
+                b=0,
+                t=0,
+            ),
+            width=700,
+            height=700,
+            scene=dict(
+                aspectmode="data", xaxis_title="x", yaxis_title="y", zaxis_title="z"
+            ),
+        )
+
+    def plot(self, mesh):
+        # TODO: need to get access to previous image for nicer transition?
+
+        # TODO: add version that stores mesh connectivities, so only the vertices are passed?
+        mesh_pred = mesh.vertices
+        faces = mesh.faces
+
+        return go.Figure(
+            data=[
+                go.Mesh3d(
+                    x=mesh_pred[:, 0],
+                    y=mesh_pred[:, 1],
+                    z=mesh_pred[:, 2],
+                    colorbar_title="z",
+                    # vertexcolor=vertex_colors, # TODO: uncomment
+                    # i, j and k give the vertices of triangles
+                    i=faces[:, 0],
+                    j=faces[:, 1],
+                    k=faces[:, 2],
+                    name="y",
+                )
+            ],
+            layout=self.layout,
+        )

@@ -1,6 +1,9 @@
 import abc
+import copy
 
 import numpy as np
+
+# TODO: think about where to place these models
 
 
 class Model(abc.ABC):
@@ -9,6 +12,14 @@ class Model(abc.ABC):
     @abc.abstractmethod
     def predict(self, X):
         pass
+
+
+class ConstantOutputModel(Model):
+    def __init__(self, value):
+        self.value = value
+
+    def predict(self, X=None):
+        return self.value
 
 
 class PdDfLookupModel(Model):
@@ -59,3 +70,14 @@ class MriSlices(Model):
                 slices[i_slice] = slice_
 
         return slices
+
+
+class LinearMeshVertexScaling(Model):
+    def __init__(self, mesh):
+        self.mesh = mesh
+        self._updatable_mesh = copy.deepcopy(mesh)
+
+    def predict(self, X):
+        # NB: expects a (int,)
+        self._updatable_mesh.vertices = X[0] * self.mesh.vertices
+        return self._updatable_mesh
