@@ -16,7 +16,21 @@ classifiers = [
     "Programming Language :: Python :: 3",
 ]
 requires-python = ">= 3.9"
-dependencies = ["dash", "nibabel", "tdqm"] # TODO: make some of these optional
+dependencies = [
+    "dash",
+    "tdqm",
+    "numpy",
+    "joblib",
+    "plotly",
+    "dash-bootstrap-components",
+]
+
+[project.optional-dependencies]
+mri = ["nibabel", "scikit-image"]
+mesh = ["trimesh", "fast_simplification", "scikit-learn"]
+dataframe = ["pandas"]
+preprocessing = "dash_gi[mri,mesh,dataframe]"
+
 
 [project.urls]
 repository = "http://github.com/luisfpereira/dash-gi"
