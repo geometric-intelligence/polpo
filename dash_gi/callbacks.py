@@ -1,4 +1,4 @@
-from dash import Input, Output, callback
+from dash import Input, callback
 
 from .utils import unnest_list
 
