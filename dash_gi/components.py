@@ -12,7 +12,7 @@ from .callbacks import (
 )
 from .models import (
     ConstantOutputModel,
-    LinearMeshVertexScaling,
+    ListLookupModel,
     MriSlices,
     PdDfLookupModel,
 )
@@ -441,8 +441,9 @@ class MeshExplorer(BaseComponentGroup):
         self.week_sliders = week_sliders
 
         # TODO: an experiment, just for debugging
-        self.hormone_mesh_model = ConstantOutputModel(mesh_data)
-        self.week_mesh_model = LinearMeshVertexScaling(mesh_data)
+        # TODO: need to ensure number of elements in the list is proper
+        self.week_mesh_model = ListLookupModel(mesh_data)
+        self.hormone_mesh_model = ConstantOutputModel(mesh_data[0])
 
         super().__init__(
             [self.graph, self.hormone_sliders, self.week_sliders], id_prefix=id_prefix

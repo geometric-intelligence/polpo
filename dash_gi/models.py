@@ -16,14 +16,27 @@ class Model(abc.ABC):
 
 class ConstantOutputModel(Model):
     def __init__(self, value):
+        super().__init__()
         self.value = value
 
     def predict(self, X=None):
         return self.value
 
 
+class ListLookupModel(Model):
+    def __init__(self, data, tar=0):
+        super().__init__()
+        self.data = data
+        self.tar = tar
+
+    def predict(self, X):
+        # NB: expects a (int,)
+        return self.data[X[0] - self.tar]
+
+
 class PdDfLookupModel(Model):
     def __init__(self, df, output_keys, tar=0):
+        super().__init__()
         self.df = df
         self.output_keys = output_keys
         self.tar = tar

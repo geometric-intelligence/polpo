@@ -125,6 +125,7 @@ class MeshPlotter(Plotter):
         # TODO: add version that stores mesh connectivities, so only the vertices are passed?
         mesh_pred = mesh.vertices
         faces = mesh.faces
+        vertex_colors = mesh.visual.vertex_colors
 
         return go.Figure(
             data=[
@@ -133,7 +134,7 @@ class MeshPlotter(Plotter):
                     y=mesh_pred[:, 1],
                     z=mesh_pred[:, 2],
                     colorbar_title="z",
-                    # vertexcolor=vertex_colors, # TODO: uncomment
+                    vertexcolor=vertex_colors,
                     # i, j and k give the vertices of triangles
                     i=faces[:, 0],
                     j=faces[:, 1],
