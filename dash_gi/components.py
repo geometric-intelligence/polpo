@@ -11,10 +11,10 @@ from .callbacks import (
     create_view_model_update,
 )
 from .models import (
-    ConstantOutputModel,
-    ListLookupModel,
-    MriSlices,
-    PdDfLookupModel,
+    ConstantOutput,
+    ListLookup,
+    MriSlicesLookup,
+    PdDfLookup,
 )
 from .plot import SlicePlotter
 from .style import STYLE as S
@@ -150,12 +150,21 @@ class Slider(VarDefComponent):
             self.var_def.label,
             style=self.label_style,
         )
+
+        # ensure default value is on the slider
+        min_value, max_value = self.var_def.min_value, self.var_def.max_value
+        step = self.step
+        value = min(max_value, self.var_def.default_value)
+        value = max(min_value, value)
+        n_steps = round((value - min_value) / step)
+        value = min_value + step * n_steps
+
         slider = dcc.Slider(
             id=self.id,
-            min=self.var_def.min_value,
-            max=self.var_def.max_value,
-            step=self.step,
-            value=self.var_def.default_value,
+            min=min_value,
+            max=max_value,
+            step=step,
+            value=value,
             marks={
                 self.var_def.min_value: {"label": "min"},
                 self.var_def.max_value: {"label": "max"},
@@ -163,7 +172,7 @@ class Slider(VarDefComponent):
             tooltip={
                 "placement": "bottom",
                 "always_visible": True,
-                "style": {"fontSize": "30px", "fontFamily": S.text_fontfamily},
+                "style": {"fontSize": "25px", "fontFamily": S.text_fontfamily},
             },
         )
 
@@ -285,10 +294,15 @@ class MriSliders(ComponentGroup):
 class MriGraphRow(GraphRow):
     # NB: just syntax sugar
 
-    def __init__(self):
+    def __init__(self, index_ordering=(0, 1, 2)):
         titles = ("Side View", "Front View", "Top View")
         x_labels = ("Y", "X", "X")
         y_labels = ("Z", "Z", "Y")
+
+        titles = [titles[index] for index in index_ordering]
+        x_labels = [x_labels[index] for index in index_ordering]
+        y_labels = [y_labels[index] for index in index_ordering]
+
         graphs = [
             Graph(
                 id_="plot",
@@ -321,7 +335,7 @@ class MriExplorer(BaseComponentGroup):
         id_prefix="",
     ):
         if graph_row is None:
-            graph_row = MriGraphRow()
+            graph_row = MriGraphRow(index_ordering=list(range(len(sliders) - 1)))
 
         # TODO: used to train the model and to update the controller
         self.mri_data = mri_data
@@ -332,12 +346,12 @@ class MriExplorer(BaseComponentGroup):
         # NB: an output view of the brain data
         self.graph_row = graph_row
         # NB: a model of the brain data
-        self.mri_model = MriSlices(self.mri_data)
+        self.mri_model = MriSlicesLookup(self.mri_data)
 
         # NB: a view of the hormones data
         self.session_info = session_info
         # NB: a model of the hormones data
-        self.session_info_model = PdDfLookupModel(
+        self.session_info_model = PdDfLookup(
             df=hormones_df,
             output_keys=[elem.var_def.id for elem in session_info],
             tar=1,
@@ -402,7 +416,7 @@ class MriExplorer(BaseComponentGroup):
             [
                 dbc.Stack(
                     session_info,
-                    gap=3,
+                    gap=0,
                 )
             ],
             body=True,

@@ -141,33 +141,4 @@ class Truncater(PreprocessingStep):
         return data[: self.value]
 
 
-class Data:
-    # TODO: delete?
-    def __init__(self, X, y=None):
-        self.X = X
-        self.y = y
-
-    def __getitem__(self, index):
-        # TODO: check
-        if index == 0:
-            return self.X
-
-        elif index == 1:
-            return self.y
-
-        raise IndexError("Index can only be 1 or 2")
-
-
-class ModelLoader(DataLoader):
-    # TODO: create variants
-
-    def __init__(self, data, model):
-        self.data = data
-        self.model = model
-
-    def load(self):
-        X, y = self.data
-
-        # TODO: fit only if data?
-        # TODO: wrap if pd?
-        return self.model.fit(X, y=y)
+# TODO: add MergeByHash

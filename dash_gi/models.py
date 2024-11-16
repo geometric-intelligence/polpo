@@ -3,18 +3,22 @@ import copy
 
 import numpy as np
 
-# TODO: think about where to place these models
-
 
 class Model(abc.ABC):
-    # TODO: a model may be a `Representation` (following dash-vtk)
-
     @abc.abstractmethod
     def predict(self, X):
         pass
 
 
-class ConstantOutputModel(Model):
+class ModelFactory(abc.ABC):
+    @abc.abstractmethod
+    def create(self):
+        # returns a `Model`
+        pass
+
+
+class ConstantOutput(Model):
+    # for debugging
     def __init__(self, value):
         super().__init__()
         self.value = value
@@ -23,7 +27,7 @@ class ConstantOutputModel(Model):
         return self.value
 
 
-class ListLookupModel(Model):
+class ListLookup(Model):
     def __init__(self, data, tar=0):
         super().__init__()
         self.data = data
@@ -34,7 +38,7 @@ class ListLookupModel(Model):
         return self.data[X[0] - self.tar]
 
 
-class PdDfLookupModel(Model):
+class PdDfLookup(Model):
     def __init__(self, df, output_keys, tar=0):
         super().__init__()
         self.df = df
@@ -51,24 +55,27 @@ class PdDfLookupModel(Model):
         return [df_session.get(key) for key in self.output_keys]
 
 
-class MriSlices(Model):
-    def __init__(self, data, index_tar=1):
+class MriSlicesLookup(Model):
+    def __init__(self, data, index_tar=1, index_ordering=(0, 1, 2)):
         self.data = data
         self.index_tar = index_tar
+        self.index_ordering = index_ordering
 
     def predict(self, X):
-        index, x, y, z = X
+        index, *slice_indices = X
 
         datum = self.data[index - self.index_tar]
-        slice_0 = datum[x, :, :]
-        slice_1 = datum[:, y, :]
-        slice_2 = datum[:, :, z]
 
-        common_width = max(len(slice_0[:, 0]), len(slice_1[:, 0]), len(slice_2[:, 0]))
-        common_height = max(len(slice_0[0]), len(slice_1[0]), len(slice_2[0]))
+        slices = []
+        for index, slice_index in zip(self.index_ordering, slice_indices):
+            slicing_indices = [slice(None)] * 3
+            slicing_indices[index] = slice_index
+            slices.append(datum[tuple(slicing_indices)])
 
-        slices = [slice_0, slice_1, slice_2]
-        for i_slice, slice_ in enumerate([slice_0, slice_1, slice_2]):
+        common_width = max([len(slice_[:, 0]) for slice_ in slices])
+        common_height = max([len(slice_[0]) for slice_ in slices])
+
+        for i_slice, slice_ in enumerate(slices):
             if len(slice_[:, 0]) < common_width:
                 diff = common_width - len(slice_[:, 0])
                 slice_ = np.pad(
