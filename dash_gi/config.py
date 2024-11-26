@@ -1,5 +1,6 @@
 from hydra.utils import instantiate
 from omegaconf import OmegaConf
+from omegaconf.errors import UnsupportedInterpolationType
 
 
 def register_dict_lookup_resolver(var_name, dict_):
@@ -22,10 +23,22 @@ def _instantiate_dict_from_config(cfg, name=None, instantiate_func=None):
     if instantiate_func is None:
         instantiate_func = _instantiate
 
-    dict_ = {key: instantiate_func(key, value) for key, value in cfg.items()}
+    dict_ = {}
+    missing = {}
+    for key, value in cfg.items():
+        try:
+            dict_[key] = instantiate_func(key, value)
 
-    if name is not None:
-        register_dict_lookup_resolver(name, dict_)
+        except UnsupportedInterpolationType:
+            missing[key] = value
+
+    if name is None:
+        return dict_
+
+    register_dict_lookup_resolver(name, dict_)
+    other = _instantiate_dict_from_config(cfg, instantiate_func=instantiate_func)
+
+    dict_.update(other)
 
     return dict_
 
