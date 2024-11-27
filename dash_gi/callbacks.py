@@ -75,7 +75,7 @@ def create_button_toggler_for_view_model_update(
 
         show_index = n_clicks % n_components
         model = models[show_index]
-        model_args = args[indices[show_index] : args[show_index + 1]]
+        model_args = args[indices[show_index] : indices[show_index + 1]]
 
         out[show_index] = {"display": "block"}
         pred = model.predict(model_args)
