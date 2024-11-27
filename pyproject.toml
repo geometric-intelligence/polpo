@@ -30,7 +30,8 @@ mri = ["nibabel", "scikit-image"]
 mesh = ["trimesh", "fast_simplification", "scikit-learn"]
 dataframe = ["pandas"]
 preprocessing = "dash_gi[mri,mesh,dataframe]"
-
+hydra = ["hydra", "omegaconf"]
+all = ["dash_gi[preprocessing,omegaconf]"]
 
 [project.urls]
 repository = "http://github.com/luisfpereira/dash-gi"
