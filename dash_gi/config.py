@@ -8,7 +8,7 @@ def register_dict_lookup_resolver(var_name, dict_):
 
 
 def _instantiate(key, value, key_name=None):
-    kwargs = {} if key_name is None else {key_name: value}
+    kwargs = {} if key_name is None else {key_name: key}
 
     return instantiate(value, **kwargs)
 
