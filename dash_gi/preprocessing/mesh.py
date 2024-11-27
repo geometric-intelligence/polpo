@@ -1,3 +1,4 @@
+import copy
 import os
 
 import fast_simplification
@@ -59,6 +60,33 @@ class MeshScaler(PreprocessingStep):
 
     def apply(self, mesh):
         mesh.vertices = mesh.vertices / self.scaling_factor
+        return mesh
+
+
+class ToVertices(PreprocessingStep):
+    def apply(self, mesh):
+        return mesh.vertices
+
+
+class ToFaces(PreprocessingStep):
+    def apply(self, mesh):
+        return mesh.faces
+
+
+class FromCombinatorialStructure(PreprocessingStep):
+    def __init__(self, mesh=None):
+        self.mesh = mesh
+
+    def apply(self, data):
+        if self.mesh is None:
+            mesh, vertices = data
+        else:
+            mesh = self.mesh
+            vertices = data
+
+        mesh = copy.copy(mesh)
+        mesh.vertices = vertices
+
         return mesh
 
 

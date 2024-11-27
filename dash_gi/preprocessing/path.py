@@ -1,3 +1,5 @@
+"""Preprocessing steps involving files."""
+
 import os
 import warnings
 
@@ -5,17 +7,49 @@ from .base import PreprocessingStep
 
 
 class FileRule(PreprocessingStep):
+    """File rule.
+
+    Parameters
+    ----------
+    value : str
+        Value to call ``func`` on.
+    func : callable
+        ``str`` function that outputs a boolean.
+    """
+
     def __init__(self, value, func="startswith"):
         super().__init__()
         self.value = value
         self.func = func
 
     def apply(self, file):
+        """Apply step.
+
+        Parameters
+        ----------
+        file : str
+
+        Returns
+        -------
+        bool
+        """
         func = getattr(file, self.func)
         return func(self.value)
 
 
 class FileFinder(PreprocessingStep):
+    """Find files given rules.
+
+    Parameters
+    ----------
+    data_dir : str
+        Searching directory.
+    rules : list[FileRule]
+        Rules to filter files with.
+    warn : bool
+        Whether to warn if can't find file.
+    """
+
     def __init__(self, data_dir=None, rules=(), warn=True):
         super().__init__()
         self.data_dir = data_dir
@@ -23,7 +57,18 @@ class FileFinder(PreprocessingStep):
         self.warn = warn
 
     def apply(self, data=None):
-        data_dir = data or self.data_dir
+        """Apply step.
+
+        Parameters
+        ----------
+        data_dir : str
+            Searching directory.
+
+        Returns
+        -------
+        list[str] or str
+        """
+        data_dir = self.data_dir or data
 
         files = os.listdir(data_dir)
 
@@ -43,19 +88,59 @@ class FileFinder(PreprocessingStep):
 
 
 class Path(PreprocessingStep):
+    """Get a path.
+
+    Parameters
+    ----------
+    path : str
+        Path.
+    """
+
     def __init__(self, path):
         super().__init__()
         self.path = path
 
-    def apply(self, data=None):
-        return data or self.path
+    def apply(self, path=None):
+        """Apply step.
+
+        Parameters
+        ----------
+        path : str
+            Path.
+
+        Returns
+        -------
+        str
+        """
+        return self.path or path
 
 
 class PathShortener(PreprocessingStep):
-    def __init__(self, init_index=-2, last_index=-1):
+    """Shorten path.
+
+    Parameters
+    ----------
+    init_index : int
+        Initial index for concatenation.
+    last_index : int
+        Last index for concatenation.
+    """
+
+    def __init__(self, init_index=-1, last_index=None):
         self.init_index = init_index
         self.last_index = last_index
 
-    def apply(self, path_name):
-        path_ls = path_name.split(os.path.sep)
+    def apply(self, path):
+        """Apply step.
+
+        Parameters
+        ----------
+        path : str
+            Path name.
+
+        Returns
+        -------
+        str
+        """
+        path_ls = path.split(os.path.sep)
         return f"{os.path.sep}".join(path_ls[self.init_index : self.last_index])

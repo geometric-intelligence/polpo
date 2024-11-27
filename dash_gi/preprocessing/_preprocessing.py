@@ -4,39 +4,70 @@ from tqdm import tqdm
 from .base import DataLoader, PreprocessingStep
 
 
-class PipelineDataLoader(DataLoader):
-    # TODO: accept multiple pipelines? e.g. store info
-    def __init__(self, pipeline):
-        self.pipeline = pipeline
-
-    def load(self):
-        return self.pipeline.apply()
-
-
-class Pipeline(PreprocessingStep):
-    def __init__(self, steps):
+class Pipeline(PreprocessingStep, DataLoader):
+    def __init__(self, steps, data=None):
         super().__init__()
         self.steps = steps
+        self.data = data
 
     def apply(self, data=None):
+        if self.data is not None:
+            data = self.data
+
         out = data
         for step in self.steps:
             out = step.apply(out)
 
         return out
 
+    def load(self):
+        return self.apply()
+
 
 class ParallelPipeline(PreprocessingStep):
-    def __init__(self, pipelines):
+    def __init__(self, pipelines, merger=None):
+        if merger is None:
+            merger = NestingSwapper()
+
         super().__init__()
         self.pipelines = pipelines
+        self.merger = merger
 
     def apply(self, data):
         out = []
         for pipeline in self.pipelines:
             out.append(pipeline.apply(data))
 
-        return list(zip(*out))
+        return self.merger(out)
+
+
+class IdentityStep(PreprocessingStep):
+    def apply(self, data=None):
+        return data
+
+
+class NestingSwapper(PreprocessingStep):
+    def apply(self, data):
+        return list(zip(*data))
+
+
+class HashMerger(PreprocessingStep):
+    # NB: not shared keys are ignored
+
+    def _collect_shared_keys(self, data):
+        keys = set(data[0].keys())
+        for datum in data[1:]:
+            keys = keys.intersection(set(datum.keys()))
+
+        return keys
+
+    def apply(self, data):
+        shared_keys = self._collect_shared_keys(data)
+        out = []
+        for key in shared_keys:
+            out.append([datum[key] for datum in data])
+
+        return out
 
 
 class IndexSelector(PreprocessingStep):
@@ -53,6 +84,14 @@ class IndexSelector(PreprocessingStep):
         return selected
 
 
+class ListSqueeze(PreprocessingStep):
+    def apply(self, data):
+        if len(data) != 1:
+            raise ValueError("Unsqueezable!")
+
+        return data[0]
+
+
 class HashWithIncoming(PreprocessingStep):
     def __init__(self, step):
         super().__init__()
@@ -62,6 +101,27 @@ class HashWithIncoming(PreprocessingStep):
         new_data = self.step.apply(data)
 
         return {datum: new_datum for datum, new_datum in zip(data, new_data)}
+
+
+class Hash(PreprocessingStep):
+    def __init__(self, key_index=0):
+        super().__init__()
+        self.key_index = key_index
+
+    def apply(self, data):
+        new_data = {}
+        for datum in data:
+            if not isinstance(datum, list):
+                datum = list(datum)
+
+            key = datum.pop(self.key_index)
+
+            if len(datum) == 1:
+                datum = datum[0]
+
+            new_data[key] = datum
+
+        return new_data
 
 
 class TupleWithIncoming(PreprocessingStep):
@@ -98,6 +158,18 @@ class NoneRemover(Filter):
         super().__init__(func=lambda x: x is not None)
 
 
+class ToList(PreprocessingStep):
+    # TODO: better naming?
+    def apply(self, data):
+        return [data]
+
+
+class DictToValues(PreprocessingStep):
+    # TODO: better naming
+    def apply(self, data):
+        return list(data.values())
+
+
 class SerialMap(PreprocessingStep):
     def __init__(self, step, pbar=False):
         super().__init__()
@@ -130,6 +202,33 @@ class Map:
         return SerialMap(step, pbar=verbose > 0)
 
 
+class HashMap(PreprocessingStep):
+    def __init__(self, step, pbar=False):
+        super().__init__()
+        self.step = step
+        self.pbar = pbar
+
+    def apply(self, data):
+        out = {}
+        for key, datum in tqdm(data.items(), disable=not self.pbar):
+            out[key] = self.step.apply(datum)
+
+        return out
+
+
+class IndexMap(PreprocessingStep):
+    # TODO: name is confusing
+    def __init__(self, step, index=0):
+        super().__init__()
+        self.step = step
+        self.index = index
+
+    def apply(self, data):
+        data[self.index] = self.step.apply(data[self.index])
+
+        return data
+
+
 class Truncater(PreprocessingStep):
     # useful for debugging
 
@@ -139,6 +238,3 @@ class Truncater(PreprocessingStep):
 
     def apply(self, data):
         return data[: self.value]
-
-
-# TODO: add MergeByHash
