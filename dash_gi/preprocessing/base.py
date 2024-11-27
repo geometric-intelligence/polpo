@@ -4,16 +4,22 @@ import abc
 
 
 class DataLoader(abc.ABC):
+    """Data loader."""
+
     @abc.abstractmethod
     def load(self):
+        """Load data."""
         pass
 
 
 class PreprocessingStep(abc.ABC):
+    """Preprocessing step."""
+
     @abc.abstractmethod
     def apply(self, data):
+        """Apply step."""
         # takes one argument; name is irrelevant
-        pass
 
     def __call__(self, data=None):
-        return self.load(data=data)
+        """Apply step."""
+        return self.apply(data=data)
