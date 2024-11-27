@@ -3,10 +3,27 @@ import copy
 
 import numpy as np
 
+from .preprocessing import (
+    IdentityStep,
+    IndexSelector,
+    ListSqueeze,
+    Map,
+    ParallelPipeline,
+    Pipeline,
+)
+from .preprocessing.mesh import FromCombinatorialStructure, ToVertices
+from .preprocessing.np import AtLeast2d, Stack, ToArray
+
 
 class Model(abc.ABC):
     @abc.abstractmethod
     def predict(self, X):
+        pass
+
+
+class SklearnLikeModel(Model, abc.ABC):
+    @abc.abstractmethod
+    def fit(self, X, y=None):
         pass
 
 
@@ -92,12 +109,74 @@ class MriSlicesLookup(Model):
         return slices
 
 
-class LinearMeshVertexScaling(Model):
-    def __init__(self, mesh):
-        self.mesh = mesh
-        self._updatable_mesh = copy.deepcopy(mesh)
+class VertexBasedMeshRegressor(SklearnLikeModel):
+    # TODO: split into pipeline based? check sklearn
+    def __init__(
+        self, vertex_model, meshes2vertices=None, x2x=None, vertices2meshes=None
+    ):
+        super().__init__()
+        if meshes2vertices is None:
+            meshes2vertices = Pipeline(
+                steps=[
+                    Map(step=Pipeline([ToVertices(), ToArray()])),
+                    Stack(),
+                ]
+            )
+
+        if x2x is None:
+            # x2x = Pipeline(steps=[ToArray(), Reshape(shape=(-1, 1))])
+            # TODO: update
+            x2x = Pipeline(steps=[ToArray(), AtLeast2d()])
+
+        if vertices2meshes is None:
+            vertices2meshes = Pipeline(
+                steps=[
+                    ParallelPipeline(
+                        pipelines=[
+                            Pipeline([IndexSelector(index=0, repeat=True)]),
+                            IndexSelector(index=1),
+                        ]
+                    ),
+                    Map(step=FromCombinatorialStructure()),
+                    ListSqueeze(),
+                ]
+            )
+
+        self.vertex_model = vertex_model
+        self.meshes2vertices = meshes2vertices
+        self.x2x = x2x
+        self.vertices2meshes = vertices2meshes
+
+        self._template_mesh = None
+
+    def fit(self, X, y):
+        X = self.x2x(X)
+        vertices = self.meshes2vertices(y)
+        self._template_mesh = y[0]
+
+        self.vertex_model.fit(X, vertices)
+
+        return self
 
     def predict(self, X):
-        # NB: expects a (int,)
-        self._updatable_mesh.vertices = X[0] * self.mesh.vertices
-        return self._updatable_mesh
+        X = self.x2x(X)
+        vertices = self.vertex_model.predict(X)
+
+        return self.vertices2meshes((self._template_mesh, vertices))
+
+
+class SklearnLikeModelFactory(ModelFactory):
+    # TODO: inherit from some pipeline based factory?
+
+    def __init__(self, model, data, pipeline=None):
+        self.model = model
+        self.data = data
+
+        if pipeline is None:
+            pipeline = IdentityStep()
+
+        self.pipeline = pipeline
+
+    def create(self):
+        X, y = self.pipeline(self.data)
+        return self.model.fit(X=X, y=y)
