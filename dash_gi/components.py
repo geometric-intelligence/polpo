@@ -443,7 +443,8 @@ class MriExplorer(BaseComponentGroup):
 class MeshExplorer(BaseComponentGroup):
     def __init__(
         self,
-        mesh_data,
+        week_mesh_model,
+        hormones_mesh_model,
         graph,
         hormone_sliders,
         week_sliders,
@@ -453,11 +454,8 @@ class MeshExplorer(BaseComponentGroup):
         self.graph = graph
         self.hormone_sliders = hormone_sliders
         self.week_sliders = week_sliders
-
-        # TODO: an experiment, just for debugging
-        # TODO: need to ensure number of elements in the list is proper
-        self.week_mesh_model = ListLookupModel(mesh_data)
-        self.hormone_mesh_model = ConstantOutputModel(mesh_data[0])
+        self.week_mesh_model = week_mesh_model
+        self.hormones_mesh_model = hormones_mesh_model
 
         super().__init__(
             [self.graph, self.hormone_sliders, self.week_sliders], id_prefix=id_prefix
@@ -549,7 +547,7 @@ class MeshExplorer(BaseComponentGroup):
         create_button_toggler_for_view_model_update(
             output_view=self.graph,
             input_views=[self.week_sliders, self.hormone_sliders],
-            models=[self.week_mesh_model, self.hormone_mesh_model],
+            models=[self.week_mesh_model, self.hormones_mesh_model],
             toggle_id=toggle_id,
             hideable_components=[week_slider_card, hormone_sliders_card],
         )
