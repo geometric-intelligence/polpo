@@ -36,7 +36,7 @@ def _instantiate_dict_from_config(cfg, name=None, instantiate_func=None):
         return dict_
 
     register_dict_lookup_resolver(name, dict_)
-    other = _instantiate_dict_from_config(cfg, instantiate_func=instantiate_func)
+    other = _instantiate_dict_from_config(missing, instantiate_func=instantiate_func)
 
     dict_.update(other)
 
