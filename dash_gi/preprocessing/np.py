@@ -13,6 +13,11 @@ class AtLeast2d(PreprocessingStep):
         return np.atleast_2d(data)
 
 
+class Squeeze(PreprocessingStep):
+    def apply(self, data):
+        return np.squeeze(data)
+
+
 class Stack(PreprocessingStep):
     def __init__(self, axis=0):
         super().__init__()
@@ -29,3 +34,8 @@ class Reshape(PreprocessingStep):
 
     def apply(self, data):
         return np.reshape(data, self.shape)
+
+
+class FlattenButFirst(PreprocessingStep):
+    def apply(self, data):
+        return np.reshape(data, (data.shape[0], -1))

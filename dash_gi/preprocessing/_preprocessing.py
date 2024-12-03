@@ -16,7 +16,7 @@ class Pipeline(PreprocessingStep, DataLoader):
 
         out = data
         for step in self.steps:
-            out = step.apply(out)
+            out = step(out)
 
         return out
 
@@ -85,9 +85,15 @@ class IndexSelector(PreprocessingStep):
 
 
 class ListSqueeze(PreprocessingStep):
+    def __init__(self, raise_=True):
+        self.raise_ = raise_
+
     def apply(self, data):
         if len(data) != 1:
-            raise ValueError("Unsqueezable!")
+            if self.raise_:
+                raise ValueError("Unsqueezable!")
+            else:
+                return data
 
         return data[0]
 

@@ -22,4 +22,4 @@ class PreprocessingStep(abc.ABC):
 
     def __call__(self, data=None):
         """Apply step."""
-        return self.apply(data=data)
+        return self.apply(data)
