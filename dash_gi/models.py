@@ -1,28 +1,20 @@
 import abc
 
 import numpy as np
+from sklearn.pipeline import Pipeline as SklearnPipeline
+from sklearn.preprocessing import FunctionTransformer
 
-from .preprocessing import (
-    IdentityStep,
-    IndexSelector,
-    ListSqueeze,
-    Map,
-    ParallelPipeline,
-    Pipeline,
-)
-from .preprocessing.mesh import FromCombinatorialStructure, ToVertices
-from .preprocessing.np import AtLeast2d, Stack, ToArray
+from .preprocessing import IdentityStep, ListSqueeze, Pipeline
+from .preprocessing.np import AtLeast2d, Squeeze, Stack, ToArray
+from .preprocessing.sklearn.adapter import InvertiblePipeline, TransformerAdapter
+from .preprocessing.sklearn.compose import TransformedTargetRegressor
+from .preprocessing.sklearn.mesh import InvertibleMeshesToVertices
+from .preprocessing.sklearn.np import InvertibleFlattenButFirst
 
 
 class Model(abc.ABC):
     @abc.abstractmethod
     def predict(self, X):
-        pass
-
-
-class SklearnLikeModel(Model, abc.ABC):
-    @abc.abstractmethod
-    def fit(self, X, y=None):
         pass
 
 
@@ -108,60 +100,40 @@ class MriSlicesLookup(Model):
         return slices
 
 
-class VertexBasedMeshRegressor(SklearnLikeModel):
-    # TODO: split into pipeline based? check sklearn
-    def __init__(
-        self, vertex_model, meshes2vertices=None, x2x=None, vertices2meshes=None
-    ):
-        super().__init__()
-        if meshes2vertices is None:
-            meshes2vertices = Pipeline(
-                steps=[
-                    Map(step=Pipeline([ToVertices(), ToArray()])),
-                    Stack(),
-                ]
-            )
+class VertexBasedMeshRegressor(SklearnPipeline):
+    # just syntax sugar
 
+    def __init__(self, vertex_model, x2x=None, meshes2vertices=None):
         if x2x is None:
-            # x2x = Pipeline(steps=[ToArray(), Reshape(shape=(-1, 1))])
-            # TODO: update
-            x2x = Pipeline(steps=[ToArray(), AtLeast2d()])
+            x2x = TransformerAdapter(Pipeline(steps=[ToArray(), AtLeast2d()]))
 
-        if vertices2meshes is None:
-            vertices2meshes = Pipeline(
+        if meshes2vertices is None:
+            meshes2vertices = InvertiblePipeline(
                 steps=[
-                    ParallelPipeline(
-                        pipelines=[
-                            Pipeline([IndexSelector(index=0, repeat=True)]),
-                            IndexSelector(index=1),
-                        ]
-                    ),
-                    Map(step=FromCombinatorialStructure()),
-                    ListSqueeze(),
-                ]
+                    FunctionTransformer(func=Squeeze()),  # undo sklearn 2d
+                    FunctionTransformer(inverse_func=ListSqueeze(raise_=False)),
+                    InvertibleMeshesToVertices(),
+                    FunctionTransformer(func=Stack()),
+                    InvertibleFlattenButFirst(),
+                ],
             )
 
-        self.vertex_model = vertex_model
-        self.meshes2vertices = meshes2vertices
         self.x2x = x2x
-        self.vertices2meshes = vertices2meshes
+        self.meshes2vertices = meshes2vertices
+        self.vertex_model = vertex_model
 
-        self._template_mesh = None
+        vertex_model = TransformedTargetRegressor(
+            regressor=vertex_model,
+            transformer=meshes2vertices,
+            check_inverse=False,
+        )
 
-    def fit(self, X, y):
-        X = self.x2x(X)
-        vertices = self.meshes2vertices(y)
-        self._template_mesh = y[0]
-
-        self.vertex_model.fit(X, vertices)
-
-        return self
-
-    def predict(self, X):
-        X = self.x2x(X)
-        vertices = self.vertex_model.predict(X)
-
-        return self.vertices2meshes((self._template_mesh, vertices))
+        super().__init__(
+            steps=[
+                ("preprocessing", x2x),
+                ("model", vertex_model),
+            ]
+        )
 
 
 class SklearnLikeModelFactory(ModelFactory):
