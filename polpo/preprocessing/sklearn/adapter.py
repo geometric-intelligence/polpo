@@ -1,7 +1,7 @@
 from sklearn.base import TransformerMixin
 from sklearn.preprocessing import FunctionTransformer
 
-from dash_gi.preprocessing import Pipeline
+from polpo.preprocessing import Pipeline
 
 
 class TransformerAdapter(TransformerMixin):

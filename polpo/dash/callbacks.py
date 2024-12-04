@@ -1,6 +1,6 @@
 from dash import Input, callback
 
-from .utils import unnest_list
+from polpo.utils import unnest_list
 
 
 def create_view_model_update(

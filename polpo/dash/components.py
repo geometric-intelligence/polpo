@@ -6,19 +6,18 @@ import dash_bootstrap_components as dbc
 import plotly.graph_objects as go
 from dash import Input, Output, dcc, html
 
+from polpo.models import (
+    MriSlicesLookup,
+    PdDfLookup,
+)
+from polpo.plot import SlicePlotter
+from polpo.utils import unnest_list
+
 from .callbacks import (
     create_button_toggler_for_view_model_update,
     create_view_model_update,
 )
-from .models import (
-    ConstantOutput,
-    ListLookup,
-    MriSlicesLookup,
-    PdDfLookup,
-)
-from .plot import SlicePlotter
 from .style import STYLE as S
-from .utils import unnest_list
 
 
 class Component(abc.ABC):

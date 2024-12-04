@@ -1,4 +1,4 @@
-from dash_gi.hydra import (
+from polpo.hydra import (
     instantiate_dict_from_config,
     key_value_instantiate,
     operate_after_instantiate,

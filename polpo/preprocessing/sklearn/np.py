@@ -1,6 +1,6 @@
 from sklearn.preprocessing import FunctionTransformer
 
-from dash_gi.preprocessing.np import FlattenButFirst, Reshape
+from polpo.preprocessing.np import FlattenButFirst, Reshape
 
 
 class InvertibleFlattenButFirst(FunctionTransformer):
