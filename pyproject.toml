@@ -4,10 +4,10 @@ build-backend = "setuptools.build_meta"
 
 [project]
 authors = [{ name = "Luís F. Pereira", email = "luisfpereira@ucsb.edu" }]
-name = "dash_gi"
+name = "polpo"
 dynamic = ["version"]
 readme = "README.rst"
-description = "Dash in the geometric intelligence lab."
+description = "A Geometric Intelligence Lab's collection of weakly-related tools."
 license = { file = "LICENSE.md" }
 classifiers = [
     "License :: OSI Approved :: MIT License",
@@ -16,31 +16,26 @@ classifiers = [
     "Programming Language :: Python :: 3",
 ]
 requires-python = ">= 3.9"
-dependencies = [
-    "dash",
-    "tdqm",
-    "numpy",
-    "joblib",
-    "plotly",
-    "dash-bootstrap-components",
-]
+dependencies = ["tdqm", "numpy", "joblib"]
 
 [project.optional-dependencies]
+dash = ["dash", "dash-bootstrap-components"]
+plot = ["plotly"]
 mri = ["nibabel", "scikit-image"]
 mesh = ["trimesh", "fast_simplification", "scikit-learn"]
 dataframe = ["pandas"]
-preprocessing = ["dash_gi[mri,mesh,dataframe]"]
-hydra = ["hydra", "omegaconf"]
-all = ["dash_gi[preprocessing,omegaconf]"]
+preprocessing = ["polpo[mri,mesh,dataframe]"]
+hydra = ["hydra-core", "omegaconf"]
+all = ["polpo[dash,plot,preprocessing,hydra]"]
 
 [project.urls]
-repository = "http://github.com/luisfpereira/dash-gi"
+repository = "http://github.com/luisfpereira/polpo"
 
 [tool.setuptools.dynamic]
-version = { attr = "dash_gi.__version__" }
+version = { attr = "polpo.__version__" }
 
 [tool.setuptools.packages.find]
-include = ["dash_gi", "dash_gi.*"]
+include = ["polpo", "polpo.*"]
 
 [tool.ruff]
 extend-include = ["*.ipynb"]
