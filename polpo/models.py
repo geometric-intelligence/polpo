@@ -1,12 +1,15 @@
 import abc
 
 import numpy as np
+from sklearn.decomposition import PCA
+from sklearn.linear_model import LinearRegression
 from sklearn.pipeline import Pipeline as SklearnPipeline
-from sklearn.preprocessing import FunctionTransformer
+from sklearn.preprocessing import FunctionTransformer, StandardScaler
 
-from .preprocessing import IdentityStep, ListSqueeze, Pipeline
+from .preprocessing import IdentityStep, ListSqueeze
 from .preprocessing.np import AtLeast2d, Squeeze, Stack, ToArray
-from .preprocessing.sklearn.adapter import InvertiblePipeline, TransformerAdapter
+from .preprocessing.sklearn.adapter import AdapterPipeline, InvertiblePipeline
+from .preprocessing.sklearn.base import GetParamsMixin
 from .preprocessing.sklearn.compose import TransformedTargetRegressor
 from .preprocessing.sklearn.mesh import InvertibleMeshesToVertices
 from .preprocessing.sklearn.np import InvertibleFlattenButFirst
@@ -100,13 +103,40 @@ class MriSlicesLookup(Model):
         return slices
 
 
-class VertexBasedMeshRegressor(SklearnPipeline):
+class ObjectRegressor(GetParamsMixin, SklearnPipeline):
     # just syntax sugar
 
-    def __init__(self, vertex_model, x2x=None, meshes2vertices=None):
-        if x2x is None:
-            x2x = TransformerAdapter(Pipeline(steps=[ToArray(), AtLeast2d()]))
+    def __init__(self, model, x2x=None, objs2y=None, x_scaler=None):
+        # TODO: add warning?
+        # x_scaler is ignored if x2x is not None
 
+        if model is None:
+            model = LinearRegression()
+
+        if x2x is None:
+            steps = [ToArray(), AtLeast2d()]
+            if x_scaler is not None:
+                steps.append(x_scaler)
+            x2x = AdapterPipeline(steps=steps)
+
+        tmodel = TransformedTargetRegressor(
+            regressor=model,
+            transformer=objs2y,
+            check_inverse=False,
+        )
+
+        super().__init__(
+            steps=[
+                ("preprocessing", x2x),
+                ("model", tmodel),
+            ]
+        )
+
+
+class VertexBasedMeshRegressor(ObjectRegressor):
+    # just syntax sugar
+
+    def __init__(self, model=None, x2x=None, meshes2vertices=None, x_scaler=None):
         if meshes2vertices is None:
             meshes2vertices = InvertiblePipeline(
                 steps=[
@@ -118,22 +148,45 @@ class VertexBasedMeshRegressor(SklearnPipeline):
                 ],
             )
 
-        self.x2x = x2x
-        self.meshes2vertices = meshes2vertices
-        self.vertex_model = vertex_model
+        super().__init__(model, x2x=x2x, objs2y=meshes2vertices, x_scaler=x_scaler)
 
-        vertex_model = TransformedTargetRegressor(
-            regressor=vertex_model,
-            transformer=meshes2vertices,
-            check_inverse=False,
-        )
 
-        super().__init__(
-            steps=[
-                ("preprocessing", x2x),
-                ("model", vertex_model),
-            ]
-        )
+class DimReductionBasedMeshRegressor(ObjectRegressor):
+    # just syntax sugar
+
+    def __init__(
+        self,
+        model=None,
+        x2x=None,
+        meshes2components=None,
+        y_scaler=None,
+        dim_reduction=None,
+        x_scaler=None,
+    ):
+        # TODO: add warning?
+        # y_scaler is ignored if mesh2components is not None
+        # dim_reduction is ignored if mesh2components is not None
+
+        if y_scaler is None:
+            y_scaler = StandardScaler(with_std=False)
+
+        if dim_reduction is None:
+            dim_reduction = PCA()
+
+        if meshes2components is None:
+            meshes2components = InvertiblePipeline(
+                steps=[
+                    FunctionTransformer(func=Squeeze()),  # undo sklearn 2d
+                    FunctionTransformer(inverse_func=ListSqueeze(raise_=False)),
+                    InvertibleMeshesToVertices(),
+                    FunctionTransformer(func=Stack()),
+                    InvertibleFlattenButFirst(),
+                    y_scaler,
+                    dim_reduction,
+                ],
+            )
+
+        super().__init__(model, x2x=x2x, objs2y=meshes2components, x_scaler=x_scaler)
 
 
 class SklearnLikeModelFactory(ModelFactory):

@@ -1,3 +1,5 @@
+import abc
+
 from sklearn.base import TransformerMixin
 from sklearn.preprocessing import FunctionTransformer
 
@@ -15,18 +17,10 @@ class TransformerAdapter(TransformerMixin):
         return self.step(X)
 
 
-class InvertiblePipeline(FunctionTransformer):
-    def __init__(self, steps):
-        # steps: list[FunctionTransformer]
-
+class _PipelineMixin(abc.ABC):
+    def __init__(self, steps, **kwargs):
         self.steps = steps
-        super().__init__(
-            func=Pipeline(steps=[step.transform for step in self.steps]),
-            inverse_func=Pipeline(
-                steps=[step.inverse_transform for step in reversed(self.steps)]
-            ),
-            check_inverse=False,
-        )
+        super().__init__(**kwargs)
 
     def _fit(self, X, y=None):
         for step in self.steps:
@@ -39,3 +33,30 @@ class InvertiblePipeline(FunctionTransformer):
 
     def fit_transform(self, X, y=None):
         return self._fit(X, y)
+
+
+class AdapterPipeline(_PipelineMixin, TransformerMixin):
+    def __init__(self, steps):
+        for index, step in enumerate(steps):
+            if not isinstance(step, TransformerMixin):
+                steps[index] = TransformerAdapter(step)
+
+        super().__init__(steps=steps)
+
+    def transform(self, X):
+        for step in self.steps:
+            X = step.transform(X)
+        return X
+
+
+class InvertiblePipeline(_PipelineMixin, FunctionTransformer):
+    def __init__(self, steps):
+        # steps: list[FunctionTransformer]
+        super().__init__(
+            steps=steps,
+            func=Pipeline(steps=[step.transform for step in steps]),
+            inverse_func=Pipeline(
+                steps=[step.inverse_transform for step in reversed(steps)]
+            ),
+            check_inverse=False,
+        )
