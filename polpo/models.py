@@ -13,6 +13,9 @@ from .preprocessing.sklearn.base import GetParamsMixin
 from .preprocessing.sklearn.compose import TransformedTargetRegressor
 from .preprocessing.sklearn.mesh import InvertibleMeshesToVertices
 from .preprocessing.sklearn.np import InvertibleFlattenButFirst
+from .preprocessing.sklearn.point_cloud import (
+    FittableRegisteredPointCloudSmoothing,
+)
 
 
 class Model(abc.ABC):
@@ -136,13 +139,24 @@ class ObjectRegressor(GetParamsMixin, SklearnPipeline):
 class VertexBasedMeshRegressor(ObjectRegressor):
     # just syntax sugar
 
-    def __init__(self, model=None, x2x=None, meshes2vertices=None, x_scaler=None):
+    def __init__(
+        self,
+        model=None,
+        x2x=None,
+        meshes2vertices=None,
+        x_scaler=None,
+        y_smoother=None,
+    ):
+        if y_smoother is None:
+            y_smoother = FittableRegisteredPointCloudSmoothing(n_neighbors=10)
+
         if meshes2vertices is None:
             meshes2vertices = InvertiblePipeline(
                 steps=[
                     FunctionTransformer(func=Squeeze()),  # undo sklearn 2d
                     FunctionTransformer(inverse_func=ListSqueeze(raise_=False)),
                     InvertibleMeshesToVertices(),
+                    y_smoother,
                     FunctionTransformer(func=Stack()),
                     InvertibleFlattenButFirst(),
                 ],
@@ -160,6 +174,7 @@ class DimReductionBasedMeshRegressor(ObjectRegressor):
         x2x=None,
         meshes2components=None,
         y_scaler=None,
+        y_smoother=None,
         dim_reduction=None,
         x_scaler=None,
     ):
@@ -168,10 +183,16 @@ class DimReductionBasedMeshRegressor(ObjectRegressor):
         # dim_reduction is ignored if mesh2components is not None
 
         if y_scaler is None:
+            # TODO: allow False
             y_scaler = StandardScaler(with_std=False)
 
         if dim_reduction is None:
+            # TODO: allow False
             dim_reduction = PCA()
+
+        if y_smoother is None:
+            # TODO: create identity; allow False
+            y_smoother = FittableRegisteredPointCloudSmoothing(n_neighbors=10)
 
         if meshes2components is None:
             meshes2components = InvertiblePipeline(
@@ -180,6 +201,7 @@ class DimReductionBasedMeshRegressor(ObjectRegressor):
                     FunctionTransformer(inverse_func=ListSqueeze(raise_=False)),
                     InvertibleMeshesToVertices(),
                     FunctionTransformer(func=Stack()),
+                    y_smoother,
                     InvertibleFlattenButFirst(),
                     y_scaler,
                     dim_reduction,
