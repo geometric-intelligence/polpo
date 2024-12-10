@@ -440,87 +440,21 @@ class MriExplorer(BaseComponentGroup):
 
 
 class MeshExplorer(BaseComponentGroup):
-    def __init__(
-        self,
-        week_mesh_model,
-        hormones_mesh_model,
-        graph,
-        hormone_sliders,
-        week_sliders,
-        id_prefix="",
-    ):
-        # TODO: disallow ids and control it from here
+    def __init__(self, graph, model, inputs, id_prefix=""):
         self.graph = graph
-        self.hormone_sliders = hormone_sliders
-        self.week_sliders = week_sliders
-        self.week_mesh_model = week_mesh_model
-        self.hormones_mesh_model = hormones_mesh_model
+        self.model = model
+        self.inputs = inputs
 
-        super().__init__(
-            [self.graph, self.hormone_sliders, self.week_sliders], id_prefix=id_prefix
-        )
-
-        self._toggler_button_id = "button"
-        self._week_sliders_card_id = "gest_week_slider_container"
-        self._hormone_sliders_card_id = "hormone_slider_container"
+        super().__init__([self.graph, self.inputs], id_prefix=id_prefix)
 
     def to_dash(self):
-        instructions_text = dbc.Row(
-            [
-                html.P(
-                    [
-                        "Use the hormone sliders or the gestational week slider to adjust observe the predicted shape changes in the left hippocampal formation.",
-                        html.Br(),
-                    ],
-                    style={
-                        "fontSize": S.text_fontsize,
-                        "fontFamily": S.text_fontfamily,
-                    },
-                ),
-            ],
-        )
-
         graph = self.graph.to_dash()
-        week_sliders = self.week_sliders.to_dash()
-        hormone_sliders = self.hormone_sliders.to_dash()
-
-        week_slider_card = HideableComponent(
-            id_=self._week_sliders_card_id,
-            dash_component=dbc.Card(
-                dbc.Stack(
-                    week_sliders,
-                    gap=3,
-                ),
-                body=True,
-            ),
-            id_prefix=self.id_prefix,
+        inputs_column = dbc.Stack(
+            self.inputs.to_dash(),
+            gap=3,
         )
-
-        hormone_sliders_card = HideableComponent(
-            id_=self._hormone_sliders_card_id,
-            dash_component=dbc.Card(
-                dbc.Stack(
-                    hormone_sliders,
-                    gap=3,
-                ),
-                body=True,
-            ),
-            id_prefix=self.id_prefix,
-        )
-
-        toggle_id = self.prefix(self._toggler_button_id)
-        sliders_column = [
-            html.Button(
-                "Click Here to Toggle Between Gestational Week vs Hormone Value Prediction",
-                id=toggle_id,
-                n_clicks=0,
-            ),
-            dbc.Row(week_slider_card.to_dash()),
-            dbc.Row(hormone_sliders_card.to_dash()),
-        ]
 
         out = [
-            instructions_text,
             dbc.Row(
                 [
                     dbc.Col(
@@ -532,7 +466,77 @@ class MeshExplorer(BaseComponentGroup):
                         width=700,
                     ),
                     dbc.Col(sm=3, width=100),
-                    dbc.Col(sliders_column, sm=4, width=700),
+                    dbc.Col(inputs_column, sm=4, width=700),
+                ],
+                align="center",
+                style={
+                    "marginLeft": S.margin_side,
+                    "marginRight": S.margin_side,
+                    "marginTop": "50px",
+                },
+            ),
+        ]
+
+        create_view_model_update(
+            output_view=self.graph,
+            input_view=self.inputs,
+            model=self.model,
+        )
+
+        return out
+
+
+class MultipleModelsMeshExplorer(BaseComponentGroup):
+    def __init__(
+        self, graph, models, inputs, id_prefix="", button_label="Switch model"
+    ):
+        self.graph = graph
+        self.models = models
+        self.inputs = inputs
+        self.button_label = button_label
+
+        super().__init__([self.graph].extend(self.inputs), id_prefix=id_prefix)
+
+    def to_dash(self):
+        graph = self.graph.to_dash()
+
+        inputs_cards = [
+            HideableComponent(
+                id_=f"{index}_slider_container",
+                dash_component=dbc.Card(
+                    dbc.Stack(
+                        component.to_dash(),
+                        gap=3,
+                    ),
+                    body=True,
+                ),
+                id_prefix=self.id_prefix,
+            )
+            for index, component in enumerate(self.inputs)
+        ]
+
+        toggle_id = self.prefix("switch-model-button")
+        inputs_column = [
+            html.Button(
+                self.button_label,
+                id=toggle_id,
+                n_clicks=0,
+            )
+        ] + [component_card.to_dash() for component_card in inputs_cards]
+
+        out = [
+            dbc.Row(
+                [
+                    dbc.Col(
+                        html.Div(
+                            graph,
+                            style={"paddingTop": "0px"},
+                        ),
+                        sm=4,
+                        width=700,
+                    ),
+                    dbc.Col(sm=3, width=100),
+                    dbc.Col(inputs_column, sm=4, width=700),
                 ],
                 align="center",
                 style={
@@ -545,10 +549,10 @@ class MeshExplorer(BaseComponentGroup):
 
         create_button_toggler_for_view_model_update(
             output_view=self.graph,
-            input_views=[self.week_sliders, self.hormone_sliders],
-            models=[self.week_mesh_model, self.hormones_mesh_model],
+            input_views=self.inputs,
+            models=self.models,
             toggle_id=toggle_id,
-            hideable_components=[week_slider_card, hormone_sliders_card],
+            hideable_components=inputs_cards,
         )
 
         return out
