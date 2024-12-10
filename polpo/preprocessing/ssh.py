@@ -29,7 +29,7 @@ def connect_using_ssh_config(host_name):
     return client
 
 
-class SCPDownloadbleData(PreprocessingStep, CacheableDataLoader):
+class SCPDataLoader(PreprocessingStep, CacheableDataLoader):
     """
 
     Parameters
@@ -53,8 +53,10 @@ class SCPDownloadbleData(PreprocessingStep, CacheableDataLoader):
         super().__init__(use_cache)
 
         if data_dir is None:
-            # TODO: follow geomfum closer on this
             data_dir = DATA_DIR
+
+        if "~" in data_dir:
+            data_dir = os.path.expanduser(data_dir)
 
         self._ssh_client = ssh_client if ssh_client is not None else host_name
         self.remote_path = remote_path
