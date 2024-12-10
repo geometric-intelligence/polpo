@@ -49,8 +49,8 @@ class Dropna(PreprocessingStep):
         self.inplace = True
 
     def apply(self, df):
-        df.dropna(inplace=self.inplace)
-        return df
+        out = df.dropna(inplace=self.inplace)
+        return out or df
 
 
 class DfToDict(PreprocessingStep):
@@ -64,3 +64,20 @@ class DfToDict(PreprocessingStep):
 class SeriesToDict(PreprocessingStep):
     def apply(self, series):
         return series.to_dict()
+
+
+class IndexSetter(PreprocessingStep):
+    def __init__(self, key, inplace=True, drop=False, verify_integrity=True):
+        self.key = key
+        self.inplace = inplace
+        self.drop = drop
+        self.verify_integrity = verify_integrity
+
+    def apply(self, df):
+        out = df.set_index(
+            self.key,
+            inplace=self.inplace,
+            drop=self.drop,
+            verify_integrity=self.verify_integrity,
+        )
+        return out or df
