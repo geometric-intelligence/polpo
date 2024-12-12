@@ -10,7 +10,7 @@ from .preprocessing import IdentityStep, ListSqueeze
 from .preprocessing.np import AtLeast2d, Squeeze, Stack, ToArray
 from .preprocessing.sklearn.adapter import AdapterPipeline, InvertiblePipeline
 from .preprocessing.sklearn.base import GetParamsMixin
-from .preprocessing.sklearn.compose import TransformedTargetRegressor
+from .preprocessing.sklearn.compose import ObjectBasedTransformedTargetRegressor
 from .preprocessing.sklearn.mesh import InvertibleMeshesToVertices
 from .preprocessing.sklearn.np import InvertibleFlattenButFirst
 from .preprocessing.sklearn.point_cloud import (
@@ -122,7 +122,7 @@ class ObjectRegressor(GetParamsMixin, SklearnPipeline):
                 steps.append(x_scaler)
             x2x = AdapterPipeline(steps=steps)
 
-        tmodel = TransformedTargetRegressor(
+        tmodel = ObjectBasedTransformedTargetRegressor(
             regressor=model,
             transformer=objs2y,
             check_inverse=False,

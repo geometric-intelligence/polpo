@@ -1,12 +1,8 @@
-from sklearn.compose import (
-    TransformedTargetRegressor as SklearnTransformedTargetRegressor,
-)
+from sklearn.compose import TransformedTargetRegressor
 from sklearn.utils.validation import check_is_fitted
 
 
-class TransformedTargetRegressor(SklearnTransformedTargetRegressor):
-    # TODO: bring change to sklearn?
-
+class ObjectBasedTransformedTargetRegressor(TransformedTargetRegressor):
     def predict(self, X, **predict_params):
         """Predict using the base regressor, applying inverse.
 
