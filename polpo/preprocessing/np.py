@@ -39,3 +39,14 @@ class Reshape(PreprocessingStep):
 class FlattenButFirst(PreprocessingStep):
     def apply(self, data):
         return np.reshape(data, (data.shape[0], -1))
+
+
+class Complex2RealsRepr(PreprocessingStep):
+    def apply(self, cnumber):
+        return np.hstack([cnumber.real, cnumber.imag])
+
+
+class RealsRepr2Complex(PreprocessingStep):
+    def apply(self, rnumber):
+        half_index = rnumber.shape[-1] // 2
+        return rnumber[..., :half_index] + 1j * rnumber[..., half_index:]
