@@ -7,7 +7,6 @@ from sklearn.pipeline import Pipeline as SklearnPipeline
 from sklearn.preprocessing import FunctionTransformer, StandardScaler
 
 from .preprocessing import IdentityStep, ListSqueeze
-from .preprocessing.np import AtLeast2d, Squeeze, Stack, ToArray
 from .preprocessing.sklearn.adapter import AdapterPipeline, InvertiblePipeline
 from .preprocessing.sklearn.base import GetParamsMixin
 from .preprocessing.sklearn.compose import ObjectBasedTransformedTargetRegressor
@@ -117,7 +116,7 @@ class ObjectRegressor(GetParamsMixin, SklearnPipeline):
             model = LinearRegression()
 
         if x2x is None:
-            steps = [ToArray(), AtLeast2d()]
+            steps = [np.array, np.atleast_2d]
             if x_scaler is not None:
                 steps.append(x_scaler)
             x2x = AdapterPipeline(steps=steps)
@@ -153,11 +152,11 @@ class VertexBasedMeshRegressor(ObjectRegressor):
         if meshes2vertices is None:
             meshes2vertices = InvertiblePipeline(
                 steps=[
-                    FunctionTransformer(func=Squeeze()),  # undo sklearn 2d
+                    FunctionTransformer(func=np.squeeze),  # undo sklearn 2d
                     FunctionTransformer(inverse_func=ListSqueeze(raise_=False)),
                     InvertibleMeshesToVertices(),
                     y_smoother,
-                    FunctionTransformer(func=Stack()),
+                    FunctionTransformer(func=np.stack),
                     InvertibleFlattenButFirst(),
                 ],
             )
@@ -197,10 +196,10 @@ class DimReductionBasedMeshRegressor(ObjectRegressor):
         if meshes2components is None:
             meshes2components = InvertiblePipeline(
                 steps=[
-                    FunctionTransformer(func=Squeeze()),  # undo sklearn 2d
+                    FunctionTransformer(func=np.squeeze),  # undo sklearn 2d
                     FunctionTransformer(inverse_func=ListSqueeze(raise_=False)),
                     InvertibleMeshesToVertices(),
-                    FunctionTransformer(func=Stack()),
+                    FunctionTransformer(func=np.stack),
                     y_smoother,
                     InvertibleFlattenButFirst(),
                     y_scaler,
