@@ -183,7 +183,7 @@ class SerialMap(PreprocessingStep):
         self.pbar = pbar
 
     def apply(self, data):
-        return [self.step.apply(datum) for datum in tqdm(data, disable=not self.pbar)]
+        return [self.step(datum) for datum in tqdm(data, disable=not self.pbar)]
 
 
 class ParallelMap(PreprocessingStep):
@@ -195,7 +195,7 @@ class ParallelMap(PreprocessingStep):
 
     def apply(self, data):
         with Parallel(n_jobs=self.n_jobs, verbose=self.verbose) as parallel:
-            res = parallel(delayed(self.step.apply)(datum) for datum in data)
+            res = parallel(delayed(self.step)(datum) for datum in data)
 
         return list(res)
 
