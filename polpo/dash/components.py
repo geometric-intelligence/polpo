@@ -83,7 +83,23 @@ class BaseComponentGroup(Component, abc.ABC):
 
 
 class ComponentGroup(BaseComponentGroup):
-    def __init__(self, components, id_prefix="", title=None):
+    def __init__(self, components, id_prefix="", title=None, ordering=None):
+        # ordering applies only to list[VarDefComponent]
+        # ordering not only orders components, but also selects them
+        # i.e. if they're not in the ordering, then will be dismissed
+        # this is very important to avoid bugs during configuration
+        if ordering is not None:
+            components_ = []
+            for id_ in ordering:
+                for component in components:
+                    if component.var_def.id == id_:
+                        break
+                else:
+                    raise ValueError(f"{id_} not found in components.")
+                components_.append(component)
+
+            components = components_
+
         super().__init__(components, id_prefix)
         self.title = title
 
