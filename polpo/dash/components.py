@@ -3,7 +3,6 @@
 import abc
 
 import dash_bootstrap_components as dbc
-import plotly.graph_objects as go
 from dash import Input, Output, dcc, html
 
 from polpo.models import (
@@ -224,30 +223,29 @@ class DepVar(VarDefComponent):
 
 
 class Graph(IdComponent):
-    # TODO: any links with dash-vtk abstractions?
-
     def __init__(self, id_, plotter=None, id_prefix="", id_suffix=""):
         # TODO: add reasonable default plotter
         super().__init__(id_, id_prefix, id_suffix)
         self.plotter = plotter
+        self.graph_ = None
 
     def to_dash(self, data=None):
-        if data is not None:
-            return [self.plotter.plot(data)]
+        if self.graph_ is not None:
+            return [self.plotter.update(self.graph_.figure, data)]
 
-        return [
-            dcc.Graph(
-                id=self.id,
-                config={"displayModeBar": False},
-            )
-        ]
+        self.graph_ = dcc.Graph(
+            id=self.id,
+            config={"displayModeBar": False},
+            figure=self.plotter.plot(data),
+        )
+        return [self.graph_]
 
     def as_output(self, component_property=None, allow_duplicate=False):
         component_property = component_property or "figure"
-        return [Output(self.id, component_property, allow_duplicate=allow_duplicate)]
+        return [Output(self.id, "figure", allow_duplicate=allow_duplicate)]
 
     def as_empty_output(self):
-        return [go.Figure()]
+        return [self.plotter.plot()]
 
 
 class GraphRow(ComponentGroup):
