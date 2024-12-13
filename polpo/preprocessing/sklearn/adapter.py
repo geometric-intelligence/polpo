@@ -1,9 +1,7 @@
-import abc
+from collections.abc import Iterable
 
 from sklearn.base import TransformerMixin
-from sklearn.preprocessing import FunctionTransformer
-
-from polpo.preprocessing import Pipeline
+from sklearn.pipeline import Pipeline
 
 
 class TransformerAdapter(TransformerMixin):
@@ -17,46 +15,23 @@ class TransformerAdapter(TransformerMixin):
         return self.step(X)
 
 
-class _PipelineMixin(abc.ABC):
-    def __init__(self, steps, **kwargs):
-        self.steps = steps
-        super().__init__(**kwargs)
-
-    def _fit(self, X, y=None):
-        for step in self.steps:
-            X = step.fit_transform(X, y)
-        return X
-
-    def fit(self, X, y=None):
-        self._fit(X, y)
-        return self
-
-    def fit_transform(self, X, y=None):
-        return self._fit(X, y)
-
-
-class AdapterPipeline(_PipelineMixin, TransformerMixin):
+class AdapterPipeline(Pipeline):
+    # names and adapts steps
     def __init__(self, steps):
+        self._unadapted_steps = steps
+
+        adapted_steps = []
         for index, step in enumerate(steps):
-            if not isinstance(step, TransformerMixin):
-                steps[index] = TransformerAdapter(step)
+            if not isinstance(step, Iterable):
+                step_name = f"step_{index}"
+                step = (step_name, step)
 
-        super().__init__(steps=steps)
+            if not isinstance(step[1], TransformerMixin):
+                step = (step[0], TransformerAdapter(step[1]))
 
-    def transform(self, X):
-        for step in self.steps:
-            X = step.transform(X)
-        return X
+            adapted_steps.append(step)
 
+        super().__init__(steps=adapted_steps)
 
-class InvertiblePipeline(_PipelineMixin, FunctionTransformer):
-    def __init__(self, steps):
-        # steps: list[FunctionTransformer]
-        super().__init__(
-            steps=steps,
-            func=Pipeline(steps=[step.transform for step in steps]),
-            inverse_func=Pipeline(
-                steps=[step.inverse_transform for step in reversed(steps)]
-            ),
-            check_inverse=False,
-        )
+    def __sklearn_clone__(self):
+        return AdapterPipeline(steps=self._unadapted_steps)

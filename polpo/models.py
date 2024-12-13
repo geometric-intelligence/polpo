@@ -7,7 +7,7 @@ from sklearn.pipeline import Pipeline as SklearnPipeline
 from sklearn.preprocessing import FunctionTransformer, StandardScaler
 
 from .preprocessing import IdentityStep, ListSqueeze
-from .preprocessing.sklearn.adapter import AdapterPipeline, InvertiblePipeline
+from .preprocessing.sklearn.adapter import AdapterPipeline
 from .preprocessing.sklearn.base import GetParamsMixin
 from .preprocessing.sklearn.compose import ObjectBasedTransformedTargetRegressor
 from .preprocessing.sklearn.mesh import InvertibleMeshesToVertices
@@ -150,7 +150,7 @@ class VertexBasedMeshRegressor(ObjectRegressor):
             y_smoother = FittableRegisteredPointCloudSmoothing(n_neighbors=10)
 
         if meshes2vertices is None:
-            meshes2vertices = InvertiblePipeline(
+            meshes2vertices = AdapterPipeline(
                 steps=[
                     FunctionTransformer(func=np.squeeze),  # undo sklearn 2d
                     FunctionTransformer(inverse_func=ListSqueeze(raise_=False)),
@@ -194,7 +194,7 @@ class DimReductionBasedMeshRegressor(ObjectRegressor):
             y_smoother = FittableRegisteredPointCloudSmoothing(n_neighbors=10)
 
         if meshes2components is None:
-            meshes2components = InvertiblePipeline(
+            meshes2components = AdapterPipeline(
                 steps=[
                     FunctionTransformer(func=np.squeeze),  # undo sklearn 2d
                     FunctionTransformer(inverse_func=ListSqueeze(raise_=False)),
