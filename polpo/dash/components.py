@@ -9,7 +9,7 @@ from polpo.models import (
     MriSlicesLookup,
     PdDfLookup,
 )
-from polpo.plot import SlicePlotter
+from polpo.plot.plotly import SlicePlotter
 from polpo.utils import unnest_list
 
 from .callbacks import (

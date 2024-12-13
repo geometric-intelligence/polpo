@@ -2,11 +2,7 @@ import abc
 
 import plotly.graph_objects as go
 
-
-class Plotter(abc.ABC):
-    @abc.abstractmethod
-    def plot(self, data):
-        pass
+from .base import Plotter
 
 
 class GoPlotter(Plotter, abc.ABC):
