@@ -9,7 +9,7 @@ Installation
 
 ::
 
-    pip install git+https://github.com/luisfpereira/polpo
+    pip install polpo@git+https://github.com/luisfpereira/polpo.git@main
 
 
 Or, to also install all the dependencies:
@@ -17,8 +17,7 @@ Or, to also install all the dependencies:
 
 ::
 
-    pip install git+https://github.com/luisfpereira/polpo.git@main#egg=polpo[all]
-
+    pip install polpo[all]@git+https://github.com/luisfpereira/polpo.git@main
 
 Or the classic pipeline ``clone + pip install .``.
 
