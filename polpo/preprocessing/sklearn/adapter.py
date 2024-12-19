@@ -1,14 +1,16 @@
 from collections.abc import Iterable
 
-from sklearn.base import TransformerMixin
+from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.pipeline import Pipeline
 
 
-class TransformerAdapter(TransformerMixin):
+class TransformerAdapter(TransformerMixin, BaseEstimator):
     def __init__(self, step):
         self.step = step
+        super().__init__()
 
     def fit(self, X, y=None):
+        self.is_fitted_ = True
         return self
 
     def transform(self, X):
