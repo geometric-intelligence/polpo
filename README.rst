@@ -9,7 +9,7 @@ Installation
 
 ::
 
-    pip install polpo@git+https://github.com/luisfpereira/polpo.git@main
+    pip install polpo@git+https://github.com/geometric-intelligence/polpo.git@main
 
 
 Or, to also install all the dependencies:
@@ -17,7 +17,7 @@ Or, to also install all the dependencies:
 
 ::
 
-    pip install polpo[all]@git+https://github.com/luisfpereira/polpo.git@main
+    pip install polpo[all]@git+https://github.com/geometric-intelligence/polpo@main
 
 Or the classic pipeline ``clone + pip install .``.
 
