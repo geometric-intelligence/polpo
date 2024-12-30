@@ -3,7 +3,10 @@ requires = ["setuptools", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-authors = [{ name = "Luís F. Pereira", email = "luisfpereira@ucsb.edu" }]
+authors = [
+    { name = "Geometric Intelligence Lab @ UC Santa Barbara" },
+    { name = "Luís F. Pereira", email = "luisfpereira@ucsb.edu" },
+]
 name = "polpo"
 dynamic = ["version"]
 readme = "README.rst"
