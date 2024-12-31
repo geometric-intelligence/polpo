@@ -1,7 +1,7 @@
 import numpy as np
 from sklearn.neighbors import NearestNeighbors
 
-from .base import PreprocessingStep
+from polpo.preprocessing.base import PreprocessingStep
 
 
 class RegisteredPointCloudSmoothing(PreprocessingStep):
@@ -12,7 +12,7 @@ class RegisteredPointCloudSmoothing(PreprocessingStep):
         self.smoothing_func = smoothing_func
         self._nbrs = NearestNeighbors(n_neighbors=n_neighbors)
 
-        self.neighbor_indices = None  # indices
+        self.neighbor_indices = None
 
         if points is not None:
             self.fit(points)
