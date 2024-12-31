@@ -5,6 +5,11 @@ try:
 except ImportError:
     pass
 
+try:
+    from ._skshapes import SksRigidRegistration  # noqa:F401
+except ImportError:
+    pass
+
 
 class IdentityMeshAligner(PreprocessingStep):
     # useful for debugging

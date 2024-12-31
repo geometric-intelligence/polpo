@@ -33,3 +33,18 @@ class MeshScaler(PreprocessingStep):
     def apply(self, mesh):
         mesh.vertices = mesh.vertices / self.scaling_factor
         return mesh
+
+
+class TransformVertices(PreprocessingStep):
+    def apply(self, data):
+        # TODO: accept transformation at init?
+        # TODO: consider in place?
+
+        mesh, transformation = data
+
+        rotation_matrix = transformation[:3, :3]
+        translation = transformation[:3, 3]
+
+        mesh.vertices = (rotation_matrix @ mesh.vertices.T).T + translation
+
+        return mesh

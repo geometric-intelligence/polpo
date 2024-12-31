@@ -5,6 +5,16 @@ try:
 except ImportError:
     pass
 
+try:
+    from ._pyvista import PvFromTrimesh  # noqa:F401
+except ImportError:
+    pass
+
+try:
+    from ._skshapes import SksFromPv, SksToPv  # noqa:F401
+except ImportError:
+    pass
+
 from polpo.preprocessing.base import PreprocessingStep
 
 

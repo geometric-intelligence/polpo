@@ -3,6 +3,5 @@ try:
         TrimeshDegenerateFacesRemover,
         TrimeshFaceRemoverByArea,
     )
-
 except ImportError:
     pass

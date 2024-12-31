@@ -25,10 +25,14 @@ class TrimeshToData(PreprocessingStep):
 class TrimeshFaceRemoverByArea(PreprocessingStep):
     # TODO: generalize?
 
-    def __init__(self, threshold=0.01):
+    def __init__(self, threshold=0.01, inplace=True):
         self.threshold = threshold
+        self.inplace = inplace
 
     def apply(self, mesh):
+        if not self.inplace:
+            mesh = mesh.copy()
+
         face_mask = ~np.less(mesh.area_faces, self.threshold)
         mesh.update_faces(face_mask)
 
@@ -38,6 +42,8 @@ class TrimeshFaceRemoverByArea(PreprocessingStep):
 class TrimeshDegenerateFacesRemover(PreprocessingStep):
     """Trimesh degenerate faces remover.
 
+    https://trimesh.org/trimesh.base.html#trimesh.base.Trimesh.nondegenerate_faces
+
     Parameters
     ----------
     height: float
@@ -45,11 +51,16 @@ class TrimeshDegenerateFacesRemover(PreprocessingStep):
         this on one side.
     """
 
-    def __init__(self, height=1e-08):
+    def __init__(self, height=1e-08, inplace=True):
         self.height = height
+        self.inplace = inplace
 
     def apply(self, mesh):
-        mesh.update_faces(mesh.nondegenerate_faces(height=self.height))
+        if not self.inplace:
+            mesh = mesh.copy()
+
+        faces = mesh.nondegenerate_faces(height=self.height)
+        mesh.update_faces(faces)
         return mesh
 
 
@@ -122,3 +133,40 @@ class TrimeshReader(PreprocessingStep):
     # TODO: update
     def apply(self, path):
         return trimesh.load(path)
+
+
+class TrimeshLaplacianSmoothing(PreprocessingStep):
+    """
+    https://trimesh.org/trimesh.smoothing.html#trimesh.smoothing.filter_laplacian
+    """
+
+    def __init__(
+        self,
+        lamb=0.5,
+        iterations=10,
+        implicit_time_integration=False,
+        volume_constraint=True,
+        laplacian_operator=None,
+        inplace=True,
+    ):
+        self.lamb = lamb
+        self.iterations = iterations
+        self.implicit_time_integration = implicit_time_integration
+        self.volume_constraint = volume_constraint
+        self.laplacian_operator = laplacian_operator
+        self.inplace = inplace
+
+    def apply(self, mesh):
+        if not self.inplace:
+            mesh = mesh.copy()
+
+        trimesh.smoothing.filter_laplacian(
+            mesh,
+            lamb=self.lamb,
+            iterations=self.iterations,
+            implicit_time_integration=self.implicit_time_integration,
+            volume_constraint=self.volume_constraint,
+            laplacian_operator=self.laplacian_operator,
+        )
+
+        return mesh
