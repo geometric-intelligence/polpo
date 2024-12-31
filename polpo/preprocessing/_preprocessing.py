@@ -24,19 +24,18 @@ class Pipeline(PreprocessingStep, DataLoader):
         return self.apply()
 
 
-class ParallelPipeline(PreprocessingStep):
-    # TODO: rename to BranchingPipeline?
-    def __init__(self, pipelines, merger=None):
+class BranchingPipeline(PreprocessingStep):
+    def __init__(self, branches, merger=None):
         if merger is None:
             merger = NestingSwapper()
 
         super().__init__()
-        self.pipelines = pipelines
+        self.branches = branches
         self.merger = merger
 
     def apply(self, data):
         out = []
-        for pipeline in self.pipelines:
+        for pipeline in self.branches:
             out.append(pipeline.apply(data))
 
         return self.merger(out)
