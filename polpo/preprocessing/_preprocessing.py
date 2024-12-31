@@ -25,6 +25,7 @@ class Pipeline(PreprocessingStep, DataLoader):
 
 
 class ParallelPipeline(PreprocessingStep):
+    # TODO: rename to BranchingPipeline?
     def __init__(self, pipelines, merger=None):
         if merger is None:
             merger = NestingSwapper()
@@ -71,17 +72,35 @@ class HashMerger(PreprocessingStep):
 
 
 class IndexSelector(PreprocessingStep):
-    def __init__(self, index, repeat=False):
+    def __init__(self, index=0, repeat=False, step=None):
         super().__init__()
+        if step is None:
+            step = IdentityStep()
+
         self.index = index
         self.repeat = repeat
+        self.step = step
 
     def apply(self, data):
-        selected = data[self.index]
+        selected = self.step(data[self.index])
         if self.repeat:
             return [selected] * len(data)
 
         return selected
+
+
+class IgnoreIndex(PreprocessingStep):
+    def __init__(self, index=0, inplace=False):
+        super().__init__()
+        self.index = index
+        self.inplace = inplace
+
+    def apply(self, data):
+        if not self.inplace:
+            data = data.copy()
+
+        data.pop(self.index)
+        return data
 
 
 class ListSqueeze(PreprocessingStep):
@@ -130,14 +149,21 @@ class Hash(PreprocessingStep):
         return new_data
 
 
-class TupleWithIncoming(PreprocessingStep):
-    def __init__(self, step):
+class TupleWith(PreprocessingStep):
+    def __init__(self, step, incoming_first=True):
         super().__init__()
         self.step = step
+        self.incoming_first = incoming_first
 
     def apply(self, data):
         new_data = self.step.apply(data)
-        return [(datum, new_datum) for datum, new_datum in zip(data, new_data)]
+        ordering = (data, new_data) if self.incoming_first else (new_data, data)
+        return [(datum, datum_) for datum, datum_ in zip(*ordering)]
+
+
+class TupleWithIncoming(TupleWith):
+    def __init__(self, step):
+        super().__init__(step, incoming_first=True)
 
 
 class Sorter(PreprocessingStep):
@@ -206,6 +232,16 @@ class Map:
             return ParallelMap(step, n_jobs=n_jobs, verbose=verbose)
 
         return SerialMap(step, pbar=verbose > 0)
+
+
+class MapPipeline:
+    # syntax sugar, as it is used often
+    def __new__(cls, steps, n_jobs=0, verbose=0):
+        if len(steps) == 1:
+            step = steps[0]
+        else:
+            step = Pipeline(steps)
+        return Map(step, n_jobs, verbose)
 
 
 class HashMap(PreprocessingStep):
