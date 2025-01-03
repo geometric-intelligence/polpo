@@ -225,22 +225,46 @@ class ParallelMap(PreprocessingStep):
         return list(res)
 
 
-class Map:
-    def __new__(cls, step, n_jobs=0, verbose=0):
-        if n_jobs != 0:
-            return ParallelMap(step, n_jobs=n_jobs, verbose=verbose)
+class DecorateToIterable(PreprocessingStep):
+    def __init__(self, step):
+        self.step = step
 
-        return SerialMap(step, pbar=verbose > 0)
+    def apply(self, data):
+        decorated = False
+        if not isinstance(data, (list, tuple)):
+            decorated = True
+            data = [data]
+
+        new_data = self.step(data)
+
+        if decorated:
+            return new_data[0]
+
+        return new_data
+
+
+class Map:
+    def __new__(cls, step, n_jobs=0, verbose=0, force_iter=False):
+        if n_jobs != 0:
+            map_ = ParallelMap(step, n_jobs=n_jobs, verbose=verbose)
+
+        else:
+            map_ = SerialMap(step, pbar=verbose > 0)
+
+        if force_iter:
+            return DecorateToIterable(map_)
+
+        return map_
 
 
 class MapPipeline:
     # syntax sugar, as it is used often
-    def __new__(cls, steps, n_jobs=0, verbose=0):
+    def __new__(cls, steps, n_jobs=0, verbose=0, force_iter=False):
         if len(steps) == 1:
             step = steps[0]
         else:
             step = Pipeline(steps)
-        return Map(step, n_jobs, verbose)
+        return Map(step, n_jobs, verbose, force_iter)
 
 
 class HashMap(PreprocessingStep):
