@@ -279,3 +279,11 @@ class Truncater(PreprocessingStep):
 
     def apply(self, data):
         return data[: self.value]
+
+
+class DataPrinter(PreprocessingStep):
+    # useful for debugging
+
+    def apply(self, data):
+        print(data)
+        return data
