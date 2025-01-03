@@ -1,7 +1,8 @@
 import copy
+import sys
 
 try:
-    from ._trimesh import TrimeshFromData, TrimeshToData  # noqa:F401
+    from ._trimesh import DataFromTrimesh, TrimeshFromData, TrimeshFromPv  # noqa:F401
 except ImportError:
     pass
 
@@ -11,10 +12,16 @@ except ImportError:
     pass
 
 try:
-    from ._skshapes import SksFromPv, SksToPv  # noqa:F401
+    from ._skshapes import PvFromSks, SksFromPv  # noqa:F401
 except ImportError:
     pass
 
+try:
+    from ._geomstats import SurfaceFromTrimesh, TrimeshSurfaceFromTrimesh  # noqa:F401
+except ImportError:
+    pass
+
+from polpo.macro import create_to_classes_from_from
 from polpo.preprocessing.base import PreprocessingStep
 
 
@@ -43,3 +50,6 @@ class FromCombinatorialStructure(PreprocessingStep):
         mesh.vertices = vertices
 
         return mesh
+
+
+create_to_classes_from_from(sys.modules[__name__])

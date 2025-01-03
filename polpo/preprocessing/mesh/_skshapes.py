@@ -8,7 +8,7 @@ class SksFromPv(PreprocessingStep):
         return sks.PolyData(poly_data)
 
 
-class SksToPv(PreprocessingStep):
+class PvFromSks(PreprocessingStep):
     def apply(self, poly_data):
         return poly_data.to_pyvista()
 

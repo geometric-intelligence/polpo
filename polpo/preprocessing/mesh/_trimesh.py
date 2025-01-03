@@ -13,13 +13,20 @@ class TrimeshFromData(PreprocessingStep):
         return trimesh.Trimesh(vertices=vertices, faces=faces, vertex_colors=colors)
 
 
-class TrimeshToData(PreprocessingStep):
+class DataFromTrimesh(PreprocessingStep):
     def apply(self, mesh):
         return (
             np.array(mesh.vertices),
             np.array(mesh.faces),
             np.array(mesh.visual.vertex_colors),
         )
+
+
+class TrimeshFromPv(PreprocessingStep):
+    def apply(self, poly_data):
+        # TODO: check colors
+        faces_as_array = poly_data.faces.reshape((poly_data.n_faces, 4))[:, 1:]
+        return trimesh.Trimesh(poly_data.points, faces_as_array)
 
 
 class TrimeshFaceRemoverByArea(PreprocessingStep):
