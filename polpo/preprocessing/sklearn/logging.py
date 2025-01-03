@@ -1,7 +1,8 @@
 import abc
-import logging
 
 from sklearn.base import clone
+
+from polpo.logging import logger
 
 
 class BaseMessagePrinter(abc.ABC):
@@ -39,5 +40,5 @@ class TelemeteredModel:
 
     def predict(self, X):
         y = self.model.predict(X)
-        logging.info(self.msg_printer("predict", self.model, X, y))
+        logger.info(self.msg_printer("predict", self.model, X, y))
         return y
