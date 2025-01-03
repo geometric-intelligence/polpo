@@ -108,6 +108,19 @@ class TrimeshDecimator(PreprocessingStep):
         return decimated_mesh
 
 
+class TrimeshLargestComponentSelector(PreprocessingStep):
+    def __init__(self, only_watertight=False):
+        self.only_watertight = only_watertight
+
+    def apply(self, mesh):
+        components = mesh.split(only_watertight=self.only_watertight)
+        if len(components) == 0:
+            return mesh
+
+        components.sort(key=lambda component: len(component.faces), reverse=True)
+        return components[0]
+
+
 class TrimeshToPly(PreprocessingStep):
     def __init__(self, dirname=""):
         self.dirname = dirname
