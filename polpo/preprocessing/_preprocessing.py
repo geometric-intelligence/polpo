@@ -1,3 +1,5 @@
+import abc
+
 from joblib import Parallel, delayed
 from tqdm import tqdm
 
@@ -22,6 +24,15 @@ class Pipeline(PreprocessingStep, DataLoader):
 
     def load(self):
         return self.apply()
+
+
+class StepWrappingPreprocessingStep(PreprocessingStep, abc.ABC):
+    def __init__(self, step):
+        super().__init__()
+        if isinstance(step, (list, str)):
+            step = Pipeline(step)
+
+        self.step = step
 
 
 class BranchingPipeline(PreprocessingStep):
@@ -70,15 +81,15 @@ class HashMerger(PreprocessingStep):
         return out
 
 
-class IndexSelector(PreprocessingStep):
+class IndexSelector(StepWrappingPreprocessingStep):
     def __init__(self, index=0, repeat=False, step=None):
-        super().__init__()
         if step is None:
             step = IdentityStep()
 
+        super().__init__(step)
+
         self.index = index
         self.repeat = repeat
-        self.step = step
 
     def apply(self, data):
         selected = self.step(data[self.index])
@@ -116,11 +127,7 @@ class ListSqueeze(PreprocessingStep):
         return data[0]
 
 
-class HashWithIncoming(PreprocessingStep):
-    def __init__(self, step):
-        super().__init__()
-        self.step = step
-
+class HashWithIncoming(StepWrappingPreprocessingStep):
     def apply(self, data):
         new_data = self.step.apply(data)
 
@@ -128,9 +135,11 @@ class HashWithIncoming(PreprocessingStep):
 
 
 class Hash(PreprocessingStep):
-    def __init__(self, key_index=0):
+    def __init__(self, key_index=0, ignore_none=True, ignore_empty=True):
         super().__init__()
         self.key_index = key_index
+        self.ignore_none = ignore_none
+        self.ignore_empty = ignore_empty
 
     def apply(self, data):
         new_data = {}
@@ -143,15 +152,21 @@ class Hash(PreprocessingStep):
             if len(datum) == 1:
                 datum = datum[0]
 
+            if (self.ignore_none and datum is None) or (
+                self.ignore_empty
+                and isinstance(datum, (list, tuple))
+                and len(datum) == 0
+            ):
+                continue
+
             new_data[key] = datum
 
         return new_data
 
 
-class TupleWith(PreprocessingStep):
+class TupleWith(StepWrappingPreprocessingStep):
     def __init__(self, step, incoming_first=True):
-        super().__init__()
-        self.step = step
+        super().__init__(step)
         self.incoming_first = incoming_first
 
     def apply(self, data):
@@ -189,6 +204,22 @@ class NoneRemover(Filter):
         super().__init__(func=lambda x: x is not None)
 
 
+class NoneSkipper(StepWrappingPreprocessingStep):
+    def apply(self, data):
+        if data is None:
+            return data
+
+        return self.step(data)
+
+
+class EmptySkipper(StepWrappingPreprocessingStep):
+    def apply(self, data):
+        if len(data) == 0:
+            return data
+
+        return self.step(data)
+
+
 class ToList(PreprocessingStep):
     # TODO: better naming?
     def apply(self, data):
@@ -201,20 +232,18 @@ class DictToValues(PreprocessingStep):
         return list(data.values())
 
 
-class SerialMap(PreprocessingStep):
+class SerialMap(StepWrappingPreprocessingStep):
     def __init__(self, step, pbar=False):
-        super().__init__()
-        self.step = step
+        super().__init__(step)
         self.pbar = pbar
 
     def apply(self, data):
         return [self.step(datum) for datum in tqdm(data, disable=not self.pbar)]
 
 
-class ParallelMap(PreprocessingStep):
+class ParallelMap(StepWrappingPreprocessingStep):
     def __init__(self, step, n_jobs=-1, verbose=0):
-        super().__init__()
-        self.step = step
+        super().__init__(step)
         self.n_jobs = n_jobs
         self.verbose = verbose
 
@@ -225,10 +254,7 @@ class ParallelMap(PreprocessingStep):
         return list(res)
 
 
-class DecorateToIterable(PreprocessingStep):
-    def __init__(self, step):
-        self.step = step
-
+class DecorateToIterable(StepWrappingPreprocessingStep):
     def apply(self, data):
         decorated = False
         if not isinstance(data, (list, tuple)):
@@ -257,39 +283,27 @@ class Map:
         return map_
 
 
-class MapPipeline:
-    # syntax sugar, as it is used often
-    def __new__(cls, steps, n_jobs=0, verbose=0, force_iter=False):
-        if len(steps) == 1:
-            step = steps[0]
-        else:
-            step = Pipeline(steps)
-        return Map(step, n_jobs, verbose, force_iter)
-
-
-class HashMap(PreprocessingStep):
+class HashMap(StepWrappingPreprocessingStep):
     def __init__(self, step, pbar=False):
-        super().__init__()
-        self.step = step
+        super().__init__(step)
         self.pbar = pbar
 
     def apply(self, data):
         out = {}
         for key, datum in tqdm(data.items(), disable=not self.pbar):
-            out[key] = self.step.apply(datum)
+            out[key] = self.step(datum)
 
         return out
 
 
-class IndexMap(PreprocessingStep):
+class IndexMap(StepWrappingPreprocessingStep):
     # TODO: name is confusing
     def __init__(self, step, index=0):
-        super().__init__()
-        self.step = step
+        super().__init__(step)
         self.index = index
 
     def apply(self, data):
-        data[self.index] = self.step.apply(data[self.index])
+        data[self.index] = self.step(data[self.index])
 
         return data
 
