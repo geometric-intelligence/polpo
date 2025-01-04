@@ -190,3 +190,8 @@ class TrimeshLaplacianSmoothing(PreprocessingStep):
         )
 
         return mesh
+
+
+class TrimeshClone(PreprocessingStep):
+    def apply(self, mesh):
+        return mesh.copy()
