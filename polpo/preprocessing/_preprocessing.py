@@ -116,7 +116,7 @@ class HashWithIncoming(StepWrappingPreprocessingStep):
 
 
 class Hash(PreprocessingStep):
-    def __init__(self, key_index=0, ignore_none=True, ignore_empty=True):
+    def __init__(self, key_index=0, ignore_none=False, ignore_empty=False):
         super().__init__()
         self.key_index = key_index
         self.ignore_none = ignore_none
@@ -167,12 +167,17 @@ class Sorter(PreprocessingStep):
 
 
 class Filter(PreprocessingStep):
-    def __init__(self, func):
+    def __init__(self, func, collection_type=list, to_iter=None):
+        if to_iter is None:
+            to_iter = lambda x: x
+
         super().__init__()
         self.func = func
+        self.collection_type = collection_type
+        self.to_iter = to_iter
 
     def apply(self, data):
-        return list(filter(self.func, data))
+        return self.collection_type(filter(self.func, self.to_iter(data)))
 
 
 class EmptyRemover(Filter):
@@ -183,6 +188,25 @@ class EmptyRemover(Filter):
 class NoneRemover(Filter):
     def __init__(self):
         super().__init__(func=lambda x: x is not None)
+
+
+class DictKeysFilter(Filter):
+    def __init__(self, values, keep=True):
+        if keep:
+            func = lambda x: x[0] in values
+        else:
+            func = lambda x: x[0] not in values
+
+        super().__init__(func, collection_type=dict)
+
+
+class DictNoneRemover(Filter):
+    def __init__(self):
+        super().__init__(
+            func=lambda x: x[1] is not None,
+            collection_type=dict,
+            to_iter=lambda x: x.items(),
+        )
 
 
 class NoneSkipper(StepWrappingPreprocessingStep):
@@ -211,6 +235,15 @@ class DictToValues(PreprocessingStep):
     # TODO: better naming
     def apply(self, data):
         return list(data.values())
+
+
+class DictUpdate(PreprocessingStep):
+    def apply(self, data):
+        new_data = data[0].copy()
+        for datum in data[1:]:
+            new_data.update(datum)
+
+        return new_data
 
 
 class SerialMap(StepWrappingPreprocessingStep):
