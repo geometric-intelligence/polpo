@@ -1,6 +1,6 @@
 import geomstats.backend as gs
 import numpy as np
-from geomstats.varifold import Surface
+from geomstats.geometry.discrete_surfaces import Surface
 
 from polpo.preprocessing.base import PreprocessingStep
 

@@ -25,10 +25,19 @@ dependencies = ["tdqm", "numpy", "joblib"]
 dash = ["dash", "dash-bootstrap-components"]
 plot = ["plotly"]
 mri = ["nibabel", "scikit-image"]
-mesh = ["trimesh", "fast_simplification", "scikit-learn"]
+point_cloud = ["open3d", "scikit-learn"]
+mesh = [
+    "trimesh",
+    "fast_simplification",
+    "scikit-learn",
+    "geomstats",
+    "skshapes",
+    "pyvista",
+]
+varifold = ["geomstats", "kneebow", "trimesh"]
 dataframe = ["pandas"]
 ssh = ["paramiko", "scp"]
-preprocessing = ["polpo[mri,mesh,dataframe,ssh]"]
+preprocessing = ["polpo[mri,mesh,dataframe,ssh,point_cloud]"]
 hydra = ["hydra-core", "omegaconf"]
 all = ["polpo[dash,plot,preprocessing,hydra]"]
 
