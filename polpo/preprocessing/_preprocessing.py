@@ -16,6 +16,21 @@ class StepWrappingPreprocessingStep(PreprocessingStep, abc.ABC):
         self.step = step
 
 
+class RobustStep(StepWrappingPreprocessingStep):
+    def __init__(self, step, warn=True):
+        super().__init__(step)
+        self.warn = warn
+
+    def apply(self, data):
+        try:
+            return self.step(data)
+        except Exception as e:
+            if self.warn:
+                warnings.warn(str(e))
+
+        return None
+
+
 class BranchingPipeline(PreprocessingStep):
     def __init__(self, branches, merger=None):
         if merger is None:
