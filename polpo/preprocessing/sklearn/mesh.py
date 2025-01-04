@@ -1,7 +1,7 @@
 from sklearn.preprocessing import FunctionTransformer
 
 from polpo.preprocessing import Map
-from polpo.preprocessing.mesh import FromCombinatorialStructure, ToVertices
+from polpo.preprocessing.mesh.conversion import FromCombinatorialStructure, ToVertices
 
 
 class InvertibleMeshesToVertices(FunctionTransformer):
