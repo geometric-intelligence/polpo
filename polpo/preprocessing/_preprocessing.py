@@ -21,6 +21,9 @@ class BranchingPipeline(PreprocessingStep):
         if merger is None:
             merger = NestingSwapper()
 
+        if isinstance(merger, (list, tuple)):
+            merger = Pipeline(merger)
+
         super().__init__()
         self.branches = branches
         self.merger = merger
@@ -330,6 +333,8 @@ class Truncater(PreprocessingStep):
         self.value = value
 
     def apply(self, data):
+        if self.value is None:
+            return data
         return data[: self.value]
 
 
