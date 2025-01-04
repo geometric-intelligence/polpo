@@ -1,29 +1,10 @@
 import abc
+import warnings
 
 from joblib import Parallel, delayed
 from tqdm import tqdm
 
-from .base import DataLoader, PreprocessingStep
-
-
-class Pipeline(PreprocessingStep, DataLoader):
-    def __init__(self, steps, data=None):
-        super().__init__()
-        self.steps = steps
-        self.data = data
-
-    def apply(self, data=None):
-        if self.data is not None:
-            data = self.data
-
-        out = data
-        for step in self.steps:
-            out = step(out)
-
-        return out
-
-    def load(self):
-        return self.apply()
+from .base import Pipeline, PreprocessingStep
 
 
 class StepWrappingPreprocessingStep(PreprocessingStep, abc.ABC):
