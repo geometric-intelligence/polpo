@@ -16,7 +16,7 @@ class StepWrappingPreprocessingStep(PreprocessingStep, abc.ABC):
         self.step = step
 
 
-class RobustStep(StepWrappingPreprocessingStep):
+class ExceptionToWarning(StepWrappingPreprocessingStep):
     def __init__(self, step, warn=True):
         super().__init__(step)
         self.warn = warn
