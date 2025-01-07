@@ -4,13 +4,15 @@ import warnings
 from joblib import Parallel, delayed
 from tqdm import tqdm
 
+from polpo.utils import is_non_string_iterable
+
 from .base import Pipeline, PreprocessingStep
 
 
 class StepWrappingPreprocessingStep(PreprocessingStep, abc.ABC):
     def __init__(self, step):
         super().__init__()
-        if isinstance(step, (list, str)):
+        if is_non_string_iterable(step):
             step = Pipeline(step)
 
         self.step = step
@@ -36,7 +38,7 @@ class BranchingPipeline(PreprocessingStep):
         if merger is None:
             merger = NestingSwapper()
 
-        if isinstance(merger, (list, tuple)):
+        if is_non_string_iterable(merger):
             merger = Pipeline(merger)
 
         super().__init__()
@@ -152,9 +154,7 @@ class Hash(PreprocessingStep):
                 datum = datum[0]
 
             if (self.ignore_none and datum is None) or (
-                self.ignore_empty
-                and isinstance(datum, (list, tuple))
-                and len(datum) == 0
+                self.ignore_empty and isinstance(datum, list) and len(datum) == 0
             ):
                 continue
 
@@ -289,7 +289,7 @@ class ParallelMap(StepWrappingPreprocessingStep):
 class DecorateToIterable(StepWrappingPreprocessingStep):
     def apply(self, data):
         decorated = False
-        if not isinstance(data, (list, tuple)):
+        if not isinstance(data, list):
             decorated = True
             data = [data]
 
