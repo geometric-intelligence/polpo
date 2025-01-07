@@ -8,8 +8,11 @@ from polpo.preprocessing.base import PreprocessingStep
 
 class TrimeshFromData(PreprocessingStep):
     def apply(self, mesh):
-        # TODO: make a check for colors?
-        vertices, faces, colors = mesh
+        if len(mesh) == 3:
+            vertices, faces, colors = mesh
+        else:
+            vertices, faces = mesh
+            colors = None
         return trimesh.Trimesh(vertices=vertices, faces=faces, vertex_colors=colors)
 
 
