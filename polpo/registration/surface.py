@@ -501,9 +501,8 @@ class LambdaAdaptiveRelaxedPathStraightening(
             # TODO: make it own func for possible wrapping later
 
             # TODO: control verbosity
-            print("=======")
-            print(
-                f"Running algo {iteration}, lambda: {self.straightener.loss.data_attachment.weight}"
+            logger.info(
+                f"Running iteration {iteration}, lambda: {self.straightener.loss.data_attachment.weight}"
             )
             start_time = time.perf_counter()
             if geods:
@@ -512,7 +511,9 @@ class LambdaAdaptiveRelaxedPathStraightening(
             discrete_path = self.straightener.discrete_geodesic_bvp(point, base_point)
             geods.append(discrete_path)
 
-            print(f"Algo {iteration} run in {time.perf_counter() - start_time:.2f} s")
+            logger.info(
+                f"Iteration {iteration} run in {time.perf_counter() - start_time:.2f} s"
+            )
 
             # TODO: may use a different strategy here if notion of discrepancy loss
             # TODO: update this
