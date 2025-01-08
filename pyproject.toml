@@ -33,6 +33,7 @@ mesh = [
     "geomstats",
     "skshapes",
     "pyvista",
+    "meshio",
 ]
 varifold = ["geomstats", "kneebow", "trimesh"]
 dataframe = ["pandas"]
