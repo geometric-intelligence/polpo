@@ -4,6 +4,10 @@ from polpo.preprocessing.base import PreprocessingStep
 
 
 class MeshCenterer(PreprocessingStep):
+    def __init__(self, attr="vertices"):
+        super().__init__()
+        self.attr = attr
+
     def apply(self, mesh):
         """Center a mesh by putting its barycenter at origin of the coordinates.
 
@@ -18,20 +22,22 @@ class MeshCenterer(PreprocessingStep):
             Centered Mesh.
         hippocampus_center: coordinates of center of the mesh before centering
         """
-        vertices = mesh.vertices
-        center = np.mean(vertices, axis=0)
-        mesh.vertices = vertices - center
+        values = getattr(mesh, self.attr)
+        center = np.mean(values, axis=0)
+        setattr(mesh, self.attr, values - center)
 
         return mesh
 
 
 class MeshScaler(PreprocessingStep):
-    def __init__(self, scaling_factor=20.0):
+    def __init__(self, scaling_factor=20.0, attr="vertices"):
         super().__init__()
         self.scaling_factor = scaling_factor
+        self.attr = attr
 
     def apply(self, mesh):
-        mesh.vertices = mesh.vertices / self.scaling_factor
+        values = getattr(mesh, self.attr)
+        setattr(mesh, self.attr, values / self.scaling_factor)
         return mesh
 
 
