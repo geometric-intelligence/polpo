@@ -4,7 +4,7 @@ import warnings
 from joblib import Parallel, delayed
 from tqdm import tqdm
 
-from polpo.utils import is_non_string_iterable
+from polpo.utils import is_non_string_iterable, unnest
 
 from .base import Pipeline, PreprocessingStep
 
@@ -93,6 +93,11 @@ class RemoveIndex(PreprocessingStep):
 
         data.pop(self.index)
         return data
+
+
+class Unnest(PreprocessingStep):
+    def apply(self, data):
+        return unnest(data)
 
 
 class ListSqueeze(PreprocessingStep):
@@ -239,6 +244,14 @@ class IndexMap(StepWrappingPreprocessingStep):
         return data
 
 
+class Prefix(PreprocessingStep):
+    def __init__(self, prefix):
+        self.prefix = prefix
+
+    def apply(self, value):
+        return self.prefix + value
+
+
 class Truncater(PreprocessingStep):
     # useful for debugging
 
@@ -258,3 +271,17 @@ class DataPrinter(PreprocessingStep):
     def apply(self, data):
         print(data)
         return data
+
+
+class PartiallyInitializedStep(PreprocessingStep):
+    def __init__(self, Step, **kwargs):
+        self.Step = Step
+        self.kwargs = kwargs
+
+    def apply(self, data):
+        kwargs = self.kwargs.copy()
+        dependent_keys = list(filter(lambda x: x.startswith("_"), kwargs.keys()))
+        for key in dependent_keys:
+            kwargs[key[1:]] = kwargs.pop(key)(data)
+
+        return self.Step(**kwargs)(data)

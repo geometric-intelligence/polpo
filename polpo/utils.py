@@ -6,6 +6,17 @@ def unnest_list(ls):
     return list(itertools.chain(*ls))
 
 
+def unnest(ls):
+    if not is_non_string_iterable(ls):
+        return [ls]
+
+    data = []
+    for datum_ in ls:
+        data.extend(unnest(datum_))
+
+    return data
+
+
 def is_non_string_iterable(obj):
     return isinstance(obj, collections.abc.Iterable) and not isinstance(obj, str)
 
