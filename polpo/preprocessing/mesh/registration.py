@@ -1,6 +1,11 @@
 from polpo.preprocessing.base import PreprocessingStep
 
 try:
+    from ._pyvista import PvAlign  # noqa:F401
+except ImportError:
+    pass
+
+try:
     from ._h2_surfacematch import H2MeshAligner  # noqa:F401
 except ImportError:
     pass
