@@ -63,25 +63,6 @@ class NestingSwapper(PreprocessingStep):
         return list(zip(*data))
 
 
-class HashMerger(PreprocessingStep):
-    # NB: not shared keys are ignored
-
-    def _collect_shared_keys(self, data):
-        keys = set(data[0].keys())
-        for datum in data[1:]:
-            keys = keys.intersection(set(datum.keys()))
-
-        return keys
-
-    def apply(self, data):
-        shared_keys = self._collect_shared_keys(data)
-        out = []
-        for key in shared_keys:
-            out.append([datum[key] for datum in data])
-
-        return out
-
-
 class IndexSelector(StepWrappingPreprocessingStep):
     def __init__(self, index=0, repeat=False, step=None):
         if step is None:
@@ -126,41 +107,6 @@ class ListSqueeze(PreprocessingStep):
                 return data
 
         return data[0]
-
-
-class HashWithIncoming(StepWrappingPreprocessingStep):
-    def apply(self, data):
-        new_data = self.step.apply(data)
-
-        return {datum: new_datum for datum, new_datum in zip(data, new_data)}
-
-
-class Hash(PreprocessingStep):
-    def __init__(self, key_index=0, ignore_none=False, ignore_empty=False):
-        super().__init__()
-        self.key_index = key_index
-        self.ignore_none = ignore_none
-        self.ignore_empty = ignore_empty
-
-    def apply(self, data):
-        new_data = {}
-        for datum in data:
-            if not isinstance(datum, list):
-                datum = list(datum)
-
-            key = datum.pop(self.key_index)
-
-            if len(datum) == 1:
-                datum = datum[0]
-
-            if (self.ignore_none and datum is None) or (
-                self.ignore_empty and isinstance(datum, list) and len(datum) == 0
-            ):
-                continue
-
-            new_data[key] = datum
-
-        return new_data
 
 
 class TupleWith(StepWrappingPreprocessingStep):
@@ -208,25 +154,6 @@ class NoneRemover(Filter):
         super().__init__(func=lambda x: x is not None)
 
 
-class DictKeysFilter(Filter):
-    def __init__(self, values, keep=True):
-        if keep:
-            func = lambda x: x[0] in values
-        else:
-            func = lambda x: x[0] not in values
-
-        super().__init__(func, collection_type=dict)
-
-
-class DictNoneRemover(Filter):
-    def __init__(self):
-        super().__init__(
-            func=lambda x: x[1] is not None,
-            collection_type=dict,
-            to_iter=lambda x: x.items(),
-        )
-
-
 class NoneSkipper(StepWrappingPreprocessingStep):
     def apply(self, data):
         if data is None:
@@ -247,21 +174,6 @@ class ToList(PreprocessingStep):
     # TODO: better naming?
     def apply(self, data):
         return [data]
-
-
-class DictToValues(PreprocessingStep):
-    # TODO: better naming
-    def apply(self, data):
-        return list(data.values())
-
-
-class DictUpdate(PreprocessingStep):
-    def apply(self, data):
-        new_data = data[0].copy()
-        for datum in data[1:]:
-            new_data.update(datum)
-
-        return new_data
 
 
 class SerialMap(StepWrappingPreprocessingStep):
@@ -313,19 +225,6 @@ class Map:
             return DecorateToIterable(map_)
 
         return map_
-
-
-class HashMap(StepWrappingPreprocessingStep):
-    def __init__(self, step, pbar=False):
-        super().__init__(step)
-        self.pbar = pbar
-
-    def apply(self, data):
-        out = {}
-        for key, datum in tqdm(data.items(), disable=not self.pbar):
-            out[key] = self.step(datum)
-
-        return out
 
 
 class IndexMap(StepWrappingPreprocessingStep):
