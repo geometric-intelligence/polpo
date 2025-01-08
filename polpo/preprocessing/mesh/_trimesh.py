@@ -129,9 +129,18 @@ class TrimeshLargestComponentSelector(PreprocessingStep):
 
 
 class TrimeshToPly(PreprocessingStep):
-    def __init__(self, dirname=""):
-        self.dirname = dirname
+    def __init__(
+        self,
+        dirname="",
+        encoding="binary",
+        vertex_normal=None,
+        include_attributes=True,
+    ):
         # TODO: create dir if does not exist?
+        self.dirname = dirname
+        self.encoding = encoding
+        self.vertex_normal = vertex_normal
+        self.include_attributes = include_attributes
 
         # TODO: add override?
 
@@ -145,15 +154,13 @@ class TrimeshToPly(PreprocessingStep):
         path = os.path.join(self.dirname, filename)
 
         ply_text = trimesh.exchange.ply.export_ply(
-            mesh, encoding="binary", include_attributes=True
+            mesh, encoding=self.encoding, include_attributes=self.include_attributes
         )
 
-        # TODO: add verbose
-        # print(f"- Write mesh to {filename}")
         with open(path, "wb") as file:
             file.write(ply_text)
 
-        return data
+        return path
 
 
 class TrimeshReader(PreprocessingStep):
