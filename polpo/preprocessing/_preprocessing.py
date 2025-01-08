@@ -81,7 +81,7 @@ class IndexSelector(StepWrappingPreprocessingStep):
         return selected
 
 
-class IgnoreIndex(PreprocessingStep):
+class RemoveIndex(PreprocessingStep):
     def __init__(self, index=0, inplace=False):
         super().__init__()
         self.index = index
