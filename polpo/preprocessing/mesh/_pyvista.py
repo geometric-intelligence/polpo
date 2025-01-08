@@ -198,3 +198,17 @@ class PvReader(PreprocessingStep):
             poly_data.rename_array("RGBA", "colors")
 
         return poly_data
+
+
+class PvExtractLargest(PreprocessingStep):
+    """Extract largest connected set in mesh.
+
+    https://docs.pyvista.org/api/core/_autosummary/pyvista.datasetfilters.extract_largest#pyvista.DataSetFilters.extract_largest
+    """
+
+    def __init__(self, inplace=False, progress_bar=False):
+        self.inplace = inplace
+        self.progress_bar = progress_bar
+
+    def apply(self, poly_data):
+        return poly_data.extract_largest(**params_to_kwargs(self))

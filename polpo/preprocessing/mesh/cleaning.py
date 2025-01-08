@@ -6,3 +6,9 @@ try:
     )
 except ImportError:
     pass
+
+
+try:
+    from ._pyvista import PvExtractLargest  # noqa:F401
+except ImportError:
+    pass
