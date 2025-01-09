@@ -63,3 +63,6 @@ convention = "numpy"
 [tool.ruff.lint.per-file-ignores]
 "*/__init__.py" = ["F401"]
 "tests/*" = ["D"]
+
+[tool.pytest.ini_options]
+markers = ["slow: for slow tests."]
