@@ -8,6 +8,20 @@ from polpo.preprocessing.base import PreprocessingStep
 from polpo.utils import params_to_kwargs
 
 
+class PvFromData(PreprocessingStep):
+    def apply(self, mesh):
+        if len(mesh) == 3:
+            vertices, faces, colors = mesh
+        else:
+            vertices, faces = mesh
+            colors = None
+
+        poly_data = pv.PolyData.from_regular_faces(points=vertices, faces=faces)
+        if colors is not None:
+            poly_data["colors"] = colors
+        return poly_data
+
+
 class PvAlign(PreprocessingStep):
     """Align a dataset to another.
 
