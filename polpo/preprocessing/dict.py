@@ -91,7 +91,7 @@ class DictToValuesList(PreprocessingStep):
         return list(data.values())
 
 
-class DictToTupleList(PreprocessingStep):
+class DictToTuplesList(PreprocessingStep):
     def apply(self, data):
         return list(zip(data.keys(), data.values()))
 
