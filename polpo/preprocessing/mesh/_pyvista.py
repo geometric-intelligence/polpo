@@ -150,19 +150,21 @@ class PvFromTrimesh(PreprocessingStep):
 
 
 class PvWriter(PreprocessingStep):
+    """
+    https://docs.pyvista.org/api/core/_autosummary/pyvista.polydata.save
+    """
+
     def __init__(
         self,
         dirname="",
         ext=None,
         binary=True,
-        texture=None,
-        recompute_normals=True,
+        recompute_normals=False,
     ):
         self.dirname = dirname
         self.ext = ext
 
         self.binary = binary
-        self.texture = texture
         self.recompute_normals = recompute_normals
 
     def apply(self, data):
@@ -171,16 +173,25 @@ class PvWriter(PreprocessingStep):
         filename, poly_data = data
 
         if self.ext is not None:
+            ext = self.ext
             if "." in filename:
                 filename = filename.split(".")[0]
             filename += f".{self.ext}"
+        else:
+            ext = filename.split(".")[1]
 
         path = os.path.join(self.dirname, filename)
+
+        texture = (
+            poly_data["colors"]
+            if ext == "ply" and "colors" in poly_data.array_names
+            else None
+        )
 
         poly_data.save(
             path,
             binary=self.binary,
-            texture=self.texture,
+            texture=texture,
             recompute_normals=self.recompute_normals,
         )
 
@@ -196,6 +207,8 @@ class PvReader(PreprocessingStep):
 
         if "RGBA" in poly_data.array_names:
             poly_data.rename_array("RGBA", "colors")
+        elif "RGB" in poly_data.array_names:
+            poly_data.rename_array("RGB", "colors")
 
         return poly_data
 
