@@ -1,9 +1,11 @@
 from tqdm import tqdm
 
-from polpo.utils import is_non_string_iterable
-
-from ._preprocessing import Filter, IdentityStep, StepWrappingPreprocessingStep
-from .base import Pipeline, PreprocessingStep
+from ._preprocessing import (
+    Filter,
+    StepWrappingPreprocessingStep,
+    _wrap_step,
+)
+from .base import PreprocessingStep
 
 
 class Hash(PreprocessingStep):
@@ -54,8 +56,13 @@ class DictMerger(PreprocessingStep):
 
 
 class HashWithIncoming(StepWrappingPreprocessingStep):
+    def __init__(self, step, pre_hash_step=None):
+        super().__init__(step)
+        self.pre_hash_step = _wrap_step(pre_hash_step)
+
     def apply(self, data):
         new_data = self.step.apply(data)
+        data = self.pre_hash_step(data)
 
         return {datum: new_datum for datum, new_datum in zip(data, new_data)}
 
@@ -100,25 +107,13 @@ class DictUpdate(PreprocessingStep):
 
 class DictMap(StepWrappingPreprocessingStep):
     def __init__(
-        self, step, pbar=False, key_step=None, special_keys=(), special_step=None
+        self, step=None, pbar=False, key_step=None, special_keys=(), special_step=None
     ):
-        if key_step is None:
-            key_step = IdentityStep()
-
-        if special_step is None:
-            special_step = IdentityStep
-
-        if is_non_string_iterable(key_step):
-            key_step = Pipeline(key_step)
-
-        if is_non_string_iterable(special_step):
-            special_step = Pipeline(special_step)
-
         super().__init__(step)
         self.pbar = pbar
-        self.key_step = key_step
+        self.key_step = _wrap_step(key_step)
         self.special_keys = special_keys
-        self.special_step = special_step
+        self.special_step = _wrap_step(special_step)
 
     def apply(self, data):
         out = {}

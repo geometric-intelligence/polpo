@@ -9,13 +9,21 @@ from polpo.utils import is_non_string_iterable, unnest
 from .base import Pipeline, PreprocessingStep
 
 
-class StepWrappingPreprocessingStep(PreprocessingStep, abc.ABC):
-    def __init__(self, step):
-        super().__init__()
-        if is_non_string_iterable(step):
-            step = Pipeline(step)
+def _wrap_step(step=None):
+    if step is None:
+        step = IdentityStep()
 
-        self.step = step
+    if is_non_string_iterable(step):
+        step = Pipeline(step)
+
+    return step
+
+
+class StepWrappingPreprocessingStep(PreprocessingStep, abc.ABC):
+    def __init__(self, step=None):
+        super().__init__()
+
+        self.step = _wrap_step(step)
 
 
 class ExceptionToWarning(StepWrappingPreprocessingStep):
@@ -38,12 +46,9 @@ class BranchingPipeline(PreprocessingStep):
         if merger is None:
             merger = NestingSwapper()
 
-        if is_non_string_iterable(merger):
-            merger = Pipeline(merger)
-
         super().__init__()
         self.branches = branches
-        self.merger = merger
+        self.merger = _wrap_step(merger)
 
     def apply(self, data):
         out = []
@@ -65,9 +70,6 @@ class NestingSwapper(PreprocessingStep):
 
 class IndexSelector(StepWrappingPreprocessingStep):
     def __init__(self, index=0, repeat=False, step=None):
-        if step is None:
-            step = IdentityStep()
-
         super().__init__(step)
 
         self.index = index
