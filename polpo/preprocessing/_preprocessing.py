@@ -270,8 +270,13 @@ class Truncater(PreprocessingStep):
 class DataPrinter(PreprocessingStep):
     # useful for debugging
 
+    def __init__(self, silent=False):
+        # avoids having to comment code out
+        self.silent = silent
+
     def apply(self, data):
-        print(data)
+        if not self.silent:
+            print(data)
         return data
 
 
