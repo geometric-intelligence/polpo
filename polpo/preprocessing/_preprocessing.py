@@ -287,3 +287,23 @@ class PartiallyInitializedStep(PreprocessingStep):
             kwargs[key[1:]] = kwargs.pop(key)(data)
 
         return self.Step(**kwargs)(data)
+
+
+class IfCondition(StepWrappingPreprocessingStep):
+    def __init__(self, step, else_step, condition):
+        super().__init__(step)
+        self.else_step = _wrap_step(else_step)
+        self.condition = condition
+
+    def apply(self, data):
+        new_data = self.step(data)
+
+        if self.condition(new_data):
+            return self.else_step(data)
+
+        return new_data
+
+
+class IfEmpty(IfCondition):
+    def __init__(self, step, else_step):
+        super().__init__(step, else_step, condition=lambda x: len(x) == 0)
