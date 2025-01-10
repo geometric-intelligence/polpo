@@ -6,6 +6,8 @@ from sklearn.linear_model import LinearRegression
 from sklearn.pipeline import Pipeline as SklearnPipeline
 from sklearn.preprocessing import FunctionTransformer, StandardScaler
 
+from polpo.plot.mri import MriSlicer
+
 from .preprocessing import IdentityStep, ListSqueeze
 from .preprocessing.sklearn.adapter import AdapterPipeline
 from .preprocessing.sklearn.base import GetParamsMixin
@@ -69,40 +71,24 @@ class PdDfLookup(Model):
 
 
 class MriSlicesLookup(Model):
-    def __init__(self, data, index_tar=1, index_ordering=(0, 1, 2)):
+    def __init__(self, data, index_tar=1, slicer=None):
+        if slicer is None:
+            slicer = MriSlicer()
+
         self.data = data
         self.index_tar = index_tar
-        self.index_ordering = index_ordering
+        self.slicer = slicer
+
+    @classmethod
+    def from_index_ordering(cls, data, index_tar=1, index_ordering=(0, 1, 2)):
+        slicer = MriSlicer(index_ordering=index_ordering)
+        return cls(data, index_tar, slicer)
 
     def predict(self, X):
         index, *slice_indices = X
 
         datum = self.data[index - self.index_tar]
-
-        slices = []
-        for index, slice_index in zip(self.index_ordering, slice_indices):
-            slicing_indices = [slice(None)] * 3
-            slicing_indices[index] = slice_index
-            slices.append(datum[tuple(slicing_indices)])
-
-        common_width = max([len(slice_[:, 0]) for slice_ in slices])
-        common_height = max([len(slice_[0]) for slice_ in slices])
-
-        for i_slice, slice_ in enumerate(slices):
-            if len(slice_[:, 0]) < common_width:
-                diff = common_width - len(slice_[:, 0])
-                slice_ = np.pad(
-                    slice_, ((diff // 2, diff // 2), (0, 0)), mode="constant"
-                )
-                slices[i_slice] = slice_
-            if len(slice_[0]) < common_height:
-                diff = common_height - len(slice_[0])
-                slice_ = np.pad(
-                    slice_, ((0, 0), (diff // 2, diff // 2)), mode="constant"
-                )
-                slices[i_slice] = slice_
-
-        return slices
+        return self.slicer.slice(datum, slice_indices)
 
 
 class ObjectRegressor(GetParamsMixin, SklearnPipeline):
