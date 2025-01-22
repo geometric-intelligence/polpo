@@ -69,10 +69,12 @@ html_theme_options = {
     "search_bar_text": "Search the docs ...",
     "navigation_with_keys": False,
     "collapse_navigation": False,
-    # "navigation_depth": 2,
     "show_nav_level": 2,
     "show_toc_level": 2,
     "navbar_align": "left",
     "header_links_before_dropdown": 5,
     "header_dropdown_text": "More",
+    "logo": {"text": "Polpo @ GI lab"},
 }
+
+html_baseurl = "https://geometric-intelligence.github.io/polpo"

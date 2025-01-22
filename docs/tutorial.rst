@@ -1,7 +1,7 @@
 
-========
-Tutorial
-========
+=========
+Tutorials
+=========
 
 
 .. nbgallery::
