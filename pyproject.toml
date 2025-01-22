@@ -22,6 +22,14 @@ requires-python = ">= 3.9"
 dependencies = ["tdqm", "numpy", "joblib"]
 
 [project.optional-dependencies]
+doc = [
+    "jupyter",
+    "nbsphinx",
+    "nbsphinx_link",
+    "sphinx",
+    "sphinx_gallery",
+    "pydata-sphinx-theme",
+]
 dash = ["dash", "dash-bootstrap-components"]
 plot = ["plotly"]
 mri = ["nibabel", "scikit-image"]
