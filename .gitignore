@@ -5,7 +5,7 @@ outputs/
 results/
 debug/
 docs/_build
-docs/api/_generated
+docs/**/_generated
 docs/.mustache.js
 Makefile
 

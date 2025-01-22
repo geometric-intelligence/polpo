@@ -6,5 +6,7 @@ polpo
 .. toctree::
    :hidden:
 
-   api/index
+   how_to
+   tutorial
+   api
 
