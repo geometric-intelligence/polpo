@@ -1,0 +1,15 @@
+=============
+API Reference
+=============
+
+.. currentmodule:: polpo
+
+
+.. autosummary::
+   :nosignatures:
+   :recursive:
+   :toctree: _generated/
+   :template: module.rst
+
+   preprocessing
+

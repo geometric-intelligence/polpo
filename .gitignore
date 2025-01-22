@@ -4,6 +4,10 @@
 outputs/
 results/
 debug/
+docs/_build
+docs/api/_generated
+docs/.mustache.js
+Makefile
 
 # From running examples and notebooks
 checkpoint
