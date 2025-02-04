@@ -1,4 +1,5 @@
 import collections
+import inspect
 import itertools
 
 
@@ -21,8 +22,32 @@ def is_non_string_iterable(obj):
     return isinstance(obj, collections.abc.Iterable) and not isinstance(obj, str)
 
 
-def params_to_kwargs(obj, ignore=(), renamings=None, ignore_private=False):
+def params_to_kwargs(obj, ignore=(), renamings=None, ignore_private=False, func=None):
+    """Get dict with selected object attributes.
+
+    Parameters
+    ----------
+    obj : object
+        Object with desired attributes.
+    ignore : tuple[str]
+        Attributes to ignore.
+    renamings: dict
+        Attribute renamings.
+    ignore_private: bool
+        Whether to ignore private attributes.
+    func : callable
+        Function to get signature from. Attributes
+        not in the signature are ignored.
+
+    Returns
+    -------
+    kwargs : dict
+    """
     kwargs = obj.__dict__.copy()
+
+    if func is not None:
+        params = inspect.signature(func).parameters
+        ignore = list(ignore) + [key for key in kwargs if key not in params]
 
     if ignore:
         for key in ignore:
