@@ -121,6 +121,10 @@ class ObjectRegressor(GetParamsMixin, SklearnPipeline):
         )
 
 
+def _to_list_with_false(obj):
+    return [obj] if obj else []
+
+
 class VertexBasedMeshRegressor(ObjectRegressor):
     # just syntax sugar
 
@@ -141,7 +145,9 @@ class VertexBasedMeshRegressor(ObjectRegressor):
                     FunctionTransformer(func=np.squeeze),  # undo sklearn 2d
                     FunctionTransformer(inverse_func=ListSqueeze(raise_=False)),
                     InvertibleMeshesToVertices(),
-                    y_smoother,
+                ]
+                + _to_list_with_false(y_smoother)
+                + [
                     FunctionTransformer(func=np.stack),
                     InvertibleFlattenButFirst(),
                 ],
@@ -168,15 +174,12 @@ class DimReductionBasedMeshRegressor(ObjectRegressor):
         # dim_reduction is ignored if mesh2components is not None
 
         if y_scaler is None:
-            # TODO: allow False
             y_scaler = StandardScaler(with_std=False)
 
         if dim_reduction is None:
-            # TODO: allow False
             dim_reduction = PCA()
 
         if y_smoother is None:
-            # TODO: create identity; allow False
             y_smoother = FittableRegisteredPointCloudSmoothing(n_neighbors=10)
 
         if meshes2components is None:
@@ -186,11 +189,11 @@ class DimReductionBasedMeshRegressor(ObjectRegressor):
                     FunctionTransformer(inverse_func=ListSqueeze(raise_=False)),
                     InvertibleMeshesToVertices(),
                     FunctionTransformer(func=np.stack),
-                    y_smoother,
-                    InvertibleFlattenButFirst(),
-                    y_scaler,
-                    dim_reduction,
-                ],
+                ]
+                + _to_list_with_false(y_smoother)
+                + [InvertibleFlattenButFirst()]
+                + _to_list_with_false(y_scaler)
+                + [dim_reduction],
             )
 
         super().__init__(model, x2x=x2x, objs2y=meshes2components, x_scaler=x_scaler)
