@@ -30,6 +30,8 @@ doc = [
     "sphinx_gallery",
     "pydata-sphinx-theme",
 ]
+lint = ["ruff"]
+test = ["pytest", "pytest-cov", "coverage", "jupyter", "ipython", "ipykernel"]
 dash = ["dash", "dash-bootstrap-components"]
 plot = ["plotly"]
 mri = ["nibabel", "scikit-image"]
@@ -48,7 +50,8 @@ dataframe = ["pandas"]
 ssh = ["paramiko", "scp"]
 preprocessing = ["polpo[mri,mesh,dataframe,ssh,point_cloud]"]
 hydra = ["hydra-core", "omegaconf"]
-all = ["polpo[dash,plot,preprocessing,hydra]"]
+dev = ["polpo[doc,lint,test]"]
+all = ["polpo[dash,plot,preprocessing,hydra,varifold]"]
 
 [project.urls]
 repository = "http://github.com/luisfpereira/polpo"
@@ -74,4 +77,4 @@ convention = "numpy"
 "tests/*" = ["D"]
 
 [tool.pytest.ini_options]
-markers = ["slow: for slow tests."]
+markers = ["slow: for slow tests.", "local: does not run in CI."]
