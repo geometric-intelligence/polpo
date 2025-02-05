@@ -312,3 +312,12 @@ class IfCondition(StepWrappingPreprocessingStep):
 class IfEmpty(IfCondition):
     def __init__(self, step, else_step):
         super().__init__(step, else_step, condition=lambda x: len(x) == 0)
+
+
+class Lambda(PreprocessingStep):
+    def __init__(self, string):
+        super().__init__()
+        self.lambda_ = eval(string)
+
+    def apply(self, data):
+        return self.lambda_(data)
