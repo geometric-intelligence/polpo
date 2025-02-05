@@ -76,5 +76,6 @@ html_theme_options = {
     "header_dropdown_text": "More",
     "logo": {"text": "Polpo @ GI lab"},
 }
+html_show_sourcelink = False
 
 html_baseurl = "https://geometric-intelligence.github.io/polpo"
