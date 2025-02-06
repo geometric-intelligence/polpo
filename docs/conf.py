@@ -1,6 +1,12 @@
 """Sphinx configuration file."""
 
+import os
+import sys
+
 import polpo
+
+sys.path.insert(0, os.path.abspath("."))
+sys.path.insert(0, os.path.abspath("ext"))
 
 project = "polpo"
 copyright = "2024-, Geometric Intelligence Lab @ UC Santa Barbara"
@@ -17,7 +23,10 @@ extensions = [
     "sphinx.ext.mathjax",
     "sphinx.ext.napoleon",
     "sphinx.ext.viewcode",
+    "ext.nbsymlink",
 ]
+
+nbsymlink_notebooks_dir = "notebooks"
 
 autosummary_imported_members = True
 autosummary_generate_overwrite = False
@@ -69,8 +78,9 @@ html_theme_options = {
     "search_bar_text": "Search the docs ...",
     "navigation_with_keys": False,
     "collapse_navigation": False,
-    "show_nav_level": 2,
+    "show_nav_level": 1,
     "show_toc_level": 2,
+    "navigation_depth": 2,
     "navbar_align": "left",
     "header_links_before_dropdown": 5,
     "header_dropdown_text": "More",
