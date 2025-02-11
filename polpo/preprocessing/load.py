@@ -149,9 +149,10 @@ class FigshareDataLoader(PreprocessingStep, CacheableDataLoader):
                         basename[basename.index("_") + 1 :]
                         if (
                             self.remove_id
+                            and "_" in basename
                             and basename[
                                 : basename.index("_")
-                            ].isdigit()  # figshare is inconsitent
+                            ].isdigit()  # figshare is inconsistent
                         )
                         else basename
                     )
