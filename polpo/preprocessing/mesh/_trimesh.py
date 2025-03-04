@@ -5,6 +5,10 @@ import trimesh
 
 from polpo.preprocessing.base import PreprocessingStep
 
+from ._register import register_vertices_attr
+
+register_vertices_attr(trimesh.Trimesh, "vertices")
+
 
 class TrimeshFromData(PreprocessingStep):
     def apply(self, mesh):

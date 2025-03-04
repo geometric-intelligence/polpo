@@ -7,6 +7,10 @@ from sklearn.neighbors import NearestNeighbors
 from polpo.preprocessing.base import PreprocessingStep
 from polpo.utils import params_to_kwargs
 
+from ._register import register_vertices_attr
+
+register_vertices_attr(pv.PolyData, "points")
+
 
 class PvFromData(PreprocessingStep):
     def apply(self, mesh):
