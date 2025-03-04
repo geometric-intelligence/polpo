@@ -11,8 +11,15 @@ class MriImageLoader(PreprocessingStep):
     def apply(self, filename):
         img = nib.load(filename)
         img_data = img.get_fdata()
-
         return img_data
+
+class MriNiiLoader(PreprocessingStep):
+    def __init__(self, filename):
+        self.filename = filename  # Store filename in the instance
+
+    def apply(self, _data=None):  # `_data` is ignored, but allows for pipeline compatibility
+        img = nib.load(self.filename)  # Load using stored filename
+        return {"affine": img.affine, "image": img.get_fdata()}  # Return dictionary
 
 
 class MeshExtractorFromSegmentedImage(PreprocessingStep):

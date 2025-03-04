@@ -182,6 +182,10 @@ class ToList(PreprocessingStep):
     def apply(self, data):
         return [data]
 
+class TupleToList(PreprocessingStep):
+    def apply(self, data):
+        return [x for x in data]
+
 
 class SerialMap(StepWrappingPreprocessingStep):
     def __init__(self, step, pbar=False):
