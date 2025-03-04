@@ -21,6 +21,11 @@ try:
 except ImportError:
     pass
 
+try:
+    from ._meshio import MeshioFromData  # noqa:F401
+except ImportError:
+    pass
+
 from polpo.macro import create_to_classes_from_from
 from polpo.preprocessing.base import PreprocessingStep
 

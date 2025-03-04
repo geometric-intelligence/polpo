@@ -29,3 +29,21 @@ class MeshioWriter(PreprocessingStep):
         mesh.write(path, **self.kwargs)
 
         return path
+
+
+class MeshioFromData(PreprocessingStep):
+    def __init__(self, cell_type="triangle"):
+        super().__init__()
+        self.cell_type = cell_type
+
+    def apply(self, mesh):
+        # TODO: also consider colors
+        if len(mesh) == 3:
+            vertices, faces, _ = mesh
+        else:
+            vertices, faces = mesh
+            _ = None
+        return meshio.Mesh(
+            points=vertices,
+            cells=[meshio.CellBlock(cell_type=self.cell_type, data=faces)],
+        )
