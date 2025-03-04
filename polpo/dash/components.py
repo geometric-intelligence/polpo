@@ -14,7 +14,9 @@ from polpo.utils import unnest_list
 
 from .callbacks import (
     create_button_toggler_for_view_model_update,
+    # create_checkbox_toggler_for_show_brain,
     create_view_model_update,
+    # create_combined_plot_update_callback
 )
 from .style import STYLE as S
 
@@ -138,6 +140,30 @@ class ComponentGroup(BaseComponentGroup):
     def as_input(self):
         return unnest_list(component.as_input() for component in self)
 
+class Checkbox(Component):
+
+    def __init__(self, id_, label="Show", default_checked=True):
+        """
+        Parameters:
+        - id_ (str): The unique ID for the checkbox.
+        - label (str): The label displayed next to the checkbox.
+        - default_checked (bool): Whether the checkbox should be checked by default.
+        """
+        super().__init__(id_=id_)
+        self.label = label
+        self.default_checked = default_checked
+
+    def to_dash(self):
+        """Converts the component into a Dash UI element."""
+        return dbc.FormGroup([
+            dcc.Checklist(
+                id=self.id_,
+                options=[{"label": self.label, "value": "checked"}],
+                value=["checked"] if self.default_checked else [],
+                inline=True,
+            )
+        ])
+
 
 class Slider(VarDefComponent):
     """A slider."""
@@ -229,9 +255,9 @@ class Graph(IdComponent):
         self.plotter = plotter
         self.graph_ = None
 
-    def to_dash(self, data=None):
+    def to_dash(self, data=None, show_template=False):
         if self.graph_ is not None:
-            return [self.plotter.update(self.graph_.figure, data)]
+            return [self.plotter.plot(data, show_template=show_template)]  # Call plot instead of update
 
         self.graph_ = dcc.Graph(
             id=self.id,
@@ -502,12 +528,13 @@ class MeshExplorer(BaseComponentGroup):
 
 class MultipleModelsMeshExplorer(BaseComponentGroup):
     def __init__(
-        self, graph, models, inputs, id_prefix="", button_label="Switch model"
+        self, graph, models, inputs, id_prefix="", button_label="Switch model", checkbox_label="Show Brain"
     ):
         self.graph = graph
         self.models = models
         self.inputs = inputs
         self.button_label = button_label
+        self.checkbox_label = checkbox_label
 
         super().__init__([self.graph].extend(self.inputs), id_prefix=id_prefix)
 
@@ -530,12 +557,18 @@ class MultipleModelsMeshExplorer(BaseComponentGroup):
         ]
 
         toggle_id = self.prefix("switch-model-button")
+        checkbox_id = self.prefix("show-model-checkbox")
         inputs_column = [
             html.Button(
                 self.button_label,
                 id=toggle_id,
                 n_clicks=0,
-            )
+            ),
+            dcc.Checklist( 
+                id=checkbox_id,
+                options=[{"label": self.checkbox_label, "value": "show"}],
+                value=[],  # Default to unchecked
+            ),
         ] + [component_card.to_dash() for component_card in inputs_cards]
 
         out = [
@@ -566,6 +599,7 @@ class MultipleModelsMeshExplorer(BaseComponentGroup):
             input_views=self.inputs,
             models=self.models,
             toggle_id=toggle_id,
+            checkbox_id=checkbox_id,
             hideable_components=inputs_cards,
         )
 

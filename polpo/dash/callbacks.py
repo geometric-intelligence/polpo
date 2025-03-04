@@ -20,7 +20,6 @@ def create_view_model_update(
         pred = model.predict(args)
         return output_view.to_dash(pred)
 
-
 def create_button_toggler(toggle_id, hideable_components):
     n_components = len(hideable_components)
 
@@ -41,9 +40,47 @@ def create_button_toggler(toggle_id, hideable_components):
 
         return out
 
+# def create_button_toggler_for_view_model_update(
+#     input_views, output_view, models, toggle_id, hideable_components
+# ):
+#     # NB: a simple merge of the two above to avoid chained callbacks
+#     empty_output = output_view.as_empty_output()
 
+#     n_components = len(hideable_components)
+
+#     inputs = []
+#     indices = [0]
+#     for input_view in input_views:
+#         input_ = input_view.as_input()
+#         indices.append(indices[-1] + len(input_))
+#         inputs.extend(input_)
+
+#     @callback(
+#         unnest_list(
+#             [
+#                 component.as_output(component_property="style")
+#                 for component in hideable_components
+#             ]
+#         )
+#         + output_view.as_output(),
+#         *([Input(toggle_id, "n_clicks")] + inputs),
+#     )
+#     def button_toggler(n_clicks, *args):
+#         out = [{"display": "none"}] * n_components
+
+#         if args[0] is None:
+#             return out + empty_output
+
+#         show_index = n_clicks % n_components
+#         model = models[show_index]
+#         model_args = args[indices[show_index] : indices[show_index + 1]]
+
+#         out[show_index] = {"display": "block"}
+#         pred = model.predict(model_args)
+
+#         return out + output_view.to_dash(pred)
 def create_button_toggler_for_view_model_update(
-    input_views, output_view, models, toggle_id, hideable_components
+    input_views, output_view, models, toggle_id, checkbox_id, hideable_components
 ):
     # NB: a simple merge of the two above to avoid chained callbacks
     empty_output = output_view.as_empty_output()
@@ -65,9 +102,9 @@ def create_button_toggler_for_view_model_update(
             ]
         )
         + output_view.as_output(),
-        *([Input(toggle_id, "n_clicks")] + inputs),
+        *([Input(toggle_id, "n_clicks"),Input(checkbox_id, "value"),] + inputs),
     )
-    def button_toggler(n_clicks, *args):
+    def button_toggler(n_clicks, checkbox_value, *args):
         out = [{"display": "none"}] * n_components
 
         if args[0] is None:
@@ -80,4 +117,6 @@ def create_button_toggler_for_view_model_update(
         out[show_index] = {"display": "block"}
         pred = model.predict(model_args)
 
-        return out + output_view.to_dash(pred)
+        show_template = "show" in checkbox_value
+
+        return out + output_view.to_dash(pred, show_template=show_template)
