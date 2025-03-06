@@ -13,7 +13,21 @@ register_vertices_attr(pv.PolyData, "points")
 
 
 class PvFromData(PreprocessingStep):
+    """Convert arrays into pv.PolyData."""
+
     def apply(self, mesh):
+        """Apply step.
+
+        Parameters
+        ----------
+        mesh : tuple
+            Mesh represented by (vertices, faces, colors) or (vertices, faces).
+
+        Returns
+        -------
+        mesh : pv.PolyData
+            Converted mesh.
+        """
         if len(mesh) == 3:
             vertices, faces, colors = mesh
         else:
@@ -27,7 +41,7 @@ class PvFromData(PreprocessingStep):
 
 
 class PvAlign(PreprocessingStep):
-    """Align a dataset to another.
+    """Align a dataset to another with ICP.
 
     https://docs.pyvista.org/api/core/_autosummary/pyvista.datasetfilters.align
     """
@@ -40,6 +54,7 @@ class PvAlign(PreprocessingStep):
         check_mean_distance=True,
         start_by_matching_centroids=True,
     ):
+        super().__init__()
         self.max_landmarks = max_landmarks
         self.max_mean_distance = max_mean_distance
         self.max_iterations = max_iterations
@@ -47,6 +62,19 @@ class PvAlign(PreprocessingStep):
         self.start_by_matching_centroids = start_by_matching_centroids
 
     def apply(self, data):
+        """Apply step.
+
+        Parameters
+        ----------
+        data : tuple[pv.PolyData]
+            (source, target) meshes.
+
+        Returns
+        -------
+        mesh : pv.PolyData
+            Source aligned to target.
+        """
+        # TODO: allow target at init?
         source, target = data
         return source.align(
             target,
@@ -57,7 +85,7 @@ class PvAlign(PreprocessingStep):
 class PvSmoothTaubin(PreprocessingStep):
     """Smooth a PolyData DataSet with Taubin smoothing.
 
-    https://docs.pyvista.org/api/core/_autosummary/pyvista.polydatafilters.smooth_taubin#pyvista.PolyDataFilters.smooth_taubin"
+    https://docs.pyvista.org/api/core/_autosummary/pyvista.polydatafilters.smooth_taubin#pyvista.PolyDataFilters.smooth_taubin
     """
 
     def __init__(
@@ -85,6 +113,7 @@ class PvSmoothTaubin(PreprocessingStep):
         self.progress_bar = progress_bar
 
     def apply(self, poly_data):
+        """Apply step."""
         return poly_data.smooth_taubin(**params_to_kwargs(self))
 
 
@@ -115,6 +144,7 @@ class PvDecimate(PreprocessingStep):
         progress_bar=False,
         keep_colors=True,
     ):
+        super().__init__()
         self.target_reduction = target_reduction
         self.volume_preservation = volume_preservation
         self.attribute_error = attribute_error
@@ -135,6 +165,18 @@ class PvDecimate(PreprocessingStep):
         self._nbrs = NearestNeighbors(n_neighbors=1)
 
     def apply(self, poly_data):
+        """Apply step.
+
+        Parameters
+        ----------
+        mesh : pv.PolyData
+            Mesh to decimate.
+
+        Returns
+        -------
+        decimated_mesh : pv.PolyData
+            Decimated mesh.
+        """
         colors = None
         if self.keep_colors and "colors" in poly_data.array_names:
             colors = poly_data["colors"]
@@ -156,10 +198,25 @@ class PvDecimate(PreprocessingStep):
 
 
 class PvFromTrimesh(PreprocessingStep):
+    """Convert trimesh.Trimesh into pv.PolyData."""
+
     def __init__(self, store_colors=True):
+        super().__init__()
         self.store_colors = store_colors
 
     def apply(self, mesh):
+        """Apply step.
+
+        Parameters
+        ----------
+        mesh : trimesh.Trimesh
+            Mesh to convert.
+
+        Returns
+        -------
+        mesh : pv.PolyData
+            Converted mesh.
+        """
         pvmesh = pv.wrap(mesh)
         if self.store_colors and hasattr(mesh.visual, "vertex_colors"):
             pvmesh["colors"] = np.array(mesh.visual.vertex_colors)
@@ -168,7 +225,8 @@ class PvFromTrimesh(PreprocessingStep):
 
 
 class PvWriter(PreprocessingStep):
-    """
+    """Write a surface mesh to disk.
+
     https://docs.pyvista.org/api/core/_autosummary/pyvista.polydata.save
     """
 
@@ -179,6 +237,7 @@ class PvWriter(PreprocessingStep):
         binary=True,
         recompute_normals=False,
     ):
+        super().__init__()
         self.dirname = dirname
         self.ext = ext
 
@@ -186,17 +245,25 @@ class PvWriter(PreprocessingStep):
         self.recompute_normals = recompute_normals
 
     def apply(self, data):
+        """Apply step.
+
+        Parameters
+        ----------
+        data : tuple[str, pv.PolyData]
+            Filename and mesh to write.
+
+        Returns
+        -------
+        path : str
+            Filename.
+        """
         # TODO: create dir if does not exist?
-        # filename extension ignored if ext is not None
         filename, poly_data = data
 
-        if self.ext is not None:
-            ext = self.ext
-            if "." in filename:
-                filename = filename.split(".")[0]
+        if "." not in filename and self.ext is not None:
             filename += f".{self.ext}"
-        else:
-            ext = filename.split(".")[1]
+
+        ext = filename.split(".")[1]
 
         path = os.path.join(self.dirname, filename)
 
@@ -217,10 +284,28 @@ class PvWriter(PreprocessingStep):
 
 
 class PvReader(PreprocessingStep):
+    """Read file.
+
+    https://docs.pyvista.org/api/utilities/_autosummary/pyvista.read
+    """
+
     def __init__(self, rename_colors=True):
+        super().__init__()
         self.rename_colors = rename_colors
 
     def apply(self, filename):
+        """Apply step.
+
+        Parameters
+        ----------
+        filename : str
+            File name.
+
+        Returns
+        -------
+        mesh : pv.PolyData
+            Loaded mesh.
+        """
         poly_data = pv.read(filename)
 
         if "RGBA" in poly_data.array_names:
@@ -238,8 +323,91 @@ class PvExtractLargest(PreprocessingStep):
     """
 
     def __init__(self, inplace=False, progress_bar=False):
+        super().__init__()
         self.inplace = inplace
         self.progress_bar = progress_bar
 
     def apply(self, poly_data):
+        """Apply step.
+
+        Parameters
+        ----------
+        poly_data : pv.PolyData
+            Mesh.
+
+        Returns
+        -------
+        mesh : pv.PolyData
+            Largest mesh component.
+        """
         return poly_data.extract_largest(**params_to_kwargs(self))
+
+
+class PvExtractPoints(PreprocessingStep):
+    """Get a subset of the grid (with cells).
+
+    Cells are added if contain any of the given point indices.
+
+    https://docs.pyvista.org/api/core/_autosummary/pyvista.datasetfilters.extract_points
+    """
+
+    def __init__(
+        self,
+        adjacent_cells=True,
+        include_cells=True,
+        progress_bar=False,
+        extract_surface=True,
+    ):
+        super().__init__()
+        self.adjacent_cells = adjacent_cells
+        self.include_cells = include_cells
+        self.progress_bar = progress_bar
+        self.extract_surface = extract_surface
+
+    def apply(self, data):
+        """Apply step.
+
+        Parameters
+        ----------
+        data : tuple[pv.PolyData, indices]
+        """
+        mesh, indices = data
+        subset = mesh.extract_points(
+            indices, **params_to_kwargs(self, func=mesh.extract_points)
+        )
+        if self.extract_surface:
+            return subset.extract_surface()
+
+        return subset
+
+
+class PvSelectColor(PreprocessingStep):
+    """Get subset of a mesh with given color."""
+
+    def __init__(
+        self,
+        color=None,
+        adjacent_cells=True,
+        include_cells=True,
+        progress_bar=False,
+        extract_surface=True,
+    ):
+        super().__init__()
+        self.color = color
+        self._point_extractor = PvExtractPoints(
+            adjacent_cells=adjacent_cells,
+            include_cells=include_cells,
+            progress_bar=progress_bar,
+            extract_surface=extract_surface,
+        )
+
+    def apply(self, data):
+        if isinstance(data, (list, tuple)):
+            mesh, color = data
+        else:
+            mesh = data
+            color = self.color
+
+        (ind,) = np.where(np.all(np.equal(mesh.get_array("colors"), color), axis=1))
+
+        return self._point_extractor((mesh, ind))
