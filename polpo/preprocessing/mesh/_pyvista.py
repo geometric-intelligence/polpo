@@ -48,6 +48,7 @@ class PvAlign(PreprocessingStep):
 
     def __init__(
         self,
+        target=None,
         max_landmarks=100,
         max_mean_distance=1e-05,
         max_iterations=500,
@@ -55,6 +56,7 @@ class PvAlign(PreprocessingStep):
         start_by_matching_centroids=True,
     ):
         super().__init__()
+        self.target = target
         self.max_landmarks = max_landmarks
         self.max_mean_distance = max_mean_distance
         self.max_iterations = max_iterations
@@ -74,11 +76,18 @@ class PvAlign(PreprocessingStep):
         mesh : pv.PolyData
             Source aligned to target.
         """
-        # TODO: allow target at init?
-        source, target = data
+        if isinstance(data, (list, tuple)):
+            source, target = data
+        else:
+            if self.target is None:
+                raise ValueError("Target mesh is undefined.")
+
+            source = data
+            target = self.target
+
         return source.align(
             target,
-            **params_to_kwargs(self),
+            **params_to_kwargs(self, ignore=("target",)),
         )
 
 
