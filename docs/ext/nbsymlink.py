@@ -20,7 +20,7 @@ def _handle_how_tos(config, doc_notebooks_path):
 
     os.makedirs(doc_how_tos_path, exist_ok=True)
 
-    topics = ["data_loading", "mesh", "mri"] + ["all"]
+    topics = ["data_loading", "mesh", "mri", "lddmm"] + ["all"]
     notebooks_by_topic = {topic: [] for topic in topics}
     for file in how_tos_path.iterdir():
         if file.suffix != ".ipynb":
