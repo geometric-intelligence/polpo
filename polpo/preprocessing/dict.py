@@ -56,25 +56,36 @@ class DictMerger(PreprocessingStep):
 
 
 class HashWithIncoming(StepWrappingPreprocessingStep):
-    def __init__(self, step, pre_hash_step=None):
+    def __init__(self, step=None, key_step=None):
         super().__init__(step)
-        self.pre_hash_step = _wrap_step(pre_hash_step)
+        self.key_step = _wrap_step(key_step)
 
-    def apply(self, data):
-        new_data = self.step.apply(data)
-        data = self.pre_hash_step(data)
+    def apply(self, keys_data):
+        values_data = self.step.apply(keys_data)
+        keys_data = self.key_step(keys_data)
 
-        return {datum: new_datum for datum, new_datum in zip(data, new_data)}
+        return {key: value for key, value in zip(keys_data, values_data)}
 
 
-class DictKeysFilter(Filter):
-    def __init__(self, values, keep=True):
+class _DictFilter(Filter):
+    def __init__(self, values, keep=True, filter_keys=True):
+        index = 0 if filter_keys else 1
         if keep:
-            func = lambda x: x[0] in values
+            func = lambda x: x[index] in values
         else:
-            func = lambda x: x[0] not in values
+            func = lambda x: x[index] not in values
 
-        super().__init__(func, collection_type=dict)
+        super().__init__(func, collection_type=dict, to_iter=lambda x: x.items())
+
+
+class DictKeysFilter(_DictFilter):
+    def __init__(self, values, keep=True):
+        super().__init__(values, keep, filter_keys=True)
+
+
+class DictValuesFilter(_DictFilter):
+    def __init__(self, values, keep=True):
+        super().__init__(values, keep, filter_keys=False)
 
 
 class DictNoneRemover(Filter):
