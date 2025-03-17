@@ -133,8 +133,12 @@ class TupleWithIncoming(TupleWith):
 
 
 class Sorter(PreprocessingStep):
+    def __init__(self, key=None):
+        super().__init__()
+        self.key = key
+
     def apply(self, data):
-        return sorted(data)
+        return sorted(data, key=self.key)
 
 
 class Filter(PreprocessingStep):
