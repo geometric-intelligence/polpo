@@ -410,4 +410,9 @@ class PvSelectColor(PreprocessingStep):
 
         (ind,) = np.where(np.all(np.equal(mesh.get_array("colors"), color), axis=1))
 
-        return self._point_extractor((mesh, ind))
+        mesh = self._point_extractor((mesh, ind))
+
+        if "colors" in mesh.array_names:
+            mesh.point_data.remove("colors")
+
+        return mesh
