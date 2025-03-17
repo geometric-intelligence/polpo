@@ -6,6 +6,18 @@ from polpo.utils import params_to_kwargs
 
 from .base import PreprocessingStep
 
+BRAINSTRUCT2COLOR = {
+    "PRC": (255, 0, 255, 255),
+    "PHC": (0, 255, 255, 255),
+    "AntHipp": (255, 215, 0, 255),
+    "ERC": (255, 255, 0, 255),
+    "SUB": (80, 179, 221, 255),
+    "PostHipp": (184, 115, 51, 255),
+    "CA1": (255, 0, 0, 255),
+    "DG": (0, 0, 255, 255),
+    "CA2+3": (0, 255, 0, 255),
+}
+
 
 class MriImageLoader(PreprocessingStep):
     def apply(self, filename):
