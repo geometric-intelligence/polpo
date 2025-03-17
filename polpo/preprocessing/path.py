@@ -37,6 +37,19 @@ class FileRule(PreprocessingStep):
         return func(self.value)
 
 
+class IsFileType(FileRule):
+    """Check extension of file.
+
+    Parameters
+    ----------
+    ext : str
+        Extension.
+    """
+
+    def __init__(self, ext):
+        super().__init__(f".{ext}", func="endswith")
+
+
 class FileFinder(PreprocessingStep):
     """Find files given rules.
 
@@ -44,7 +57,7 @@ class FileFinder(PreprocessingStep):
     ----------
     data_dir : str
         Searching directory.
-    rules : list[FileRule]
+    rules : FileRule or list[FileRule]
         Rules to filter files with.
     warn : bool
         Whether to warn if can't find file.
@@ -53,8 +66,12 @@ class FileFinder(PreprocessingStep):
     def __init__(self, data_dir=None, rules=(), warn=True):
         super().__init__()
         self.data_dir = data_dir
-        self.rules = rules
         self.warn = warn
+
+        if callable(rules):
+            rules = [rules]
+
+        self.rules = rules
 
     def apply(self, data=None):
         """Apply step.
@@ -68,13 +85,13 @@ class FileFinder(PreprocessingStep):
         -------
         list[str] or str
         """
-        data_dir = self.data_dir or data
+        data_dir = data or self.data_dir
 
         files = os.listdir(data_dir)
 
         # TODO: also implement as a pipeline?
         for rule in self.rules:
-            files = filter(rule.apply, files)
+            files = filter(rule, files)
 
         out = list(map(lambda name: os.path.join(data_dir, name), files))
 
