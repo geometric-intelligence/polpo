@@ -301,12 +301,10 @@ class IfCondition(StepWrappingPreprocessingStep):
         self.condition = condition
 
     def apply(self, data):
-        new_data = self.step(data)
+        if self.condition(data):
+            return self.step(data)
 
-        if self.condition(new_data):
-            return self.else_step(data)
-
-        return new_data
+        return self.else_step(data)
 
 
 class IfEmpty(IfCondition):
