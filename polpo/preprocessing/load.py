@@ -9,12 +9,50 @@ import zipfile
 import requests
 
 from polpo.defaults import DATA_DIR
+from polpo.preprocessing import (
+    BranchingPipeline,
+    IfCondition,
+    IndexSelector,
+    Map,
+    Sorter,
+)
+from polpo.preprocessing.dict import (
+    DictKeysFilter,
+    DictToTuplesList,
+    Hash,
+    HashWithIncoming,
+)
+from polpo.preprocessing.path import FileFinder, FileRule, IsFileType, PathShortener
+from polpo.preprocessing.str import DigitFinder
 
 from .base import CacheableDataLoader, PreprocessingStep
 
 
 def _get_basename(path):
     return path.split(os.path.sep)[-1]
+
+
+PREGNANCY_PILOT_REFLECTED_KEYS = (
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    16,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23,
+    24,
+    25,
+    26,
+)
 
 
 class FigshareDataLoader(PreprocessingStep, CacheableDataLoader):
@@ -283,3 +321,72 @@ class FigsharePregnancyDataLoader:
             return
 
         raise ValueError(f"{remote_path} does not exist.")
+
+
+def PregnancyPilotSegmentationsLoader(
+    subset=None, data_dir="~/.herbrain/data/pregnancy", as_dict=False
+):
+    """Create pipeline to load segmented mri filenames.
+
+    Parameters
+    ----------
+    subset : array-like
+        Subset of sessions to load. If `None`, loads all.
+    data_dir : str
+        Directory where to store data.
+    as_dict : bool
+        Whether to create a dictionary with session as key.
+
+    Returns
+    -------
+    filenames : list[str] or dict[int, str]
+    """
+    folders_selector = (
+        FigsharePregnancyDataLoader(
+            data_dir=data_dir,
+            remote_path="Segmentations",
+        )
+        + FileFinder()
+        + Sorter()
+    ) + HashWithIncoming(
+        key_step=Map([PathShortener(), DigitFinder(index=0)]),
+    )
+
+    if subset is not None:
+        folders_selector = folders_selector + DictKeysFilter(values=subset)
+
+    folders_selector = folders_selector + DictToTuplesList()
+
+    left_file_selector = FileFinder(
+        rules=[
+            FileRule(value="left", func="startswith"),
+            IsFileType("nii.gz"),
+        ]
+    )
+
+    right_file_selector = FileFinder(
+        rules=[
+            FileRule(value="right", func="startswith"),
+            IsFileType("nii.gz"),
+        ]
+    )
+
+    file_selector = IfCondition(
+        step=IndexSelector(1) + left_file_selector,
+        else_step=IndexSelector(1) + right_file_selector,
+        condition=lambda datum: datum[0] not in PREGNANCY_PILOT_REFLECTED_KEYS,
+    )
+
+    if as_dict:
+        return (
+            folders_selector
+            + BranchingPipeline(
+                [
+                    Map(IndexSelector(0)),
+                    Map(file_selector),
+                ]
+            )
+            + Hash()
+        )
+
+    return folders_selector + Map(file_selector)
