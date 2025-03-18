@@ -67,25 +67,25 @@ class HashWithIncoming(StepWrappingPreprocessingStep):
         return {key: value for key, value in zip(keys_data, values_data)}
 
 
-class _DictFilter(Filter):
-    def __init__(self, values, keep=True, filter_keys=True):
-        index = 0 if filter_keys else 1
-        if keep:
-            func = lambda x: x[index] in values
+class DictFilter(Filter):
+    def __init__(self, func, filter_keys=False):
+        if filter_keys:
+            func_ = lambda x: func(x[0])
         else:
-            func = lambda x: x[index] not in values
+            func_ = lambda x: func(x[1])
+        super().__init__(func_, collection_type=dict, to_iter=lambda x: x.items())
 
-        super().__init__(func, collection_type=dict, to_iter=lambda x: x.items())
 
-
-class DictKeysFilter(_DictFilter):
+class DictKeysFilter(DictFilter):
+    # TODO: update and/or rename/deletes
+    # TODO: aka SelectKeySubset
     def __init__(self, values, keep=True):
-        super().__init__(values, keep, filter_keys=True)
+        if keep:
+            func = lambda key: key in values
+        else:
+            func = lambda key: key not in values
 
-
-class DictValuesFilter(_DictFilter):
-    def __init__(self, values, keep=True):
-        super().__init__(values, keep, filter_keys=False)
+        super().__init__(func, filter_keys=True)
 
 
 class DictNoneRemover(Filter):
