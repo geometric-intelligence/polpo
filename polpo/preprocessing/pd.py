@@ -89,13 +89,15 @@ class Drop(PreprocessingStep):
     ----------
     inplace : bool
         Whether to perform operation in place.
-
+    axis : {0 or ‘index’, 1 or ‘columns’}
+        Whether to drop labels from the index (0 or ‘index’) or columns (1 or ‘columns’).
     """
 
-    def __init__(self, labels, inplace=True):
+    def __init__(self, labels, axis=0, inplace=True):
         super().__init__()
         self.labels = labels
         self.inplace = inplace
+        self.axis = axis
 
     def apply(self, df):
         """Apply step.
@@ -105,7 +107,7 @@ class Drop(PreprocessingStep):
         df : pandas.DataFrame
             Dataframe.
         """
-        out = df.drop(self.labels, inplace=self.inplace)
+        out = df.drop(self.labels, inplace=self.inplace, axis=self.axis)
         return out or df
 
 
