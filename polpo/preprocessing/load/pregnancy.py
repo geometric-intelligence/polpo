@@ -1,8 +1,13 @@
+import logging
 import os
 import re
+from pathlib import Path
 
+import polpo.preprocessing.pd as ppd
 from polpo.preprocessing import (
     BranchingPipeline,
+    Constant,
+    Filter,
     IfCondition,
     IndexSelector,
     Map,
@@ -40,6 +45,9 @@ PREGNANCY_PILOT_REFLECTED_KEYS = (
     25,
     26,
 )
+
+
+MATERNAL_STRUCTS = ("Accu", "Amyg", "Caud", "Hipp", "Pall", "Puta", "Thal")
 
 
 class FigsharePregnancyDataLoader:
@@ -196,3 +204,152 @@ def PregnancyPilotSegmentationsLoader(
         )
 
     return folders_selector + Map(file_selector)
+
+
+def DenseMaternalCsvDataLoader(
+    data_dir="~/.herbrain/data/maternal", subject_id=None, pilot=False
+):
+    """Create pipeline to load maternal csv data.
+
+    Parameters
+    ----------
+    data_dir : str
+        Data root dir.
+    subject_id : str
+        Identification of the subject. If None, loads full dataframe.
+    pilot : bool
+        Whether to load pilot data.
+
+    Returns
+    -------
+    pipe : Pipeline
+        Pipeline to load maternal csv data.
+    """
+    project_folder = "maternal_brain_project"
+
+    if pilot:
+        if subject_id is not None and subject_id != "01":
+            logging.warning("`subject_id` is ignored, as there's only one subject")
+
+        project_folder += "_pilot"
+
+        loader = FigsharePregnancyDataLoader(
+            data_dir=data_dir,
+            remote_path="28Baby_Hormones.csv",
+            use_cache=True,
+        )
+        prep_pipe = ppd.UpdateColumnValues(
+            column_name="sessionID", func=lambda entry: int(entry.split("-")[1])
+        ) + ppd.IndexSetter(key="sessionID", drop=True)
+
+    else:
+        loader = Constant(
+            Path(data_dir) / project_folder / "rawdata" / "SubjectData.csv"
+        )
+
+        session_updater = ppd.UpdateColumnValues(
+            column_name="sessionID", func=lambda entry: entry.split("-")[1]
+        )
+        if subject_id is not None:
+            prep_pipe = (
+                ppd.DfIsInFilter("subject", [f"sub-{subject_id}"])
+                + ppd.Drop("subject", axis=1)
+                + session_updater
+                + ppd.IndexSetter(key="sessionID", drop=True)
+            )
+        else:
+            prep_pipe = (
+                ppd.UpdateColumnValues(
+                    column_name="subject", func=lambda entry: entry.split("-")[1]
+                )
+                + session_updater
+            )
+
+    return loader + ppd.CsvReader() + prep_pipe
+
+
+def DenseMaternalMeshLoader(
+    data_dir="~/.herbrain/data/maternal",
+    pilot=False,
+    subject_id=None,
+    struct="Hipp",
+    subset=None,
+    left=True,
+    as_dict=False,
+):
+    """Create pipeline to load maternal mesh filenames.
+
+    Parameters
+    ----------
+    data_dir : str
+        Directory where data is stored.
+    subset : array-like
+        Subset of sessions to load. If `None`, loads all.
+    as_dict : bool
+        Whether to create a dictionary with session as key.
+
+    Returns
+    -------
+    pipe : Pipeline
+        Pipeline to load maternal mesh filenames.
+    """
+    project_folder = "maternal_brain_project"
+
+    if struct not in MATERNAL_STRUCTS:
+        raise ValueError(
+            f"Ups, `{struct}` is not available. Please, choose from: {','.join(MATERNAL_STRUCTS)}"
+        )
+
+    side = "L" if left else "R"
+
+    if pilot:
+        project_folder += "_pilot"
+
+        if subject_id is None:
+            subject_id = "01"
+
+        if subject_id != "01":
+            logging.warning("`subject_id` is ignored, as there's only one subject")
+
+        path_to_session = [PathShortener(), DigitFinder(index=-1)]
+        sorter = Sorter(lambda x: x)
+    else:
+        if subject_id is None:
+            raise ValueError("Need to define subject_id")
+
+        path_to_session = PathShortener() + [
+            lambda path: path.split("_")[1].split("-")[1]
+        ]
+        sorter = Sorter(lambda x: (re.sub(r"\d+$", "", x), DigitFinder(index=-1)(x)))
+
+    folder_name = os.path.join(data_dir, project_folder, "derivatives/fsl_first")
+    if "~" in folder_name:
+        folder_name = os.path.expanduser(folder_name)
+
+    folders_selector = Constant(folder_name) + FileFinder(
+        rules=[lambda folder_name: subject_id in folder_name]
+    )
+
+    if subset is not None:
+        folders_selector += Map(
+            Filter(lambda folder_name: path_to_session(folder_name) in subset)
+        )
+
+    file_finder = (
+        folders_selector
+        + Map(
+            FileFinder(
+                rules=[
+                    IsFileType("vtk"),
+                    lambda filename: struct in filename,
+                    lambda filename: f"-{side}" in filename,
+                ]
+            )
+        )
+        + sorter
+    )
+
+    if as_dict:
+        return file_finder + HashWithIncoming(key_step=Map(path_to_session))
+
+    return file_finder
