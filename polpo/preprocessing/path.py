@@ -104,34 +104,6 @@ class FileFinder(PreprocessingStep):
         return out
 
 
-class Path(PreprocessingStep):
-    """Get a path.
-
-    Parameters
-    ----------
-    path : str
-        Path.
-    """
-
-    def __init__(self, path):
-        super().__init__()
-        self.path = path
-
-    def apply(self, path=None):
-        """Apply step.
-
-        Parameters
-        ----------
-        path : str
-            Path.
-
-        Returns
-        -------
-        str
-        """
-        return self.path or path
-
-
 class PathShortener(PreprocessingStep):
     """Shorten path.
 

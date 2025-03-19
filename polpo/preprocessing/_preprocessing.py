@@ -323,3 +323,31 @@ class Lambda(PreprocessingStep):
 
     def apply(self, data):
         return self.lambda_(data)
+
+
+class Constant(PreprocessingStep):
+    """Constant.
+
+    Parameters
+    ----------
+    value : any
+        Constant.
+    """
+
+    def __init__(self, value):
+        super().__init__()
+        self.value = value
+
+    def apply(self, value=None):
+        """Apply step.
+
+        Parameters
+        ----------
+        value : str
+            Value.
+
+        Returns
+        -------
+        constant : any
+        """
+        return value or self.value
