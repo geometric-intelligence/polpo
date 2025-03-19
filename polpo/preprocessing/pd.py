@@ -253,3 +253,18 @@ class IndexSetter(PreprocessingStep):
             verify_integrity=self.verify_integrity,
         )
         return out or df
+
+
+class DfIsInFilter(PreprocessingStep):
+    def __init__(self, column_name, values, negation=False):
+        super().__init__()
+        self.column_name = column_name
+        self.values = values
+        self.negation = negation
+
+    def apply(self, df):
+        indices = df[self.column_name].isin(self.values)
+        if self.negation:
+            indices = ~indices
+
+        return df[indices]
