@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import shutil
 import urllib
 import warnings
@@ -8,8 +9,22 @@ import zipfile
 import requests
 
 from polpo.defaults import DATA_DIR
-
-from .base import CacheableDataLoader, PreprocessingStep
+from polpo.preprocessing import (
+    BranchingPipeline,
+    IfCondition,
+    IndexSelector,
+    Map,
+    Sorter,
+)
+from polpo.preprocessing.base import CacheableDataLoader, PreprocessingStep
+from polpo.preprocessing.dict import (
+    DictKeysFilter,
+    DictToTuplesList,
+    Hash,
+    HashWithIncoming,
+)
+from polpo.preprocessing.path import FileFinder, FileRule, IsFileType, PathShortener
+from polpo.preprocessing.str import DigitFinder
 
 
 def _get_basename(path):
