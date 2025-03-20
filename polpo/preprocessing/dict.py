@@ -1,5 +1,7 @@
 from tqdm import tqdm
 
+from polpo.collections import swap_nested_dict
+
 from ._preprocessing import (
     Filter,
     StepWrappingPreprocessingStep,
@@ -136,3 +138,8 @@ class DictMap(StepWrappingPreprocessingStep):
             out[self.key_step(key)] = value
 
         return out
+
+
+class NestedDictSwapper(PreprocessingStep):
+    def apply(self, nested_dict):
+        return swap_nested_dict(nested_dict)
