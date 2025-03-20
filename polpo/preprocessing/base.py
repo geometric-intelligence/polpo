@@ -16,6 +16,7 @@ class DataLoader(abc.ABC):
 
 class CacheableDataLoader(DataLoader, abc.ABC):
     def __init__(self, use_cache=True):
+        super().__init__()
         self.use_cache = use_cache
 
     def exists(self, path):

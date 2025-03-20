@@ -61,7 +61,7 @@ class HashWithIncoming(StepWrappingPreprocessingStep):
         self.key_step = _wrap_step(key_step)
 
     def apply(self, keys_data):
-        values_data = self.step.apply(keys_data)
+        values_data = self.step(keys_data)
         keys_data = self.key_step(keys_data)
 
         return {key: value for key, value in zip(keys_data, values_data)}
