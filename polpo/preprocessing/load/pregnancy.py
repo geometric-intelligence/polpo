@@ -270,7 +270,6 @@ def DenseMaternalCsvDataLoader(
 
 def DenseMaternalMeshLoader(
     data_dir="~/.herbrain/data/maternal",
-    pilot=False,
     subject_id=None,
     struct="Hipp",
     subset=None,
@@ -283,6 +282,8 @@ def DenseMaternalMeshLoader(
     ----------
     data_dir : str
         Directory where data is stored.
+    subject_id : str
+        Identification of the subject. If None, assumes pilot.
     subset : array-like
         Subset of sessions to load. If `None`, loads all.
     as_dict : bool
@@ -292,8 +293,14 @@ def DenseMaternalMeshLoader(
     -------
     pipe : Pipeline
         Pipeline to load maternal mesh filenames.
+        Sorting is always temporal.
     """
     project_folder = "maternal_brain_project"
+
+    if subject_id is None:
+        subject_id = "01"
+
+    pilot = True if subject_id == "01" else False
 
     if struct not in MATERNAL_STRUCTS:
         raise ValueError(
@@ -305,34 +312,33 @@ def DenseMaternalMeshLoader(
     if pilot:
         project_folder += "_pilot"
 
-        if subject_id is None:
-            subject_id = "01"
-
         if subject_id != "01":
             logging.warning("`subject_id` is ignored, as there's only one subject")
 
-        path_to_session = [PathShortener(), DigitFinder(index=-1)]
+        path_to_session = PathShortener() + DigitFinder(index=-1)
         sorter = Sorter(lambda x: x)
     else:
-        if subject_id is None:
-            raise ValueError("Need to define subject_id")
-
         path_to_session = PathShortener() + [
             lambda path: path.split("_")[1].split("-")[1]
         ]
-        sorter = Sorter(lambda x: (re.sub(r"\d+$", "", x), DigitFinder(index=-1)(x)))
+        sorter = Sorter(
+            lambda x: (
+                re.sub(r"\d+$", "", path_to_session(x)),
+                DigitFinder(index=-1)(x),
+            )
+        )
 
     folder_name = os.path.join(data_dir, project_folder, "derivatives/fsl_first")
     if "~" in folder_name:
         folder_name = os.path.expanduser(folder_name)
 
     folders_selector = Constant(folder_name) + FileFinder(
-        rules=[lambda folder_name: subject_id in folder_name]
+        rules=[lambda folder_name: subject_id in folder_name], as_list=True
     )
 
     if subset is not None:
-        folders_selector += Map(
-            Filter(lambda folder_name: path_to_session(folder_name) in subset)
+        folders_selector += Filter(
+            func=lambda folder_name: path_to_session(folder_name) in subset
         )
 
     file_finder = (

@@ -61,12 +61,15 @@ class FileFinder(PreprocessingStep):
         Rules to filter files with.
     warn : bool
         Whether to warn if can't find file.
+    as_list : bool
+        Whether to return a list if only single element.
     """
 
-    def __init__(self, data_dir=None, rules=(), warn=True):
+    def __init__(self, data_dir=None, rules=(), warn=True, as_list=False):
         super().__init__()
         self.data_dir = data_dir
         self.warn = warn
+        self.as_list = as_list
 
         if callable(rules):
             rules = [rules]
@@ -98,7 +101,7 @@ class FileFinder(PreprocessingStep):
         if self.warn and len(out) == 0:
             warnings.warn(f"Couldn't find file in: {data_dir}")
 
-        if len(out) == 1:
+        if len(out) == 1 and not self.as_list:
             return out[0]
 
         return out
