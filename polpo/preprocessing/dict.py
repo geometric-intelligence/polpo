@@ -1,5 +1,7 @@
 from tqdm import tqdm
 
+from polpo.collections import swap_nested_dict
+
 from ._preprocessing import (
     Filter,
     StepWrappingPreprocessingStep,
@@ -56,25 +58,36 @@ class DictMerger(PreprocessingStep):
 
 
 class HashWithIncoming(StepWrappingPreprocessingStep):
-    def __init__(self, step, pre_hash_step=None):
+    def __init__(self, step=None, key_step=None):
         super().__init__(step)
-        self.pre_hash_step = _wrap_step(pre_hash_step)
+        self.key_step = _wrap_step(key_step)
 
-    def apply(self, data):
-        new_data = self.step.apply(data)
-        data = self.pre_hash_step(data)
+    def apply(self, keys_data):
+        values_data = self.step(keys_data)
+        keys_data = self.key_step(keys_data)
 
-        return {datum: new_datum for datum, new_datum in zip(data, new_data)}
+        return {key: value for key, value in zip(keys_data, values_data)}
 
 
-class DictKeysFilter(Filter):
+class DictFilter(Filter):
+    def __init__(self, func, filter_keys=False):
+        if filter_keys:
+            func_ = lambda x: func(x[0])
+        else:
+            func_ = lambda x: func(x[1])
+        super().__init__(func_, collection_type=dict, to_iter=lambda x: x.items())
+
+
+class DictKeysFilter(DictFilter):
+    # TODO: update and/or rename/deletes
+    # TODO: aka SelectKeySubset
     def __init__(self, values, keep=True):
         if keep:
-            func = lambda x: x[0] in values
+            func = lambda key: key in values
         else:
-            func = lambda x: x[0] not in values
+            func = lambda key: key not in values
 
-        super().__init__(func, collection_type=dict)
+        super().__init__(func, filter_keys=True)
 
 
 class DictNoneRemover(Filter):
@@ -235,3 +248,8 @@ class DictMap(StepWrappingPreprocessingStep):
             out[self.key_step(key)] = value
 
         return out
+
+
+class NestedDictSwapper(PreprocessingStep):
+    def apply(self, nested_dict):
+        return swap_nested_dict(nested_dict)

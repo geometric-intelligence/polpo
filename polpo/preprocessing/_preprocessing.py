@@ -133,8 +133,12 @@ class TupleWithIncoming(TupleWith):
 
 
 class Sorter(PreprocessingStep):
+    def __init__(self, key=None):
+        super().__init__()
+        self.key = key
+
     def apply(self, data):
-        return sorted(data)
+        return sorted(data, key=self.key)
 
 
 class Filter(PreprocessingStep):
@@ -305,12 +309,10 @@ class IfCondition(StepWrappingPreprocessingStep):
         self.condition = condition
 
     def apply(self, data):
-        new_data = self.step(data)
+        if self.condition(data):
+            return self.step(data)
 
-        if self.condition(new_data):
-            return self.else_step(data)
-
-        return new_data
+        return self.else_step(data)
 
 
 class IfEmpty(IfCondition):
@@ -325,3 +327,31 @@ class Lambda(PreprocessingStep):
 
     def apply(self, data):
         return self.lambda_(data)
+
+
+class Constant(PreprocessingStep):
+    """Constant.
+
+    Parameters
+    ----------
+    value : any
+        Constant.
+    """
+
+    def __init__(self, value):
+        super().__init__()
+        self.value = value
+
+    def apply(self, value=None):
+        """Apply step.
+
+        Parameters
+        ----------
+        value : str
+            Value.
+
+        Returns
+        -------
+        constant : any
+        """
+        return value or self.value

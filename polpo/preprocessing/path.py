@@ -37,6 +37,19 @@ class FileRule(PreprocessingStep):
         return func(self.value)
 
 
+class IsFileType(FileRule):
+    """Check extension of file.
+
+    Parameters
+    ----------
+    ext : str
+        Extension.
+    """
+
+    def __init__(self, ext):
+        super().__init__(f".{ext}", func="endswith")
+
+
 class FileFinder(PreprocessingStep):
     """Find files given rules.
 
@@ -44,17 +57,24 @@ class FileFinder(PreprocessingStep):
     ----------
     data_dir : str
         Searching directory.
-    rules : list[FileRule]
+    rules : FileRule or list[FileRule]
         Rules to filter files with.
     warn : bool
         Whether to warn if can't find file.
+    as_list : bool
+        Whether to return a list if only single element.
     """
 
-    def __init__(self, data_dir=None, rules=(), warn=True):
+    def __init__(self, data_dir=None, rules=(), warn=True, as_list=False):
         super().__init__()
         self.data_dir = data_dir
-        self.rules = rules
         self.warn = warn
+        self.as_list = as_list
+
+        if callable(rules):
+            rules = [rules]
+
+        self.rules = rules
 
     def apply(self, data=None):
         """Apply step.
@@ -68,51 +88,23 @@ class FileFinder(PreprocessingStep):
         -------
         list[str] or str
         """
-        data_dir = self.data_dir or data
+        data_dir = data or self.data_dir
 
         files = os.listdir(data_dir)
 
         # TODO: also implement as a pipeline?
         for rule in self.rules:
-            files = filter(rule.apply, files)
+            files = filter(rule, files)
 
         out = list(map(lambda name: os.path.join(data_dir, name), files))
 
         if self.warn and len(out) == 0:
             warnings.warn(f"Couldn't find file in: {data_dir}")
 
-        if len(out) == 1:
+        if len(out) == 1 and not self.as_list:
             return out[0]
 
         return out
-
-
-class Path(PreprocessingStep):
-    """Get a path.
-
-    Parameters
-    ----------
-    path : str
-        Path.
-    """
-
-    def __init__(self, path):
-        super().__init__()
-        self.path = path
-
-    def apply(self, path=None):
-        """Apply step.
-
-        Parameters
-        ----------
-        path : str
-            Path.
-
-        Returns
-        -------
-        str
-        """
-        return self.path or path
 
 
 class PathShortener(PreprocessingStep):

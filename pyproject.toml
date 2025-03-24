@@ -77,4 +77,8 @@ convention = "numpy"
 "tests/*" = ["D"]
 
 [tool.pytest.ini_options]
-markers = ["slow: for slow tests.", "local: does not run in CI."]
+markers = [
+    "slow: for slow tests.",
+    "local: does not run in CI.",
+    "deformetrica: requires deformetrica",
+]

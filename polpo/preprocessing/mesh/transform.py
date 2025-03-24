@@ -1,56 +1,114 @@
+"""Mesh transformations."""
+
 import numpy as np
 
 from polpo.preprocessing.base import PreprocessingStep
 
+from ._register import VERTICES_ATTR
 
-class MeshCenterer(PreprocessingStep):
-    def __init__(self, attr="vertices"):
+
+def _apply_to_attr(func, mesh, attr=None):
+    # NB: done in place
+    if attr is None:
+        attr = VERTICES_ATTR.get(type(mesh), "vertices")
+    values = func(getattr(mesh, attr))
+    setattr(mesh, attr, values)
+
+    return mesh
+
+
+class MeshTransformer(PreprocessingStep):
+    """Applies function to mesh attribute.
+
+    Parameters
+    ----------
+    func : callable
+        Function to apply to attribute.
+    attr : str
+        Mesh attribute containing vertex information.
+        If None, it uses registered or "vertices".
+    """
+
+    def __init__(self, func, attr=None):
         super().__init__()
+        self.func = func
         self.attr = attr
 
+    def _build_func(self):
+        return self.func
+
     def apply(self, mesh):
-        """Center a mesh by putting its barycenter at origin of the coordinates.
+        """Apply step.
 
         Parameters
         ----------
-        mesh : trimesh.Trimesh
-            Mesh to center.
+        mesh : Mesh
+            Mesh to transform.
 
         Returns
         -------
-        centered_mesh : trimesh.Trimesh
-            Centered Mesh.
-        hippocampus_center: coordinates of center of the mesh before centering
+        transformed_mesh : Mesh
+            Transformed mesh.
         """
-        values = getattr(mesh, self.attr)
-        center = np.mean(values, axis=0)
-        setattr(mesh, self.attr, values - center)
+        if isinstance(mesh, (list, tuple)):
+            mesh, *transform_args = mesh
+            func = self._build_func(*transform_args)
+        else:
+            func = self.func
 
-        return mesh
-
-
-class MeshScaler(PreprocessingStep):
-    def __init__(self, scaling_factor=20.0, attr="vertices"):
-        super().__init__()
-        self.scaling_factor = scaling_factor
-        self.attr = attr
-
-    def apply(self, mesh):
-        values = getattr(mesh, self.attr)
-        setattr(mesh, self.attr, values / self.scaling_factor)
-        return mesh
+        return _apply_to_attr(func, mesh, self.attr)
 
 
-class TransformVertices(PreprocessingStep):
-    def apply(self, data):
-        # TODO: accept transformation at init?
-        # TODO: consider in place?
+class MeshCenterer(MeshTransformer):
+    """Center mesh by removing vertex mean.
 
-        mesh, transformation = data
+    Parameters
+    ----------
+    attr : str
+        Mesh attribute containing vertex information.
+        If None, it uses registered or "vertices".
+    """
 
-        rotation_matrix = transformation[:3, :3]
-        translation = transformation[:3, 3]
+    def __init__(self, attr=None):
+        super().__init__(
+            attr=attr,
+            func=lambda vertices: vertices - np.mean(vertices, axis=0),
+        )
 
-        mesh.vertices = (rotation_matrix @ mesh.vertices.T).T + translation
 
-        return mesh
+class MeshScaler(MeshTransformer):
+    """Scale mesh.
+
+    Parameters
+    ----------
+    scaling_factor : float
+        Scaling factor.
+    attr : str
+        Mesh attribute containing vertex information.
+        If None, it uses registered or "vertices".
+    """
+
+    def __init__(self, scaling_factor=20.0, attr=None):
+        super().__init__(
+            attr=attr,
+            func=self._build_function(scaling_factor),
+        )
+
+    def _build_function(self, scaling_factor):
+        return lambda vertices: vertices / scaling_factor
+
+
+class AffineTransformation(MeshTransformer):
+    """Apply affine transform to mesh vertices."""
+
+    def __init__(self, transform=None, attr=None):
+        super().__init__(
+            attr=attr,
+            func=self._build_function(transform) if transform is not None else None,
+        )
+
+    def _build_function(self, transform):
+        rotation_matrix = transform[:3, :3]
+        translation = transform[:3, 3]
+
+        return lambda vertices: (rotation_matrix @ vertices.T).T + translation

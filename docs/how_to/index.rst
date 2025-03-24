@@ -10,6 +10,8 @@ How-tos
    data_loading
    mesh
    mri
+   lddmm
+   maternal
    all
 
 
