@@ -11,6 +11,7 @@ from polpo.preprocessing import (
     IfCondition,
     IndexSelector,
     Map,
+    PartiallyInitializedStep,
     Sorter,
     ToList,
 )
@@ -71,6 +72,7 @@ class FigsharePregnancyDataLoader:
         use_cache=True,
         local_basename=None,
         remove_id=True,
+        validate=True,
     ):
         """Instantiate figshare data loader.
 
@@ -87,8 +89,10 @@ class FigsharePregnancyDataLoader:
         remove_id : bool
             Whether to remove figshare added id when downloading items that are
             within a folder.
+        validate : bool
+            Whether to check validity of remote path.
         """
-        if "." not in _get_basename(remote_path):
+        if validate and "." not in _get_basename(remote_path):
             cls._validate_remote_path(remote_path)
 
         return FigshareDataLoader(
@@ -161,36 +165,53 @@ def PregnancyPilotSegmentationsLoader(
     Returns
     -------
     filenames : list[str] or dict[int, str]
+        Filenames sorted by session id.
     """
-    use_cache = True
-    paths_to_digits = Map([PathShortener(), DigitFinder(index=0)])
+    thresh = 4
+    data_dir = ExpandUser()(data_dir)
+    remote_path = "Segmentations"
+    local_segmentations_dir = f"{data_dir}/{remote_path}"
 
-    remote_path = segmentations_name = "Segmentations"
+    paths_to_ids = Map([PathShortener(), DigitFinder(index=0)])
+    id_to_path = lambda session_id: f"BB{str(session_id).zfill(2)}"
 
-    if subset is not None and len(subset) == 1:
-        data_dir = f"{data_dir}/{segmentations_name}"
-        remote_path = f"{remote_path}/BB{str(subset[0]).zfill(2)}"
-        subfolders_selector = ToList()
+    subfolders_selector = FileFinder() + Sorter()
+    if subset is None and not os.path.exists(local_segmentations_dir):
+        figshare_loader = FigsharePregnancyDataLoader(
+            data_dir=data_dir, remote_path=remote_path
+        )
+
     else:
-        subfolders_selector = FileFinder() + Sorter()
+        if subset is None:
+            subset = list(range(1, 15)) + list(range(15, 27))
 
-        # check if folder already exists and all have been downloaded
-        folder_name = f"{data_dir}/{segmentations_name}"
-        available_sessions = (
-            ExpandUser() + FileFinder(as_list=True, warn=False) + paths_to_digits
-        )(folder_name)
-
-        if (subset is None and len(available_sessions) < 25) or len(
-            set(subset) - set(available_sessions)
-        ) > 0:
-            use_cache = False
+        if len(subset) <= thresh or (
+            len(
+                set(subset)
+                - set(
+                    (FileFinder(as_list=True, warn=False) + paths_to_ids)(
+                        local_segmentations_dir
+                    )
+                )
+            )
+            <= thresh
+        ):
+            figshare_loader = Constant(subset) + Map(
+                PartiallyInitializedStep(
+                    FigsharePregnancyDataLoader,
+                    data_dir=local_segmentations_dir,
+                    _remote_path=lambda session_id: f"{remote_path}/{id_to_path(session_id)}",
+                    validate=False,
+                )
+            )
+            subfolders_selector = Sorter()
+        else:
+            figshare_loader = FigsharePregnancyDataLoader(
+                data_dir=data_dir, remote_path=remote_path, use_cache=False
+            )
 
     folders_selector = (
-        FigsharePregnancyDataLoader(
-            data_dir=data_dir, remote_path=remote_path, use_cache=use_cache
-        )
-        + subfolders_selector
-        + HashWithIncoming(key_step=paths_to_digits)
+        figshare_loader + subfolders_selector + HashWithIncoming(key_step=paths_to_ids)
     )
 
     if subset is not None:
