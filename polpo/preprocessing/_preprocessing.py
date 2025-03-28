@@ -186,6 +186,7 @@ class ToList(PreprocessingStep):
     def apply(self, data):
         return [data]
 
+
 class TupleToList(PreprocessingStep):
     def apply(self, data):
         return [x for x in data]

@@ -12,6 +12,7 @@ from polpo.preprocessing import (
     IndexSelector,
     Map,
     Sorter,
+    ToList,
 )
 from polpo.preprocessing.dict import (
     DictKeysFilter,
@@ -19,7 +20,13 @@ from polpo.preprocessing.dict import (
     Hash,
     HashWithIncoming,
 )
-from polpo.preprocessing.path import FileFinder, FileRule, IsFileType, PathShortener
+from polpo.preprocessing.path import (
+    ExpandUser,
+    FileFinder,
+    FileRule,
+    IsFileType,
+    PathShortener,
+)
 from polpo.preprocessing.str import DigitFinder
 
 from ._load import FigshareDataLoader, _get_basename
@@ -155,15 +162,35 @@ def PregnancyPilotSegmentationsLoader(
     -------
     filenames : list[str] or dict[int, str]
     """
+    use_cache = True
+    paths_to_digits = Map([PathShortener(), DigitFinder(index=0)])
+
+    remote_path = segmentations_name = "Segmentations"
+
+    if subset is not None and len(subset) == 1:
+        data_dir = f"{data_dir}/{segmentations_name}"
+        remote_path = f"{remote_path}/BB{str(subset[0]).zfill(2)}"
+        subfolders_selector = ToList()
+    else:
+        subfolders_selector = FileFinder() + Sorter()
+
+        # check if folder already exists and all have been downloaded
+        folder_name = f"{data_dir}/{segmentations_name}"
+        available_sessions = (
+            ExpandUser() + FileFinder(as_list=True, warn=False) + paths_to_digits
+        )(folder_name)
+
+        if (subset is None and len(available_sessions) < 25) or len(
+            set(subset) - set(available_sessions)
+        ) > 0:
+            use_cache = False
+
     folders_selector = (
         FigsharePregnancyDataLoader(
-            data_dir=data_dir,
-            remote_path="Segmentations",
+            data_dir=data_dir, remote_path=remote_path, use_cache=use_cache
         )
-        + FileFinder()
-        + Sorter()
-    ) + HashWithIncoming(
-        key_step=Map([PathShortener(), DigitFinder(index=0)]),
+        + subfolders_selector
+        + HashWithIncoming(key_step=paths_to_digits)
     )
 
     if subset is not None:

@@ -76,6 +76,15 @@ class FileFinder(PreprocessingStep):
 
         self.rules = rules
 
+    def _postprocess(self, out, data_dir):
+        if self.warn and len(out) == 0:
+            warnings.warn(f"Couldn't find file in: {data_dir}")
+
+        if len(out) == 1 and not self.as_list:
+            return out[0]
+
+        return out
+
     def apply(self, data=None):
         """Apply step.
 
@@ -90,21 +99,17 @@ class FileFinder(PreprocessingStep):
         """
         data_dir = data or self.data_dir
 
+        if not os.path.exists(data_dir):
+            return self._postprocess([], data_dir)
+
         files = os.listdir(data_dir)
 
-        # TODO: also implement as a pipeline?
         for rule in self.rules:
             files = filter(rule, files)
 
         out = list(map(lambda name: os.path.join(data_dir, name), files))
 
-        if self.warn and len(out) == 0:
-            warnings.warn(f"Couldn't find file in: {data_dir}")
-
-        if len(out) == 1 and not self.as_list:
-            return out[0]
-
-        return out
+        return self._postprocess(out, data_dir)
 
 
 class PathShortener(PreprocessingStep):
@@ -136,3 +141,11 @@ class PathShortener(PreprocessingStep):
         """
         path_ls = path.split(os.path.sep)
         return f"{os.path.sep}".join(path_ls[self.init_index : self.last_index])
+
+
+class ExpandUser(PreprocessingStep):
+    def apply(self, filename):
+        if "~" in filename:
+            return os.path.expanduser(filename)
+
+        return filename
