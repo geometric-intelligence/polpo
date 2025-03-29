@@ -20,18 +20,94 @@ BRAINSTRUCT2COLOR = {
 
 
 class MriImageLoader(PreprocessingStep):
-    def apply(self, filename):
+    """Load image from .nii file.
+
+    Parameters
+    ----------
+    filename : str
+        File to load.
+    as_nib : bool
+        Whether to return the nibabel object.
+    return_affine : bool
+        Whether to return the affine transformation.
+        Ignore if `as_nib` is True.
+    """
+
+    def __init__(self, filename=None, as_nib=False, return_affine=False):
+        super().__init__()
+        self.filename = filename
+        self.as_nib = as_nib
+        self.return_affine = return_affine
+
+    def apply(self, filename=None):
+        """Apply step.
+
+        Parameters
+        ----------
+        filename : str
+            File to load.
+
+        Returns
+        -------
+        img : nibabel.nifti1.Nifti1Image
+            If `as_nib` is True.
+        img_data : np.array
+            If `as_nib` is False.
+        affine : nibabel.nifti1.Nifti1Image
+            If `as_nib` is False and `affine` is True.
+        """
+        filename = filename or self.filename
+
         img = nib.load(filename)
+        if self.as_nib:
+            return img
+
         img_data = img.get_fdata()
-        return img_data
+        if not self.return_affine:
+            return img_data
 
-class MriNiiLoader(PreprocessingStep):
-    def __init__(self, filename):
-        self.filename = filename  # Store filename in the instance
+        return img_data, img.affine
 
-    def apply(self, _data=None):  # `_data` is ignored, but allows for pipeline compatibility
-        img = nib.load(self.filename)  # Load using stored filename
-        return {"affine": img.affine, "image": img.get_fdata()}  # Return dictionary
+
+class LocalToTemplateTransform(PreprocessingStep):
+    """Get transform from local to template system.
+
+    Parameters
+    ----------
+    template_affine : array-like
+        Target affine matrix.
+    """
+
+    def __init__(self, template_affine=None):
+        super().__init__()
+        self.template_affine = template_affine
+
+        if self.template_affine is not None:
+            self._template_affine_inv = np.linalg.inv(self.template_affine)
+
+    def apply(self, data):
+        """Apply step.
+
+        Parameters
+        ----------
+        data : array-like or tuple[array-like; 2]
+            (local, template) affine matrices.
+
+        Returns
+        -------
+        transformation_matrix : np.array
+            Transformation matrix.
+        """
+        if isinstance(data, (list, tuple)):
+            local_affine, template_affine = data
+            template_affine_inv = np.linalg.inv(template_affine)
+
+        else:
+            if self.template_affine is None:
+                raise ValueError("Template affine is undefined.")
+            template_affine_inv = self._template_affine_inv
+
+        return template_affine_inv @ local_affine
 
 
 class MeshExtractorFromSegmentedImage(PreprocessingStep):
