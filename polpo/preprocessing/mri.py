@@ -126,15 +126,25 @@ class MeshExtractorFromSegmentedImage(PreprocessingStep):
     9   184  115   51        1  1  1    "PostHipp"
     2, 6 are expected to grow in volume with progesterone
     4, 5 are expected to shrink in volume with progesterone
+
+    Parameters
+    ----------
+    structured_id : int
+        Structure to select.
+    marching_cubes : callable
+        Marching cubes algorithm.
+    return_colors : bool
+        Whether to output colors.
     """
 
-    def __init__(self, structure_id=-1, marching_cubes=None):
+    def __init__(self, structure_id=-1, marching_cubes=None, return_colors=True):
         if marching_cubes is None:
             marching_cubes = SkimageMarchingCubes(level=0, method="lewiner")
 
         super().__init__()
         self.structure_id = structure_id
         self.marching_cubes = marching_cubes
+        self.return_colors = return_colors
 
         self.color_dict = {  # trimesh uses format [r, g, b, a] where a is alpha
             1: [255, 0, 0, 255],
@@ -171,6 +181,9 @@ class MeshExtractorFromSegmentedImage(PreprocessingStep):
             values,
         ) = self.marching_cubes(masked_img_fdata)
 
+        if not self.return_colors:
+            return vertices, faces
+
         colors = np.array([np.array(self.color_dict[value]) for value in values])
         return vertices, faces, colors
 
@@ -186,11 +199,14 @@ class SkimageMarchingCubes(PreprocessingStep):
         step_size=1,
         allow_degenerate=False,
         method="lewiner",
+        return_values=True,
     ):
+        super().__init__()
         self.level = level
         self.step_size = step_size
         self.allow_degenerate = allow_degenerate
         self.method = method
+        self.return_values = return_values
 
     def apply(self, data):
         if isinstance(data, tuple):
@@ -205,6 +221,12 @@ class SkimageMarchingCubes(PreprocessingStep):
             _,
             values,
         ) = skimage.measure.marching_cubes(
-            img_fdata, mask=mask, **params_to_kwargs(self)
+            img_fdata,
+            mask=mask,
+            **params_to_kwargs(self, ignore=("return_values",)),
         )
-        return vertices, faces, values
+
+        if self.return_values:
+            return vertices, faces, values
+
+        return vertices, faces
