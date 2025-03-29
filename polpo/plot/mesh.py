@@ -1,3 +1,3 @@
 """Package agnostic imports for mesh plotters."""
 
-from .plotly import MeshPlotter  # noqa
+from .plotly import MeshesPlotter, MeshPlotter, StaticMeshPlotter  # noqa: F401

@@ -1,7 +1,9 @@
 import abc
 
-import plotly.graph_objects as go
 import numpy as np
+import plotly.graph_objects as go
+
+from polpo.utils import unnest_list
 
 from .base import Plotter
 
@@ -13,10 +15,6 @@ class GoPlotter(Plotter, abc.ABC):
 
     def update(self, fig, data):
         fig.update(data=self.transform_data(data))
-        return fig
-
-    def plot(self, data):
-        fig = go.Figure(data=self.update(data), layout=self.layout)
         return fig
 
 
@@ -59,35 +57,110 @@ class SlicePlotter(GoPlotter):
 
         return fig
 
-class MeshPlotter:
-    def __init__(self, bounds=None, bounds_with_template=None, template_mesh=None):
-        self.layout = go.Layout(
-            margin=go.layout.Margin(l=0, r=0, b=0, t=0),
-            width=700,
-            height=700,
-            scene=dict(
-                xaxis=dict(showgrid=True),
-                yaxis=dict(showgrid=True),
-                zaxis=dict(showgrid=True),
-                aspectmode="manual",
-                xaxis_title="x",
-                yaxis_title="y",
-                zaxis_title="z",
-                aspectratio=dict(x=1, y=1, z=1),
-            ),
-            uirevision="constant",
+
+class BaseMeshPlotter(GoPlotter, abc.ABC):
+    def __init__(self, layout=None):
+        if layout is True:
+            layout = go.Layout(
+                margin=go.layout.Margin(l=0, r=0, b=0, t=0),
+                width=700,
+                height=700,
+                scene=dict(
+                    xaxis=dict(showgrid=True),
+                    yaxis=dict(showgrid=True),
+                    zaxis=dict(showgrid=True),
+                    aspectmode="manual",
+                    xaxis_title="x",
+                    yaxis_title="y",
+                    zaxis_title="z",
+                    aspectratio=dict(x=1, y=1, z=1),
+                ),
+                uirevision="constant",
+            )
+
+        self.layout = layout
+
+    @property
+    def n_graphs(self):
+        return 1
+
+    def update_layout(self, data):
+        # TODO: pass current layout?
+        return self.layout
+
+    def update(self, fig, data):
+        # TODO: check layout updates
+        fig.update(data=self.transform_data(data), layout=self.update_layout(data))
+        return fig
+
+    def plot(self, data=None):
+        if data is None:
+            return go.Figure(layout=self.layout)
+
+        # TODO: ensure right ordering
+        # TODO: need to check whether layout=None works
+        return go.Figure(
+            data=self.transform_data(data),
+            layout=self.update_layout(data),
         )
-        self.bounds = bounds
-        self.bounds_with_template = bounds_with_template
-        self.template_mesh = template_mesh["mesh"]
 
-    def transform_data(self, mesh, template=None, show_template=False):
-        """Convert multiple meshes into Plotly-compatible data."""
-        mesh_pred = mesh.vertices
+
+class StaticMeshPlotter(BaseMeshPlotter):
+    # NB: only visibility changes
+
+    def __init__(self, mesh):
+        super().__init__()
+        self._data = self._create_data(mesh)
+
+    def _create_data(self, mesh):
+        vertices = mesh.vertices
         faces = mesh.faces
-        vertex_colors = mesh.visual.vertex_colors
+        vertex_colors = np.broadcast_to([0.678, 0.847, 0.902], (vertices.shape[0], 3))
 
-        data = [
+        return go.Mesh3d(
+            x=vertices[:, 0],
+            y=vertices[:, 1],
+            z=vertices[:, 2],
+            colorbar_title="z",
+            vertexcolor=vertex_colors,
+            i=faces[:, 0],
+            j=faces[:, 1],
+            k=faces[:, 2],
+            opacity=0.5,
+            visible=False,  # Initially set the overlay to be invisible
+            flatshading=False,
+            lighting=dict(ambient=0.5, diffuse=0.8, specular=0.3, roughness=0.5),
+        )
+
+    def transform_data(self, data):
+        # NB: only updates visibility
+        if isinstance(data, bool):
+            self._data["visible"] = data
+
+        return [self._data]
+
+
+class MeshPlotter(BaseMeshPlotter):
+    def __init__(self):
+        super().__init__()
+        self.data_ = None
+
+    def transform_data(self, data):
+        """Convert multiple meshes into Plotly-compatible data."""
+        if data is None:
+            return self.data_
+
+        if isinstance(data, bool):
+            for datum in self.data_:
+                datum["visible"] = data
+
+            return self.data_
+
+        mesh_pred = data.vertices
+        faces = data.faces
+        vertex_colors = data.visual.vertex_colors
+
+        self.data_ = [
             go.Mesh3d(
                 x=mesh_pred[:, 0],
                 y=mesh_pred[:, 1],
@@ -99,135 +172,64 @@ class MeshPlotter:
                 j=faces[:, 1],
                 k=faces[:, 2],
                 name="y",
-            ),  
+            )
         ]
+        return self.data_
 
-        if show_template:
-            mesh_template = self.template_mesh.vertices
-            faces_template = self.template_mesh.faces
-            vertex_colors_template = np.full((len(mesh_template), 3), [0.678, 0.847, 0.902])
-            data.append(
-                go.Mesh3d(
-                    x=mesh_template[:, 0],
-                    y=mesh_template[:, 1],
-                    z=mesh_template[:, 2],
-                    colorbar_title="z",
-                    vertexcolor=vertex_colors_template,
-                    i=faces_template[:, 0],
-                    j=faces_template[:, 1],
-                    k=faces_template[:, 2],
-                    opacity=0.5,
-                    visible=show_template,  # Initially set the overlay to be invisible
-                    flatshading=False,
-                    lighting=dict(ambient=0.5, diffuse=0.8, specular=0.3, roughness=0.5)
-                )
-            )
-  
-        return data
 
-    # def plot(self, meshes):
-    #     """Update the figure dynamically."""
-    #     mins, maxs = self.compute_bounding_box(meshes)
-    #     self.layout.scene.xaxis.range = [mins[0], maxs[0]]
-    #     self.layout.scene.yaxis.range = [mins[1], maxs[1]]
-    #     self.layout.scene.zaxis.range = [mins[2], maxs[2]]
+class MeshesPlotter(BaseMeshPlotter):
+    def __init__(self, plotters, overlay_plotter, bounds=None, overlay_bounds=None):
+        # NB: overlay_bounds are given priority if overlay is active
 
-    #     return go.Figure(data=self.transform_data(mesh), layout=self.layout)
+        # TODO: make overlay optional?
 
-    def plot(self, mesh=None, template=None, show_template=False):
-        if mesh is None:
-            return go.Figure(
-                layout=self.layout,
-            )
+        super().__init__(layout=True)
+        # TODO: warn if layout is not None?
+        self.plotters = plotters
+        self.overlay_plotter = overlay_plotter
 
-        if show_template:
-            mins, maxs = self.bounds_with_template
-        else:
+        self.bounds = bounds
+        self.overlay_bounds = overlay_bounds
+
+        if self.bounds is not None:
             mins, maxs = self.bounds
+            self.layout.scene.xaxis.range = [mins[0], maxs[0]]
+            self.layout.scene.yaxis.range = [mins[1], maxs[1]]
+            self.layout.scene.zaxis.range = [mins[2], maxs[2]]
 
+    @property
+    def n_graphs(self):
+        return len(self.plotters) + 1
+
+    def transform_data(self, data):
+        if not isinstance(data, list):
+            # TODO: consider tuple
+            data = [data]
+
+        if len(data) < self.n_graphs:
+            data = data + [None]
+
+        out_data = unnest_list(
+            [
+                plotter.transform_data(data_)
+                for plotter, data_ in zip(self.plotters + [self.overlay_plotter], data)
+            ]
+        )
+        return out_data
+
+    def update_layout(self, data):
+        if (
+            not isinstance(data, list)
+            or not isinstance(data[0], bool)
+            or (self.bounds is None and self.overlay_bounds is None)
+            or (data[-1] and self.overlay_bounds is None)
+            or (not data[-1] and self.bounds is None)
+        ):
+            return self.layout
+
+        mins, maxs = self.overlay_bounds if data[-1] else self.bounds
         self.layout.scene.xaxis.range = [mins[0], maxs[0]]
         self.layout.scene.yaxis.range = [mins[1], maxs[1]]
         self.layout.scene.zaxis.range = [mins[2], maxs[2]]
-        return go.Figure(
-            data=self.transform_data(mesh, template, show_template),
-            layout=self.layout,
-        )
 
-
-# class MeshPlotter(GoPlotter):
-#     def __init__(self, meshes):
-#         # Compute the bounding box union
-#         self.update_bounding_box(meshes)
-
-#     def update_bounding_box(self, meshes):
-#         """
-#         Updates the bounding box to enclose all given meshes.
-#         """
-#         if not meshes:
-#             # Default bounds if no meshes are provided
-#             self.x_min, self.y_min, self.z_min = -1, -1, -1
-#             self.x_max, self.y_max, self.z_max = 1, 1, 1
-#         else:
-#             # Collect all bounding boxes
-#             all_bounds = [mesh.bounding_box.bounds for mesh in meshes]
-
-#             # Stack and compute global min/max
-#             mins = np.min([b[0] for b in all_bounds], axis=0)
-#             maxs = np.max([b[1] for b in all_bounds], axis=0)
-
-#             self.x_min, self.y_min, self.z_min = mins
-#             self.x_max, self.y_max, self.z_max = maxs
-
-#         # Update the layout with new bounds
-#         self.layout = go.Layout(
-#             margin=go.layout.Margin(l=0, r=0, b=0, t=0),
-#             width=700,
-#             height=700,
-#             scene=dict(
-#                 xaxis=dict(range=[self.x_min, self.x_max], showgrid=True),
-#                 yaxis=dict(range=[self.y_min, self.y_max], showgrid=True),
-#                 zaxis=dict(range=[self.z_min, self.z_max], showgrid=True),
-#                 aspectmode="manual",
-#                 xaxis_title="x",
-#                 yaxis_title="y",
-#                 zaxis_title="z",
-#                 aspectratio=dict(x=1, y=1, z=1),
-#             ),
-#             uirevision="constant",
-#         )
-
-#     def transform_data(self, mesh):
-#         mesh_pred = mesh.vertices
-#         faces = mesh.faces
-#         vertex_colors = mesh.visual.vertex_colors
-
-#         data = [
-#             go.Mesh3d(
-#                 x=mesh_pred[:, 0],
-#                 y=mesh_pred[:, 1],
-#                 z=mesh_pred[:, 2],
-#                 colorbar_title="z",
-#                 vertexcolor=vertex_colors,
-#                 # i, j and k give the vertices of triangles
-#                 i=faces[:, 0],
-#                 j=faces[:, 1],
-#                 k=faces[:, 2],
-#                 name="y",
-#             )
-#         ]
-#         return data
-
-#     def plot(self, mesh=None):
-#         if mesh is None:
-#             return go.Figure(
-#                 layout=self.layout,
-#             )
-#         return go.Figure(
-#             data=self.transform_data(mesh),
-#             layout=self.layout,
-#         )
-
-#     def update_layout(self, fig, mesh):
-#         # Update the layout with the new mesh data
-#         fig.update(data=self.transform_data(mesh))
-#         return fig
+        return self.layout
