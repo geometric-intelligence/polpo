@@ -2,6 +2,11 @@ import numpy as np
 
 from polpo.preprocessing.base import PreprocessingStep
 
+try:
+    from ._trimesh import TrimeshMeshBounds  # noqa:F401
+except ImportError:
+    pass
+
 
 class ColorCentroids(PreprocessingStep):
     def apply(self, data):

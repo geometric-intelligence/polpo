@@ -213,3 +213,17 @@ class TrimeshLaplacianSmoothing(PreprocessingStep):
 class TrimeshClone(PreprocessingStep):
     def apply(self, mesh):
         return mesh.copy()
+
+
+class TrimeshMeshBounds(PreprocessingStep):
+    def __init__(self, ratio=0.0):
+        super().__init__()
+        self.ratio = ratio
+
+    def apply(self, mesh):
+        bounds = mesh.bounds
+
+        if abs(self.ratio) < 1e-4:
+            return bounds
+
+        return np.stack([(1 - self.ratio) * bounds[0], (1 + self.ratio) * bounds[1]])
