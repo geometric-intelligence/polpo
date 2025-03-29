@@ -14,9 +14,7 @@ from polpo.utils import unnest_list
 
 from .callbacks import (
     create_button_toggler_for_view_model_update,
-    # create_checkbox_toggler_for_show_brain,
     create_view_model_update,
-    # create_combined_plot_update_callback
 )
 from .style import STYLE as S
 
@@ -547,13 +545,22 @@ class MeshExplorer(BaseComponentGroup):
 
 class MultipleModelsMeshExplorer(BaseComponentGroup):
     def __init__(
-        self, graph, models, inputs, id_prefix="", button_label="Switch model", checkbox_label="Show Brain"
+        self,
+        graph,
+        models,
+        inputs,
+        id_prefix="",
+        button_label="Switch model",
+        checkbox_labels=None,
     ):
+        # TODO: add verifications?
+
         self.graph = graph
         self.models = models
         self.inputs = inputs
         self.button_label = button_label
-        self.checkbox_label = checkbox_label
+        # NB: controls visibility of plots
+        self.checkbox_labels = checkbox_labels
 
         super().__init__([self.graph].extend(self.inputs), id_prefix=id_prefix)
 
@@ -577,18 +584,37 @@ class MultipleModelsMeshExplorer(BaseComponentGroup):
 
         toggle_id = self.prefix("switch-model-button")
         checkbox_id = self.prefix("show-model-checkbox")
-        inputs_column = [
-            html.Button(
-                self.button_label,
-                id=toggle_id,
-                n_clicks=0,
-            ),
-            dcc.Checklist( 
-                id=checkbox_id,
-                options=[{"label": self.checkbox_label, "value": "show"}],
-                value=[],  # Default to unchecked
-            ),
-        ] + [component_card.to_dash() for component_card in inputs_cards]
+
+        if self.checkbox_labels:
+            # TODO: allow control of default visibility?
+            n_graphs = self.graph.plotter.n_graphs
+
+            checkbox_labels = [
+                label
+                if len(label) == 3
+                else (label[0], label[1], label[0] < n_graphs - 1)
+                for label in self.checkbox_labels
+            ]
+            checklist = Checklist(
+                id_=checkbox_id,
+                checkbox_labels=checkbox_labels,
+                # NB: assumes graph has plotter with n_graphs
+                n_options=n_graphs,
+            )
+        else:
+            checklist = DummyComponent()
+
+        inputs_column = (
+            [
+                html.Button(
+                    self.button_label,
+                    id=toggle_id,
+                    n_clicks=0,
+                ),
+            ]
+            + checklist.to_dash()
+            + unnest_list([component_card.to_dash() for component_card in inputs_cards])
+        )
 
         out = [
             dbc.Row(
@@ -618,7 +644,7 @@ class MultipleModelsMeshExplorer(BaseComponentGroup):
             input_views=self.inputs,
             models=self.models,
             toggle_id=toggle_id,
-            checkbox_id=checkbox_id,
+            checklist=checklist,
             hideable_components=inputs_cards,
         )
 
@@ -631,7 +657,60 @@ class HideableComponent(IdComponent):
         self.dash_component = dash_component
 
     def to_dash(self):
-        return html.Div(
-            children=[self.dash_component],
-            id=self.id,
-        )
+        return [
+            html.Div(
+                children=[self.dash_component],
+                id=self.id,
+            )
+        ]
+
+
+class Checklist(IdComponent):
+    def __init__(
+        self,
+        id_,
+        checkbox_labels,
+        n_options=None,
+        inline=False,
+        id_prefix="",
+        id_suffix="",
+    ):
+        super().__init__(id_, id_prefix, id_suffix)
+
+        self.checkbox_labels = checkbox_labels
+        self.n_options = n_options or len(checkbox_labels)
+        self.inline = inline
+
+        values = [checkbox_label[0] for checkbox_label in checkbox_labels]
+        self._default_bool = [
+            False if index in values else True for index in range(n_options)
+        ]
+
+    def to_dash(self):
+        options = [
+            {"label": option[1], "value": option[0]} for option in self.checkbox_labels
+        ]
+        # NB: defaults to uncheck if not specified
+        value = []
+        for option in self.checkbox_labels:
+            if len(option) == 3 and option[2]:
+                value.append(option[0])
+        return [
+            dcc.Checklist(
+                id=self.id,
+                options=options,
+                value=value,
+                inline=self.inline,
+            )
+        ]
+
+    def as_bool(self, value):
+        # NB: updates read from callbacks
+        bool_ls = self._default_bool.copy()
+        for value_ in value:
+            bool_ls[value_] = True
+
+        return bool_ls
+
+    def as_input(self):
+        return [Input(self.id, "value")]
