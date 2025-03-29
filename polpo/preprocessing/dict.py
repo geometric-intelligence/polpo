@@ -120,12 +120,12 @@ class DictNoneRemover(Filter):
 
 
 class DictExtractKey(PreprocessingStep):
-    def __init__(self, data, key):
+    def __init__(self, key):
+        super().__init__()
         self.key = key
-        self.data = data
 
     def apply(self, data):
-        return self.data[self.key]
+        return data[self.key]
 
 
 class DictToValuesList(PreprocessingStep):
@@ -136,121 +136,6 @@ class DictToValuesList(PreprocessingStep):
 class DictToTuplesList(PreprocessingStep):
     def apply(self, data):
         return list(zip(data.keys(), data.values()))
-
-
-class OutputDict(PreprocessingStep):
-    def __init__(self, key):
-        self.key = key
-
-    def apply(self, data):
-        if isinstance(data, dict):  # If already a dictionary, add the new key
-            data[self.key] = data
-            return data
-        else:
-            return {self.key: data}
-
-
-class DictAddMesh(PreprocessingStep):
-    """
-    Adds a Trimesh object to an existing dictionary under a specified key.
-    """
-
-    def __init__(self, key="mesh", data=None):
-        """
-        Parameters:
-        - key (str): The dictionary key under which to store the Trimesh object (default: "mesh").
-        """
-        self.key = key
-        self.data = data
-
-    def apply(self, mesh):
-        """
-        Adds `mesh` to `data` under the given key.
-
-        Parameters:
-        - data (dict): The existing dictionary (e.g., template_dict).
-        - mesh (Trimesh): The mesh object to add.
-
-        Returns:
-        - dict: The updated dictionary.
-        """
-        if not isinstance(self.data, dict):
-            raise ValueError("DictAddMesh expects a dictionary as input.")
-
-        self.data[self.key] = mesh  # Add mesh to dictionary
-        return self.data  # Return updated dictionary
-
-
-class DictAddTemplateMesh(PreprocessingStep):
-    def __init__(self, key="template", data=None):
-        """
-        Parameters:
-        - key (str): The dictionary key under which to store the Trimesh object (default: "mesh").
-        """
-        self.key = key
-        self.data = data
-
-    def apply(self, data, image):
-        """
-        Adds `mesh` to `data` under the given key.
-
-        Parameters:
-        - data (dict): The existing dictionary (e.g., template_dict).
-        - mesh (Trimesh): The mesh object to add.
-
-        Returns:
-        - dict: The updated dictionary.
-        """
-        if not isinstance(self.data, dict):
-            raise ValueError("DictAddMesh expects a dictionary as input.")
-
-        self.data[self.key] = image["mesh"]  # Add mesh to dictionary
-        return self.data  # Return updated dictionary
-
-
-class DictFromTuple(PreprocessingStep):
-    def apply(self, keys, tup):
-        """keys is a list of keys
-        data is a tuple of values"""
-        new_data = {}
-        for key, data in zip(keys, tup):
-            new_data[key] = data
-        return new_data
-
-
-class DictUpdate(PreprocessingStep):
-    def apply(self, data):
-        new_data = data[0].copy()
-        for datum in data[1:]:
-            new_data.update(datum)
-
-        return new_data
-
-
-class DictAddEntry(PreprocessingStep):
-    """
-    A preprocessing step that adds an entry to a dictionary.
-    """
-
-    def __init__(self, data, key, value):
-        self.data = data
-        self.key = key
-        self.value = value
-
-    def apply(self, data):
-        if not isinstance(self.data, dict):
-            raise ValueError("DictAddEntry expects a dictionary as input.")
-
-        self.data[self.key] = self.value
-        return self.data
-
-
-class DictRemoveEntry(PreprocessingStep):
-    def apply(self, data, key):
-        new_data = data.copy()
-        # new_data.pop(self.key, None)
-        del new_data[key]
-        return new_data
 
 
 class DictMap(StepWrappingPreprocessingStep):
