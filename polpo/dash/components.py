@@ -60,6 +60,25 @@ class IdComponent(Component, abc.ABC):
         return f"{self.id_prefix}{self.id_}{self.id_suffix}"
 
 
+class DummyComponent(IdComponent):
+    """Dummy component.
+
+    Can be used in replacement of optional components.
+    """
+
+    def __init__(self):
+        super().__init__(id_="dummy")
+
+    def as_output(self, component_property=None, allow_duplicate=False):
+        return []
+
+    def as_input(self):
+        return []
+
+    def to_dash(self):
+        return []
+
+
 class BaseComponentGroup(Component, abc.ABC):
     def __init__(self, components, id_prefix=""):
         self.components = components
