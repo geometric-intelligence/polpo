@@ -68,7 +68,7 @@ class PvAlign(PreprocessingStep):
 
         Parameters
         ----------
-        data : tuple[pv.PolyData]
+        data : pv.Polydata or tuple[pv.PolyData; 2]
             (source, target) meshes.
 
         Returns

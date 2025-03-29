@@ -20,6 +20,8 @@ def _apply_to_attr(func, mesh, attr=None):
 class MeshTransformer(PreprocessingStep):
     """Applies function to mesh attribute.
 
+    NB: operations are done in place.
+
     Parameters
     ----------
     func : callable
