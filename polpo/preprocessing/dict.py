@@ -4,6 +4,7 @@ from polpo.collections import swap_nested_dict
 
 from ._preprocessing import (
     Filter,
+    IdentityStep,
     StepWrappingPreprocessingStep,
     _wrap_step,
 )
@@ -78,16 +79,35 @@ class DictFilter(Filter):
         super().__init__(func_, collection_type=dict, to_iter=lambda x: x.items())
 
 
-class DictKeysFilter(DictFilter):
-    # TODO: update and/or rename/deletes
-    # TODO: aka SelectKeySubset
-    def __init__(self, values, keep=True):
+class SelectKeySubset(DictFilter):
+    """Select key subset.
+
+    Parameters
+    ----------
+    subset : array-like
+        Subset of keys to consider.
+    keep : bool
+        Whether to keep or exclude subset.
+    """
+
+    def __init__(self, subset, keep=True):
         if keep:
-            func = lambda key: key in values
+            func = lambda key: key in subset
         else:
-            func = lambda key: key not in values
+            func = lambda key: key not in subset
 
         super().__init__(func, filter_keys=True)
+
+    def __new__(cls, subset, keep=True):
+        """Instantiate step.
+
+        If subset is None, then it instantiates the identity step.
+        Syntax sugar to simplify control flow.
+        """
+        if subset is None:
+            return IdentityStep()
+
+        return super().__new__(cls)
 
 
 class DictNoneRemover(Filter):
@@ -97,6 +117,7 @@ class DictNoneRemover(Filter):
             collection_type=dict,
             to_iter=lambda x: x.items(),
         )
+
 
 class DictExtractKey(PreprocessingStep):
     def __init__(self, data, key):
@@ -128,6 +149,7 @@ class OutputDict(PreprocessingStep):
         else:
             return {self.key: data}
 
+
 class DictAddMesh(PreprocessingStep):
     """
     Adds a Trimesh object to an existing dictionary under a specified key.
@@ -158,6 +180,7 @@ class DictAddMesh(PreprocessingStep):
         self.data[self.key] = mesh  # Add mesh to dictionary
         return self.data  # Return updated dictionary
 
+
 class DictAddTemplateMesh(PreprocessingStep):
     def __init__(self, key="template", data=None):
         """
@@ -184,10 +207,11 @@ class DictAddTemplateMesh(PreprocessingStep):
         self.data[self.key] = image["mesh"]  # Add mesh to dictionary
         return self.data  # Return updated dictionary
 
+
 class DictFromTuple(PreprocessingStep):
     def apply(self, keys, tup):
         """keys is a list of keys
-            data is a tuple of values"""
+        data is a tuple of values"""
         new_data = {}
         for key, data in zip(keys, tup):
             new_data[key] = data
@@ -202,6 +226,7 @@ class DictUpdate(PreprocessingStep):
 
         return new_data
 
+
 class DictAddEntry(PreprocessingStep):
     """
     A preprocessing step that adds an entry to a dictionary.
@@ -215,7 +240,7 @@ class DictAddEntry(PreprocessingStep):
     def apply(self, data):
         if not isinstance(self.data, dict):
             raise ValueError("DictAddEntry expects a dictionary as input.")
-        
+
         self.data[self.key] = self.value
         return self.data
 
@@ -229,6 +254,22 @@ class DictRemoveEntry(PreprocessingStep):
 
 
 class DictMap(StepWrappingPreprocessingStep):
+    """Apply a given step to each element of a dictionary.
+
+    Parameters
+    ----------
+    step : callable
+        Preprocessing step to apply to value.
+    pbar : bool
+        Whether to show a progress bar.
+    key_step : callable
+        Preprocessing step to apply to key.
+    special_keys : array-like
+        Keys to be subject to a different step.
+    special_step : callable
+        Step to apply to special keys.
+    """
+
     def __init__(
         self, step=None, pbar=False, key_step=None, special_keys=(), special_step=None
     ):
@@ -239,13 +280,23 @@ class DictMap(StepWrappingPreprocessingStep):
         self.special_step = _wrap_step(special_step)
 
     def apply(self, data):
+        """Apply step.
+
+        Parameters
+        ----------
+        data : dict
+
+        Returns
+        -------
+        new_data : dict
+        """
         out = {}
-        for key, datum in tqdm(data.items(), disable=not self.pbar):
+        for key, value in tqdm(data.items(), disable=not self.pbar):
             if key in self.special_keys:
-                value = self.special_step(datum)
+                value_ = self.special_step(value)
             else:
-                value = self.step(datum)
-            out[self.key_step(key)] = value
+                value_ = self.step(value)
+            out[self.key_step(key)] = value_
 
         return out
 
