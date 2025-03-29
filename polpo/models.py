@@ -168,28 +168,34 @@ class DimReductionBasedMeshRegressor(ObjectRegressor):
         y_smoother=None,
         dim_reduction=None,
         x_scaler=None,
+        mesh_transform=None,
     ):
         # TODO: add warning?
-        # y_scaler is ignored if mesh2components is not None
-        # dim_reduction is ignored if mesh2components is not None
+        # y_scaler, y_smoother, dim_reduction, transform
+        # are ignored if mesh2components is not None
 
-        if y_scaler is None:
-            y_scaler = StandardScaler(with_std=False)
-
-        if dim_reduction is None:
-            dim_reduction = PCA()
-
-        if y_smoother is None:
-            y_smoother = FittableRegisteredPointCloudSmoothing(n_neighbors=10)
+        # transform is applied after getting meshes back
 
         if meshes2components is None:
+            if y_scaler is None:
+                y_scaler = StandardScaler(with_std=False)
+
+            if dim_reduction is None:
+                dim_reduction = PCA()
+
+            if y_smoother is None:
+                y_smoother = FittableRegisteredPointCloudSmoothing(n_neighbors=10)
+
+            if mesh_transform is not None:
+                mesh_transform = FunctionTransformer(inverse_func=mesh_transform)
+
             meshes2components = AdapterPipeline(
                 steps=[
                     FunctionTransformer(func=np.squeeze),  # undo sklearn 2d
                     FunctionTransformer(inverse_func=ListSqueeze(raise_=False)),
-                    InvertibleMeshesToVertices(),
-                    FunctionTransformer(func=np.stack),
                 ]
+                + _to_list_with_false(mesh_transform)
+                + [InvertibleMeshesToVertices(), FunctionTransformer(func=np.stack)]
                 + _to_list_with_false(y_smoother)
                 + [InvertibleFlattenButFirst()]
                 + _to_list_with_false(y_scaler)
