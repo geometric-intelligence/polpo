@@ -127,6 +127,8 @@ class ComponentGroup(BaseComponentGroup):
                 [component.to_dash(value) for component, value in zip(self, data)]
             )
 
+        # TODO: should this be part of the components?
+        # e.g. split between update and not updatable components
         title_label = (
             [
                 dbc.Label(
@@ -157,33 +159,43 @@ class ComponentGroup(BaseComponentGroup):
     def as_input(self):
         return unnest_list(component.as_input() for component in self)
 
+
 class Checkbox(Component):
+    """Checkbox.
+
+    Parameters
+    ----------
+    id_ : str
+        The unique ID for the checkbox.
+    label : str
+        The label displayed next to the checkbox.
+    default_checked : bool
+        Whether the checkbox should be checked by default.
+    """
 
     def __init__(self, id_, label="Show", default_checked=True):
-        """
-        Parameters:
-        - id_ (str): The unique ID for the checkbox.
-        - label (str): The label displayed next to the checkbox.
-        - default_checked (bool): Whether the checkbox should be checked by default.
-        """
         super().__init__(id_=id_)
         self.label = label
         self.default_checked = default_checked
 
     def to_dash(self):
-        """Converts the component into a Dash UI element."""
-        return dbc.FormGroup([
-            dcc.Checklist(
-                id=self.id_,
-                options=[{"label": self.label, "value": "checked"}],
-                value=["checked"] if self.default_checked else [],
-                inline=True,
+        """Convert the component into a Dash UI element."""
+        return [
+            dbc.FormGroup(
+                [
+                    dcc.Checklist(
+                        id=self.id_,
+                        options=[{"label": self.label, "value": "checked"}],
+                        value=["checked"] if self.default_checked else [],
+                        inline=True,
+                    )
+                ]
             )
-        ])
+        ]
 
 
 class Slider(VarDefComponent):
-    """A slider."""
+    """Slider."""
 
     def __init__(self, var_def, step=1, id_prefix="", label_style=None):
         super().__init__(var_def=var_def, id_prefix=id_prefix, id_suffix="-slider")
@@ -272,10 +284,9 @@ class Graph(IdComponent):
         self.plotter = plotter
         self.graph_ = None
 
-    def to_dash(self, data=None, show_template=False):
+    def to_dash(self, data=None):
         if self.graph_ is not None:
-            return [self.plotter.plot(data, show_template=show_template)]  # Call plot instead of update
-
+            return [self.plotter.update(self.graph_.figure, data)]
         self.graph_ = dcc.Graph(
             id=self.id,
             config={"displayModeBar": False},
