@@ -138,6 +138,15 @@ class DictToTuplesList(PreprocessingStep):
         return list(zip(data.keys(), data.values()))
 
 
+class DictUpdate(PreprocessingStep):
+    def apply(self, data):
+        new_data = data[0].copy()
+        for datum in data[1:]:
+            new_data.update(datum)
+
+        return new_data
+
+
 class DictMap(StepWrappingPreprocessingStep):
     """Apply a given step to each element of a dictionary.
 
