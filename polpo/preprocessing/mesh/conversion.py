@@ -9,7 +9,7 @@ except ImportError:
     pass
 
 try:
-    from ._pyvista import PvFromData, PvFromTrimesh  # noqa:F401
+    from ._pyvista import DataFromPv, PvFromData, PvFromTrimesh  # noqa:F401
 except ImportError:
     pass
 

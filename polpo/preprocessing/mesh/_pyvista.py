@@ -13,7 +13,17 @@ register_vertices_attr(pv.PolyData, "points")
 
 
 class PvFromData(PreprocessingStep):
-    """Convert arrays into pv.PolyData."""
+    """Convert arrays into pv.PolyData.
+
+    Parameters
+    ----------
+    keep_colors : bool
+        Whether to keep colors if present.
+    """
+
+    def __init__(self, keep_colors=True):
+        super().__init__()
+        self.keep_colors = keep_colors
 
     def apply(self, mesh):
         """Apply step.
@@ -35,9 +45,33 @@ class PvFromData(PreprocessingStep):
             colors = None
 
         poly_data = pv.PolyData.from_regular_faces(points=vertices, faces=faces)
-        if colors is not None:
+        if self.keep_colors and colors is not None:
             poly_data["colors"] = colors
         return poly_data
+
+
+class DataFromPv(PreprocessingStep):
+    """Convert pv.PolyData into arrays.
+
+    Parameters
+    ----------
+    keep_colors : bool
+        Whether to keep colors if present.
+    """
+
+    def __init__(self, keep_colors=True):
+        super().__init__()
+        self.keep_colors = keep_colors
+
+    def apply(self, mesh):
+        vertices, faces = (
+            np.array(mesh.points),
+            np.array(mesh.faces).reshape(-1, 4)[:, 1:],
+        )
+        if self.keep_colors and "colors" in mesh.array_names:
+            return vertices, faces, np.array(mesh["colors"])
+
+        return vertices, faces
 
 
 class PvAlign(PreprocessingStep):
