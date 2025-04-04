@@ -2,11 +2,15 @@
 
 import pandas as pd
 
+from polpo.utils import params_to_kwargs
+
 from .base import PreprocessingStep
 
 
 class CsvReader(PreprocessingStep):
     """Read csv with pandas.
+
+    https://pandas.pydata.org/docs/reference/api/pandas.read_csv.html
 
     Parameters
     ----------
@@ -14,17 +18,24 @@ class CsvReader(PreprocessingStep):
         Path.
     delimiter : str
         csv delimiter.
+    nrows: int
+        Number of rows of file to read. Useful for reading pieces of large files.
+
     """
 
-    def __init__(self, path=None, delimiter=","):
+    def __init__(self, path=None, delimiter=",", nrows=None):
         super().__init__()
         self.path = path
         self.delimiter = delimiter
+        self.nrows = nrows
 
     def apply(self, path=None):
         """Apply step."""
         path = path or self.path
-        return pd.read_csv(path, delimiter=",")
+        return pd.read_csv(
+            path,
+            **params_to_kwargs(self, ignore=("path",)),
+        )
 
 
 class ColumnsSelector(PreprocessingStep):
@@ -108,7 +119,7 @@ class Drop(PreprocessingStep):
             Dataframe.
         """
         out = df.drop(self.labels, inplace=self.inplace, axis=self.axis)
-        return out or df
+        return out if out is not None else df
 
 
 class DfToDict(PreprocessingStep):
