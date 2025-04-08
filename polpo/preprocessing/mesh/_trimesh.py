@@ -168,9 +168,30 @@ class TrimeshToPly(PreprocessingStep):
 
 
 class TrimeshReader(PreprocessingStep):
-    # TODO: update
+    """Read file.
+
+    Uses `load_mesh` (
+    https://trimesh.org/trimesh.exchange.load.html#trimesh.exchange.load.load_mesh
+    ) if supported format, which is very limited.
+
+    If not supported format, goes through `pyvista`.
+    Particularly relevant for `vtk` `Polydata`,
+    otherwise `meshio` could have been used.
+    """
+
+    def __init__(self):
+        super().__init__()
+        self._supported_fmts = {"stl", "ply", "dxf"}
+
     def apply(self, path):
-        return trimesh.load(path)
+        ext = path.split(".")[-1]
+        if ext in self._supported_fmts:
+            return trimesh.load_mesh(path)
+
+        # import here to avoid forcing pyvista installation
+        from ._pyvista import PvReader
+
+        return (PvReader() + TrimeshFromPv())(path)
 
 
 class TrimeshLaplacianSmoothing(PreprocessingStep):
