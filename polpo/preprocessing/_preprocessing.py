@@ -1,4 +1,5 @@
 import abc
+import importlib
 import warnings
 
 from joblib import Parallel, delayed
@@ -291,6 +292,7 @@ class DataPrinter(PreprocessingStep):
 
 class PartiallyInitializedStep(PreprocessingStep):
     def __init__(self, Step, **kwargs):
+        super().__init__()
         self.Step = Step
         self.kwargs = kwargs
 
@@ -321,13 +323,60 @@ class IfEmpty(IfCondition):
         super().__init__(step, else_step, condition=lambda x: len(x) == 0)
 
 
-class Lambda(PreprocessingStep):
-    def __init__(self, string):
-        super().__init__()
-        self.lambda_ = eval(string)
+class Eval(PreprocessingStep):
+    """Evaluate string.
 
-    def apply(self, data):
-        return self.lambda_(data)
+    Parameters
+    ----------
+    expr : str
+        String expression to be evaluated.
+    imports : list[str]
+        Imports required to evaluate string.
+    """
+
+    def __init__(self, expr, imports=()):
+        super().__init__()
+        self._expr = eval(expr, self._locals_from_imports(imports))
+
+    def _locals_from_imports(self, imports):
+        locals_ = {}
+        for import_ in imports:
+            import_ls = import_.split(".")
+            module_name = ".".join(import_ls[:-1])
+            obj_name = import_ls[-1]
+
+            if obj_name in locals():
+                continue
+
+            locals_[obj_name] = getattr(importlib.import_module(module_name), obj_name)
+        return locals_
+
+    def __call__(self, *args, **kwargs):
+        return self.apply(*args, **kwargs)
+
+    def apply(self, *args, **kwargs):
+        return self._expr(*args, **kwargs)
+
+
+class Lambda(Eval):
+    """Evaluate lambda function.
+
+    Syntax sugar for `Eval` where `string` is a lambda function.
+
+    Parameters
+    ----------
+    args : list[str]
+        Arguments of lambda function.
+    expr : str
+        Expression of lambda function.
+    imports : list[str]
+        Imports required to evaluate string.
+    """
+
+    def __init__(self, args, expr, imports=()):
+        args_str = ",".join(args)
+        lambda_ = f"lambda {args_str}: {expr}"
+        super().__init__(lambda_, imports)
 
 
 class Constant(PreprocessingStep):
