@@ -358,6 +358,19 @@ class Eval(PreprocessingStep):
         return self._expr(*args, **kwargs)
 
 
+class EvalFromImport(Eval):
+    """Evaluate imported function.
+
+    Parameters
+    ----------
+    import_: str
+        Import of function to evaluate.
+    """
+
+    def __init__(self, import_):
+        super().__init__(expr=import_.split(".")[-1], imports=[import_])
+
+
 class Lambda(Eval):
     """Evaluate lambda function.
 
