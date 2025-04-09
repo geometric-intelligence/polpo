@@ -1,4 +1,4 @@
-from dash import Input, callback, ctx
+from dash import Input, Output, callback, ctx, html
 
 from polpo.utils import unnest_list
 
@@ -106,3 +106,33 @@ def create_button_toggler_for_view_model_update(
             pred = model.predict(model_args)
 
         return out + output_view.to_dash(pred)
+
+
+class PageRegister:
+    def __init__(self):
+        self.pages = {}
+
+        self.create_callback()
+
+    def add_page(self, path, page):
+        self.pages[path] = page
+
+    def create_callback(self):
+        @callback(Output("page-content", "children"), [Input("url", "pathname")])
+        def render_page_content(pathname):
+            """Render the page content based on the URL."""
+            page = self.pages.get(pathname)
+            if page is not None:
+                return page
+
+            # If the user tries to reach a different page, return a 404 message
+            return html.Div(
+                [
+                    html.H1("404: Not found", className="text-danger"),
+                    html.Hr(),
+                    html.P(f"The pathname {pathname} was not recognised..."),
+                ],
+                className="p-3 bg-light rounded-3",
+            )
+
+        return render_page_content
