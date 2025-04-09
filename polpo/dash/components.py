@@ -3,7 +3,7 @@
 import abc
 
 import dash_bootstrap_components as dbc
-from dash import Input, Output, dcc, html
+from dash import Input, Output, dcc, get_asset_url, html
 
 from polpo.models import (
     MriSlicesLookup,
@@ -725,3 +725,100 @@ class Checklist(IdComponent):
 
     def as_input(self):
         return [Input(self.id, "value")]
+
+
+class SidebarHeader(Component):
+    """Sidebar header.
+
+    A row of a sidebar.
+    Controls text and linking to page.
+
+    Parameters
+    ----------
+    href : str
+        Navigation link for page.
+    text : str
+        Text on the sidebar.
+    image_url : str
+        Image to appear on the sidebar.
+    image_width : int
+        Image width in pixel.
+    """
+
+    def __init__(self, href, text, image_url, image_width=30):
+        super().__init__()
+        self.href = href
+        self.text = text
+        self.image_url = image_url
+        self.image_width = image_width
+
+    def to_dash(self):
+        return [
+            dbc.Row(
+                [
+                    dbc.Col(
+                        html.Img(
+                            src=get_asset_url(self.image_url),
+                            style={"width": f"{self.image_width}px", "height": "auto"},
+                        ),
+                        width=2,
+                    ),
+                    dbc.Col(
+                        dbc.NavLink(self.text, href=self.href, active="exact"),
+                        width=10,
+                    ),
+                ],
+                align="center",
+            )
+        ]
+
+
+class FunctionComponent(Component):
+    """Component that wraps a function.
+
+    Allows to wrap functions that create dash components.
+    For compatibility with dash component.
+
+    Parameters
+    ----------
+    func : callable
+        Function being wrapped.
+    """
+
+    def __init__(self, func, **kwargs):
+        super().__init__()
+        self.func = func
+        self.kwargs = kwargs
+
+    def to_dash(self):
+        return self.func(**self.kwargs)
+
+
+class SidebarElem(Component):
+    """Sidebar element.
+
+    Composed of a header and a page.
+
+    Parameters
+    ----------
+    tab_header : SidebarHeader
+        Row of a sidebar.
+    page : Component
+        Page to which sidebar links.
+    active : bool
+        Whether the element is active.
+    """
+
+    def __init__(self, tab_header, page, active=True):
+        super().__init__()
+        self.active = active
+        self.tab_header = tab_header
+        self.page = page
+
+    def to_dash(self, page_register):
+        compns = self.tab_header.to_dash() + self.page.to_dash()
+
+        # NB: assume page is only one element
+        page_register.add_page(self.tab_header.href, compns[-1])
+
+        return compns
