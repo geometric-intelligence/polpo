@@ -28,7 +28,7 @@ from polpo.preprocessing.str import DigitFinder
 
 from ._load import FigshareDataLoader, _get_basename
 
-PREGNANCY_PILOT_REFLECTED_KEYS = (
+PREGNANCY_PILOT_REFLECTED_KEYS = {
     7,
     8,
     9,
@@ -48,10 +48,21 @@ PREGNANCY_PILOT_REFLECTED_KEYS = (
     24,
     25,
     26,
-)
+}
 
 
-MATERNAL_STRUCTS = ("Accu", "Amyg", "Caud", "Hipp", "Pall", "Puta", "Thal")
+FIRST_STRUCTS = {
+    "Thal",
+    "Caud",
+    "Puta",
+    "Pall",
+    "BrStem",
+    "Hipp",
+    "Amyg",
+    "Accu",
+}
+
+MATERNAL_IDS = {"01", "1001", "1004"}
 
 
 class FigsharePregnancyDataLoader:
@@ -393,6 +404,7 @@ def DenseMaternalCsvDataLoader(
         Data root dir.
     subject_id : str
         Identification of the subject. If None, loads full dataframe.
+        One of the following: "01", "1001", "1004".
     pilot : bool
         Whether to load pilot data.
 
@@ -444,15 +456,13 @@ def DenseMaternalCsvDataLoader(
     return loader + ppd.CsvReader() + prep_pipe
 
 
-def DenseMaternalMeshLoader(
+def DenseMaternalFoldersSelector(
     data_dir="~/.herbrain/data/maternal",
     subject_id=None,
-    struct="Hipp",
     subset=None,
-    left=True,
     as_dict=False,
 ):
-    """Create pipeline to load maternal mesh filenames.
+    """Create pipeline to load maternal sessions folder names.
 
     Parameters
     ----------
@@ -460,6 +470,7 @@ def DenseMaternalMeshLoader(
         Directory where data is stored.
     subject_id : str
         Identification of the subject. If None, assumes pilot.
+        One of the following: "01", "1001", "1004".
     subset : array-like
         Subset of sessions to load. If `None`, loads all.
     as_dict : bool
@@ -468,22 +479,19 @@ def DenseMaternalMeshLoader(
     Returns
     -------
     pipe : Pipeline
-        Pipeline whose output is list[str] or dict[int, str].
-        String represents filename. Sorting is always temporal.
+        Pipeline to load maternal sessions folder names.
     """
     project_folder = "maternal_brain_project"
 
     if subject_id is None:
         subject_id = "01"
 
-    pilot = True if subject_id == "01" else False
-
-    if struct not in MATERNAL_STRUCTS:
+    if subject_id not in MATERNAL_IDS:
         raise ValueError(
-            f"Ups, `{struct}` is not available. Please, choose from: {','.join(MATERNAL_STRUCTS)}"
+            f"Ups, `{subject_id}` is not available. Please, choose from: {','.join(MATERNAL_IDS)}"
         )
 
-    side = "L" if left else "R"
+    pilot = True if subject_id == "01" else False
 
     if pilot:
         project_folder += "_pilot"
@@ -517,21 +525,113 @@ def DenseMaternalMeshLoader(
             func=lambda folder_name: path_to_session(folder_name) in subset
         )
 
-    file_finder = (
-        folders_selector
-        + Map(
-            FileFinder(
-                rules=[
-                    IsFileType("vtk"),
-                    lambda filename: struct in filename,
-                    lambda filename: f"-{side}" in filename,
-                ]
-            )
+    pipe = folders_selector + sorter
+    if as_dict:
+        pipe = pipe + HashWithIncoming(key_step=Map(path_to_session))
+
+    return pipe
+
+
+def DenseMaternalMeshLoader(
+    data_dir="~/.herbrain/data/maternal",
+    subject_id=None,
+    struct="Hipp",
+    subset=None,
+    left=True,
+    as_dict=False,
+):
+    """Create pipeline to load maternal mesh filenames.
+
+    Check out https://fsl.fmrib.ox.ac.uk/fsl/docs/#/structural/first.
+
+    Parameters
+    ----------
+    data_dir : str
+        Directory where data is stored.
+    subject_id : str
+        Identification of the subject. If None, assumes pilot.
+        One of the following: "01", "1001", "1004".
+    struct : str
+        One of the following: 'Thal', 'Caud', 'Puta', 'Pall',
+        'BrStem', 'Hipp', 'Amyg', 'Accu'.
+    left : bool
+        Whether to load left side. Not applicable to 'BrStem'.
+    subset : array-like
+        Subset of sessions to load. If `None`, loads all.
+    as_dict : bool
+        Whether to create a dictionary with session as key.
+
+    Returns
+    -------
+    pipe : Pipeline
+        Pipeline whose output is list[str] or dict[int, str].
+        String represents filename. Sorting is always temporal.
+    """
+    if struct not in FIRST_STRUCTS:
+        raise ValueError(
+            f"Ups, `{struct}` is not available. Please, choose from: {','.join(FIRST_STRUCTS)}"
         )
-        + sorter
+
+    if struct == "BrStem":
+        suffixed_side = ""
+    else:
+        suffixed_side = "L_" if left else "R_"
+
+    folders_selector = DenseMaternalFoldersSelector(
+        data_dir=data_dir, subject_id=subject_id, subset=subset, as_dict=True
+    )
+
+    file_finder = folders_selector + DictMap(
+        FileFinder(
+            rules=[
+                IsFileType("vtk"),
+                lambda filename: f"{suffixed_side}{struct}" in filename,
+            ]
+        )
     )
 
     if as_dict:
-        return file_finder + HashWithIncoming(key_step=Map(path_to_session))
+        return file_finder
 
-    return file_finder
+    return file_finder + DictToValuesList()
+
+
+def DenseMaternalSegmentationsLoader(
+    data_dir="~/.herbrain/data/maternal", subset=None, subject_id=None, as_dict=False
+):
+    """Create pipeline to load segmented mri filenames.
+
+    Parameters
+    ----------
+    data_dir : str
+        Directory where to store data.
+    subset : array-like
+        Subset of sessions to load. If `None`, loads all.
+    subject_id : str
+        Identification of the subject. If None, assumes pilot.
+        One of the following: "01", "1001", "1004".
+    as_dict : bool
+        Whether to create a dictionary with session as key.
+
+    Returns
+    -------
+    pipe : Pipeline
+        Pipeline to load segmented mri filenames.
+    """
+    folders_selector = DenseMaternalFoldersSelector(
+        data_dir=data_dir, subject_id=subject_id, subset=subset, as_dict=True
+    )
+
+    file_finder = folders_selector + DictMap(
+        FileFinder(
+            rules=[
+                IsFileType("nii.gz"),
+                lambda filename: "all_fast_firstseg" in filename,
+            ]
+        )
+    )
+
+    if as_dict:
+        return file_finder
+
+    return file_finder + DictToValuesList()
