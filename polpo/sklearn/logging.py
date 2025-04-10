@@ -16,6 +16,18 @@ class ModelBasicMessagePrinter(BaseMessagePrinter):
 
 
 class TelemeteredModel:
+    """Model telemetry.
+
+    Wraps a model to log info.
+
+    Parameters
+    ----------
+    model : sklearn.BaseEstimator
+        Estimator being telemetered.
+    msg_printer : BaseMessagePrinter
+        Handles message to be logged.
+    """
+
     def __init__(self, model, msg_printer=None):
         if msg_printer is None:
             msg_printer = ModelBasicMessagePrinter()

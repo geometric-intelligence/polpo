@@ -1,3 +1,5 @@
+"""Transformer mixins handling mesh data."""
+
 from sklearn.preprocessing import FunctionTransformer
 
 from polpo.preprocessing import Map
@@ -5,8 +7,21 @@ from polpo.preprocessing.mesh.conversion import FromCombinatorialStructure, ToVe
 
 
 class InvertibleMeshesToVertices(FunctionTransformer):
+    """Function transformer for mesh to vertices conversion.
+
+    During fit selects a particular mesh providing the combinatorial
+    structure (i.e. the template).
+
+    Index should not matter as meshes are expected to have
+    same combinatorial structure.
+
+    Parameters
+    ----------
+    index : int
+        Mesh providing combinatorial structure.
+    """
+
     def __init__(self, index=0):
-        # index: which mesh to select
         self.index = index
 
         super().__init__(

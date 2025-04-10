@@ -7,16 +7,16 @@ from sklearn.pipeline import Pipeline as SklearnPipeline
 from sklearn.preprocessing import FunctionTransformer, StandardScaler
 
 from polpo.plot.mri import MriSlicer
-
-from .preprocessing import IdentityStep, ListSqueeze
-from .preprocessing.sklearn.adapter import AdapterPipeline
-from .preprocessing.sklearn.base import GetParamsMixin
-from .preprocessing.sklearn.compose import ObjectBasedTransformedTargetRegressor
-from .preprocessing.sklearn.mesh import InvertibleMeshesToVertices
-from .preprocessing.sklearn.np import InvertibleFlattenButFirst
-from .preprocessing.sklearn.point_cloud import (
+from polpo.sklearn.adapter import AdapterPipeline
+from polpo.sklearn.base import GetParamsMixin
+from polpo.sklearn.compose import ObjectBasedTransformedTargetRegressor
+from polpo.sklearn.mesh import InvertibleMeshesToVertices
+from polpo.sklearn.np import InvertibleFlattenButFirst
+from polpo.sklearn.point_cloud import (
     FittableRegisteredPointCloudSmoothing,
 )
+
+from .preprocessing import IdentityStep, ListSqueeze
 
 
 class Model(abc.ABC):
