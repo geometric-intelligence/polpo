@@ -5,7 +5,7 @@ from polpo.preprocessing.base import PreprocessingStep
 
 
 class O3dPointCloudFromNp(PreprocessingStep):
-    def apply(self, points):
+    def __call__(self, points):
         pcd = o3d.geometry.PointCloud()
         pcd.points = o3d.utility.Vector3dVector(points)
         return pcd
@@ -31,7 +31,7 @@ class O3dIcp(PreprocessingStep):
             * 1.2
         )
 
-    def apply(self, data):
+    def __call__(self, data):
         source, target = data
 
         threshold = self.threshold or self._threshold(source, target)

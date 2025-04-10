@@ -37,7 +37,7 @@ from ._register import VERTICES_ATTR
 class ToVertices(PreprocessingStep):
     """Get mesh vertices."""
 
-    def apply(self, mesh):
+    def __call__(self, mesh):
         """Apply step.
 
         Parameters
@@ -57,7 +57,7 @@ class ToVertices(PreprocessingStep):
 class ToFaces(PreprocessingStep):
     """Get mesh faces."""
 
-    def apply(self, mesh):
+    def __call__(self, mesh):
         """Apply step.
 
         Parameters
@@ -87,7 +87,7 @@ class FromCombinatorialStructure(PreprocessingStep):
         super().__init__()
         self.mesh = mesh
 
-    def apply(self, data):
+    def __call__(self, data):
         """Apply step.
 
         Returns

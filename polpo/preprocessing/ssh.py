@@ -140,5 +140,5 @@ class ScpDataLoader(PreprocessingStep, CacheableDataLoader):
 
         return path
 
-    def apply(self, data=None):
+    def __call__(self, data=None):
         return self.load()

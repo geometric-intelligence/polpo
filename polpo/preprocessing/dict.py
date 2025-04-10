@@ -18,7 +18,7 @@ class Hash(PreprocessingStep):
         self.ignore_none = ignore_none
         self.ignore_empty = ignore_empty
 
-    def apply(self, data):
+    def __call__(self, data):
         new_data = {}
         for datum in data:
             if not isinstance(datum, list):
@@ -49,7 +49,7 @@ class DictMerger(PreprocessingStep):
 
         return keys
 
-    def apply(self, data):
+    def __call__(self, data):
         shared_keys = self._collect_shared_keys(data)
         out = []
         for key in shared_keys:
@@ -63,7 +63,7 @@ class HashWithIncoming(StepWrappingPreprocessingStep):
         super().__init__(step)
         self.key_step = _wrap_step(key_step)
 
-    def apply(self, keys_data):
+    def __call__(self, keys_data):
         values_data = self.step(keys_data)
         keys_data = self.key_step(keys_data)
 
@@ -124,22 +124,22 @@ class DictExtractKey(PreprocessingStep):
         super().__init__()
         self.key = key
 
-    def apply(self, data):
+    def __call__(self, data):
         return data[self.key]
 
 
 class DictToValuesList(PreprocessingStep):
-    def apply(self, data):
+    def __call__(self, data):
         return list(data.values())
 
 
 class DictToTuplesList(PreprocessingStep):
-    def apply(self, data):
+    def __call__(self, data):
         return list(zip(data.keys(), data.values()))
 
 
 class DictUpdate(PreprocessingStep):
-    def apply(self, data):
+    def __call__(self, data):
         new_data = data[0].copy()
         for datum in data[1:]:
             new_data.update(datum)
@@ -173,7 +173,7 @@ class DictMap(StepWrappingPreprocessingStep):
         self.special_keys = special_keys
         self.special_step = _wrap_step(special_step)
 
-    def apply(self, data):
+    def __call__(self, data):
         """Apply step.
 
         Parameters
@@ -196,5 +196,5 @@ class DictMap(StepWrappingPreprocessingStep):
 
 
 class NestedDictSwapper(PreprocessingStep):
-    def apply(self, nested_dict):
+    def __call__(self, nested_dict):
         return swap_nested_dict(nested_dict)

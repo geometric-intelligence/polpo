@@ -13,7 +13,7 @@ class FastSimplificationDecimator(PreprocessingStep):
 
         self._nbrs = NearestNeighbors(n_neighbors=1)
 
-    def apply(self, mesh):
+    def __call__(self, mesh):
         if len(mesh) == 3:
             vertices, faces, colors = mesh
         else:

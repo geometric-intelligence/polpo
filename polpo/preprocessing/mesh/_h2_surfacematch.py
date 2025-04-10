@@ -9,7 +9,7 @@ class H2MeshDecimator(PreprocessingStep):
         super().__init__()
         self.decimation_factor = decimation_factor
 
-    def apply(self, mesh):
+    def __call__(self, mesh):
         # TODO: issues using due to open3d (delete?)
 
         # TODO: make a check for colors?
@@ -56,7 +56,7 @@ class H2MeshAligner(PreprocessingStep):
         # TODO: allow control of device
         self.device = None
 
-    def apply(self, meshes):
+    def __call__(self, meshes):
         target_mesh, template_mesh = meshes
 
         # TODO: upgrade device?

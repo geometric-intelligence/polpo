@@ -22,7 +22,7 @@ class FileRule(PreprocessingStep):
         self.value = value
         self.func = func
 
-    def apply(self, file):
+    def __call__(self, file):
         """Apply step.
 
         Parameters
@@ -85,7 +85,7 @@ class FileFinder(PreprocessingStep):
 
         return out
 
-    def apply(self, data=None):
+    def __call__(self, data=None):
         """Apply step.
 
         Parameters
@@ -127,7 +127,7 @@ class PathShortener(PreprocessingStep):
         self.init_index = init_index
         self.last_index = last_index
 
-    def apply(self, path):
+    def __call__(self, path):
         """Apply step.
 
         Parameters
@@ -144,7 +144,7 @@ class PathShortener(PreprocessingStep):
 
 
 class ExpandUser(PreprocessingStep):
-    def apply(self, filename):
+    def __call__(self, filename):
         if "~" in filename:
             return os.path.expanduser(filename)
 

@@ -29,7 +29,7 @@ class CsvReader(PreprocessingStep):
         self.delimiter = delimiter
         self.nrows = nrows
 
-    def apply(self, path=None):
+    def __call__(self, path=None):
         """Apply step."""
         path = path or self.path
         return pd.read_csv(
@@ -51,7 +51,7 @@ class ColumnsSelector(PreprocessingStep):
         super().__init__()
         self.column_names = column_names
 
-    def apply(self, df):
+    def __call__(self, df):
         """Apply step.
 
         Parameters
@@ -78,7 +78,7 @@ class Dropna(PreprocessingStep):
         super().__init__()
         self.inplace = inplace
 
-    def apply(self, df):
+    def __call__(self, df):
         """Apply step.
 
         Parameters
@@ -110,7 +110,7 @@ class Drop(PreprocessingStep):
         self.inplace = inplace
         self.axis = axis
 
-    def apply(self, df):
+    def __call__(self, df):
         """Apply step.
 
         Parameters
@@ -138,7 +138,7 @@ class DfToDict(PreprocessingStep):
         super().__init__()
         self.orient = orient
 
-    def apply(self, df):
+    def __call__(self, df):
         """Apply step.
 
         Parameters
@@ -164,7 +164,7 @@ class DfCopy(PreprocessingStep):
     def __init__(self, deep=True):
         self.deep = deep
 
-    def apply(self, df):
+    def __call__(self, df):
         """Apply step.
 
         Parameters
@@ -194,7 +194,7 @@ class UpdateColumnValues(PreprocessingStep):
         self.column_name = column_name
         self.func = func
 
-    def apply(self, df):
+    def __call__(self, df):
         """Apply step.
 
         Parameters
@@ -214,7 +214,7 @@ class SeriesToDict(PreprocessingStep):
     https://pandas.pydata.org/docs/reference/api/pandas.Series.to_dict.html.
     """
 
-    def apply(self, series):
+    def __call__(self, series):
         """Apply step.
 
         Parameters
@@ -249,7 +249,7 @@ class IndexSetter(PreprocessingStep):
         self.drop = drop
         self.verify_integrity = verify_integrity
 
-    def apply(self, df):
+    def __call__(self, df):
         """Apply step.
 
         Parameters
@@ -273,7 +273,7 @@ class DfIsInFilter(PreprocessingStep):
         self.values = values
         self.negation = negation
 
-    def apply(self, df):
+    def __call__(self, df):
         indices = df[self.column_name].isin(self.values)
         if self.negation:
             indices = ~indices

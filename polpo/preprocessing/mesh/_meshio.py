@@ -6,7 +6,7 @@ from polpo.preprocessing.base import PreprocessingStep
 
 
 class MeshioReader(PreprocessingStep):
-    def apply(self, path):
+    def __call__(self, path):
         return meshio.read(path)
 
 
@@ -16,7 +16,7 @@ class MeshioWriter(PreprocessingStep):
         self.ext = ext
         self.kwargs = kwargs
 
-    def apply(self, data):
+    def __call__(self, data):
         # TODO: maybe do opposite instead (give preference to arguments)
         # filename extension ignored if ext is not None
         filename, mesh = data
@@ -36,7 +36,7 @@ class MeshioFromData(PreprocessingStep):
         super().__init__()
         self.cell_type = cell_type
 
-    def apply(self, mesh):
+    def __call__(self, mesh):
         # TODO: also consider colors
         if len(mesh) == 3:
             vertices, faces, _ = mesh

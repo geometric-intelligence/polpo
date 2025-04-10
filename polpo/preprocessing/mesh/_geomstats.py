@@ -34,7 +34,7 @@ class TrimeshSurface:
 
 
 class SurfaceFromTrimesh(PreprocessingStep):
-    def apply(self, trimesh):
+    def __call__(self, trimesh):
         return Surface(
             gs.from_numpy(trimesh.vertices),
             gs.from_numpy(trimesh.faces.astype(np.int64)),
@@ -45,7 +45,7 @@ class TrimeshSurfaceFromTrimesh(PreprocessingStep):
     def __init__(self, clone=False):
         self.clone = clone
 
-    def apply(self, trimesh):
+    def __call__(self, trimesh):
         if self.clone:
             trimesh = trimesh.copy()
 

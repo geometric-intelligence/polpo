@@ -18,7 +18,7 @@ class DigitFinder(PreprocessingStep):
     def __init__(self, index=-1):
         self.index = index
 
-    def apply(self, string):
+    def __call__(self, string):
         """Apply step.
 
         Parameters

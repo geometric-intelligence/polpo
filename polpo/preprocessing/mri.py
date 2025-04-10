@@ -39,7 +39,7 @@ class MriImageLoader(PreprocessingStep):
         self.as_nib = as_nib
         self.return_affine = return_affine
 
-    def apply(self, filename=None):
+    def __call__(self, filename=None):
         """Apply step.
 
         Parameters
@@ -85,7 +85,7 @@ class LocalToTemplateTransform(PreprocessingStep):
         if self.template_affine is not None:
             self._template_affine_inv = np.linalg.inv(self.template_affine)
 
-    def apply(self, data):
+    def __call__(self, data):
         """Apply step.
 
         Parameters
@@ -137,6 +137,8 @@ class MeshExtractorFromSegmentedImage(PreprocessingStep):
         Whether to output colors.
     """
 
+    # TODO: adapt this for tool
+
     def __init__(self, structure_id=-1, marching_cubes=None, return_colors=True):
         if marching_cubes is None:
             marching_cubes = SkimageMarchingCubes(level=0, method="lewiner")
@@ -158,7 +160,7 @@ class MeshExtractorFromSegmentedImage(PreprocessingStep):
             9: [184, 115, 51, 255],
         }
 
-    def apply(self, img_fdata):
+    def __call__(self, img_fdata):
         """Extract one surface mesh from the fdata of a segmented image.
 
         Parameters
@@ -208,7 +210,7 @@ class SkimageMarchingCubes(PreprocessingStep):
         self.method = method
         self.return_values = return_values
 
-    def apply(self, data):
+    def __call__(self, data):
         if isinstance(data, tuple):
             img_fdata, mask = data
         else:

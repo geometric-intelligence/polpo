@@ -33,13 +33,8 @@ class PreprocessingStep(abc.ABC):
     """Preprocessing step."""
 
     @abc.abstractmethod
-    def apply(self, data):
-        """Apply step."""
-        # takes one argument; name is irrelevant
-
     def __call__(self, data=None):
         """Apply step."""
-        return self.apply(data)
 
     def __add__(self, other):
         if isinstance(other, list):
@@ -53,7 +48,7 @@ class Pipeline(PreprocessingStep, DataLoader):
         self.steps = steps
         self.data = data
 
-    def apply(self, data=None):
+    def __call__(self, data=None):
         if self.data is not None:
             data = self.data
 
@@ -64,7 +59,7 @@ class Pipeline(PreprocessingStep, DataLoader):
         return out
 
     def load(self):
-        return self.apply()
+        return self.__call__()
 
     def __add__(self, other):
         steps = self.steps.copy()

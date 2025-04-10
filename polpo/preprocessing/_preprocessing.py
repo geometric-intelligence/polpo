@@ -32,7 +32,7 @@ class ExceptionToWarning(StepWrappingPreprocessingStep):
         super().__init__(step)
         self.warn = warn
 
-    def apply(self, data):
+    def __call__(self, data):
         try:
             return self.step(data)
         except Exception as e:
@@ -51,21 +51,21 @@ class BranchingPipeline(PreprocessingStep):
         self.branches = branches
         self.merger = _wrap_step(merger)
 
-    def apply(self, data):
+    def __call__(self, data):
         out = []
         for pipeline in self.branches:
-            out.append(pipeline.apply(data))
+            out.append(pipeline(data))
 
         return self.merger(out)
 
 
 class IdentityStep(PreprocessingStep):
-    def apply(self, data=None):
+    def __call__(self, data=None):
         return data
 
 
 class NestingSwapper(PreprocessingStep):
-    def apply(self, data):
+    def __call__(self, data):
         return list(zip(*data))
 
 
@@ -76,7 +76,7 @@ class IndexSelector(StepWrappingPreprocessingStep):
         self.index = index
         self.repeat = repeat
 
-    def apply(self, data):
+    def __call__(self, data):
         selected = self.step(data[self.index])
         if self.repeat:
             return [selected] * len(data)
@@ -90,7 +90,7 @@ class RemoveIndex(PreprocessingStep):
         self.index = index
         self.inplace = inplace
 
-    def apply(self, data):
+    def __call__(self, data):
         if not self.inplace:
             data = data.copy()
 
@@ -99,7 +99,7 @@ class RemoveIndex(PreprocessingStep):
 
 
 class Unnest(PreprocessingStep):
-    def apply(self, data):
+    def __call__(self, data):
         return unnest(data)
 
 
@@ -107,7 +107,7 @@ class ListSqueeze(PreprocessingStep):
     def __init__(self, raise_=True):
         self.raise_ = raise_
 
-    def apply(self, data):
+    def __call__(self, data):
         if len(data) != 1:
             if self.raise_:
                 raise ValueError("Unsqueezable!")
@@ -122,8 +122,8 @@ class TupleWith(StepWrappingPreprocessingStep):
         super().__init__(step)
         self.incoming_first = incoming_first
 
-    def apply(self, data):
-        new_data = self.step.apply(data)
+    def __call__(self, data):
+        new_data = self.step(data)
         ordering = (data, new_data) if self.incoming_first else (new_data, data)
         return [(datum, datum_) for datum, datum_ in zip(*ordering)]
 
@@ -138,7 +138,7 @@ class Sorter(PreprocessingStep):
         super().__init__()
         self.key = key
 
-    def apply(self, data):
+    def __call__(self, data):
         return sorted(data, key=self.key)
 
 
@@ -152,7 +152,7 @@ class Filter(PreprocessingStep):
         self.collection_type = collection_type
         self.to_iter = to_iter
 
-    def apply(self, data):
+    def __call__(self, data):
         return self.collection_type(filter(self.func, self.to_iter(data)))
 
 
@@ -167,7 +167,7 @@ class NoneRemover(Filter):
 
 
 class NoneSkipper(StepWrappingPreprocessingStep):
-    def apply(self, data):
+    def __call__(self, data):
         if data is None:
             return data
 
@@ -175,7 +175,7 @@ class NoneSkipper(StepWrappingPreprocessingStep):
 
 
 class EmptySkipper(StepWrappingPreprocessingStep):
-    def apply(self, data):
+    def __call__(self, data):
         if len(data) == 0:
             return data
 
@@ -184,12 +184,12 @@ class EmptySkipper(StepWrappingPreprocessingStep):
 
 class ToList(PreprocessingStep):
     # TODO: better naming?
-    def apply(self, data):
+    def __call__(self, data):
         return [data]
 
 
 class TupleToList(PreprocessingStep):
-    def apply(self, data):
+    def __call__(self, data):
         return [x for x in data]
 
 
@@ -198,7 +198,7 @@ class SerialMap(StepWrappingPreprocessingStep):
         super().__init__(step)
         self.pbar = pbar
 
-    def apply(self, data):
+    def __call__(self, data):
         return [self.step(datum) for datum in tqdm(data, disable=not self.pbar)]
 
 
@@ -208,7 +208,7 @@ class ParallelMap(StepWrappingPreprocessingStep):
         self.n_jobs = n_jobs
         self.verbose = verbose
 
-    def apply(self, data):
+    def __call__(self, data):
         with Parallel(n_jobs=self.n_jobs, verbose=self.verbose) as parallel:
             res = parallel(delayed(self.step)(datum) for datum in data)
 
@@ -216,7 +216,7 @@ class ParallelMap(StepWrappingPreprocessingStep):
 
 
 class DecorateToIterable(StepWrappingPreprocessingStep):
-    def apply(self, data):
+    def __call__(self, data):
         decorated = False
         if not isinstance(data, list):
             decorated = True
@@ -250,7 +250,7 @@ class IndexMap(StepWrappingPreprocessingStep):
         super().__init__(step)
         self.index = index
 
-    def apply(self, data):
+    def __call__(self, data):
         data[self.index] = self.step(data[self.index])
 
         return data
@@ -260,7 +260,7 @@ class Prefix(PreprocessingStep):
     def __init__(self, prefix):
         self.prefix = prefix
 
-    def apply(self, value):
+    def __call__(self, value):
         return self.prefix + value
 
 
@@ -271,7 +271,7 @@ class Truncater(PreprocessingStep):
         super().__init__()
         self.value = value
 
-    def apply(self, data):
+    def __call__(self, data):
         if self.value is None:
             return data
         return data[: self.value]
@@ -284,7 +284,7 @@ class DataPrinter(PreprocessingStep):
         # avoids having to comment code out
         self.silent = silent
 
-    def apply(self, data):
+    def __call__(self, data):
         if not self.silent:
             print(data)
         return data
@@ -296,7 +296,7 @@ class PartiallyInitializedStep(PreprocessingStep):
         self.Step = Step
         self.kwargs = kwargs
 
-    def apply(self, data):
+    def __call__(self, data):
         kwargs = self.kwargs.copy()
         dependent_keys = list(filter(lambda x: x.startswith("_"), kwargs.keys()))
         for key in dependent_keys:
@@ -311,7 +311,7 @@ class IfCondition(StepWrappingPreprocessingStep):
         self.else_step = _wrap_step(else_step)
         self.condition = condition
 
-    def apply(self, data):
+    def __call__(self, data):
         if self.condition(data):
             return self.step(data)
 
@@ -352,9 +352,6 @@ class Eval(PreprocessingStep):
         return locals_
 
     def __call__(self, *args, **kwargs):
-        return self.apply(*args, **kwargs)
-
-    def apply(self, *args, **kwargs):
         return self._expr(*args, **kwargs)
 
 
@@ -405,7 +402,7 @@ class Constant(PreprocessingStep):
         super().__init__()
         self.value = value
 
-    def apply(self, value=None):
+    def __call__(self, value=None):
         """Apply step.
 
         Parameters

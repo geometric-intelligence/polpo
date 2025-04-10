@@ -192,5 +192,5 @@ class FigshareDataLoader(PreprocessingStep, CacheableDataLoader):
 
         return self._load_folder()
 
-    def apply(self, data=None):
+    def __call__(self, data=None):
         return self.load()

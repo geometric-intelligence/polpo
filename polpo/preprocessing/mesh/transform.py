@@ -39,7 +39,7 @@ class MeshTransformer(PreprocessingStep):
     def _build_func(self):
         return self.func
 
-    def apply(self, mesh):
+    def __call__(self, mesh):
         """Apply step.
 
         Parameters

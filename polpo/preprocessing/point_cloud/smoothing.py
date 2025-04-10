@@ -22,7 +22,7 @@ class RegisteredPointCloudSmoothing(PreprocessingStep):
         self.neighbor_indices = self._nbrs.kneighbors(points, return_distance=False)
         return self.neighbor_indices
 
-    def apply(self, data):
+    def __call__(self, data):
         # points: (n_samples, n_vertices, dim)
         if self.neighbor_indices is None:
             template_points, points = data

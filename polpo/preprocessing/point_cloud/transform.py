@@ -2,7 +2,7 @@ from polpo.preprocessing.base import PreprocessingStep
 
 
 class ApplyTransformation(PreprocessingStep):
-    def apply(self, data):
+    def __call__(self, data):
         # TODO: accept transformation at init?
         points, transformation = data
 

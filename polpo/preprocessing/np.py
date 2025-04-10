@@ -20,7 +20,7 @@ class Stack(PreprocessingStep):
         super().__init__()
         self.axis = axis
 
-    def apply(self, data):
+    def __call__(self, data):
         return np.stack(data, axis=self.axis)
 
 
@@ -39,27 +39,27 @@ class Reshape(PreprocessingStep):
         super().__init__()
         self.shape = shape
 
-    def apply(self, data):
+    def __call__(self, data):
         return np.reshape(data, self.shape)
 
 
 class FlattenButFirst(PreprocessingStep):
     """Flattens array but first axis."""
 
-    def apply(self, data):
+    def __call__(self, data):
         return np.reshape(data, (data.shape[0], -1))
 
 
 class Complex2RealsRepr(PreprocessingStep):
     """Transforms a complex number into a 2-vector."""
 
-    def apply(self, cnumber):
+    def __call__(self, cnumber):
         return np.hstack([cnumber.real, cnumber.imag])
 
 
 class RealsRepr2Complex(PreprocessingStep):
     """Transforms a 2-vector into a complex number."""
 
-    def apply(self, rnumber):
+    def __call__(self, rnumber):
         half_index = rnumber.shape[-1] // 2
         return rnumber[..., :half_index] + 1j * rnumber[..., half_index:]

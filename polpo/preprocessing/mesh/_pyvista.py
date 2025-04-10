@@ -25,7 +25,7 @@ class PvFromData(PreprocessingStep):
         super().__init__()
         self.keep_colors = keep_colors
 
-    def apply(self, mesh):
+    def __call__(self, mesh):
         """Apply step.
 
         Parameters
@@ -63,7 +63,7 @@ class DataFromPv(PreprocessingStep):
         super().__init__()
         self.keep_colors = keep_colors
 
-    def apply(self, mesh):
+    def __call__(self, mesh):
         vertices, faces = (
             np.array(mesh.points),
             np.array(mesh.faces).reshape(-1, 4)[:, 1:],
@@ -97,7 +97,7 @@ class PvAlign(PreprocessingStep):
         self.check_mean_distance = check_mean_distance
         self.start_by_matching_centroids = start_by_matching_centroids
 
-    def apply(self, data):
+    def __call__(self, data):
         """Apply step.
 
         Parameters
@@ -155,7 +155,7 @@ class PvSmoothTaubin(PreprocessingStep):
         self.inplace = inplace
         self.progress_bar = progress_bar
 
-    def apply(self, poly_data):
+    def __call__(self, poly_data):
         """Apply step."""
         return poly_data.smooth_taubin(**params_to_kwargs(self))
 
@@ -207,7 +207,7 @@ class PvDecimate(PreprocessingStep):
         self.keep_colors = keep_colors
         self._nbrs = NearestNeighbors(n_neighbors=1)
 
-    def apply(self, poly_data):
+    def __call__(self, poly_data):
         """Apply step.
 
         Parameters
@@ -247,7 +247,7 @@ class PvFromTrimesh(PreprocessingStep):
         super().__init__()
         self.store_colors = store_colors
 
-    def apply(self, mesh):
+    def __call__(self, mesh):
         """Apply step.
 
         Parameters
@@ -287,7 +287,7 @@ class PvWriter(PreprocessingStep):
         self.binary = binary
         self.recompute_normals = recompute_normals
 
-    def apply(self, data):
+    def __call__(self, data):
         """Apply step.
 
         Parameters
@@ -336,7 +336,7 @@ class PvReader(PreprocessingStep):
         super().__init__()
         self.rename_colors = rename_colors
 
-    def apply(self, filename):
+    def __call__(self, filename):
         """Apply step.
 
         Parameters
@@ -370,7 +370,7 @@ class PvExtractLargest(PreprocessingStep):
         self.inplace = inplace
         self.progress_bar = progress_bar
 
-    def apply(self, poly_data):
+    def __call__(self, poly_data):
         """Apply step.
 
         Parameters
@@ -407,7 +407,7 @@ class PvExtractPoints(PreprocessingStep):
         self.progress_bar = progress_bar
         self.extract_surface = extract_surface
 
-    def apply(self, data):
+    def __call__(self, data):
         """Apply step.
 
         Parameters
@@ -444,7 +444,7 @@ class PvSelectColor(PreprocessingStep):
             extract_surface=extract_surface,
         )
 
-    def apply(self, data):
+    def __call__(self, data):
         if isinstance(data, (list, tuple)):
             mesh, color = data
         else:

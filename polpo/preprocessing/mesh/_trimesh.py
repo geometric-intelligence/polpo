@@ -11,7 +11,7 @@ register_vertices_attr(trimesh.Trimesh, "vertices")
 
 
 class TrimeshFromData(PreprocessingStep):
-    def apply(self, mesh):
+    def __call__(self, mesh):
         if len(mesh) == 3:
             vertices, faces, colors = mesh
         else:
@@ -21,7 +21,7 @@ class TrimeshFromData(PreprocessingStep):
 
 
 class DataFromTrimesh(PreprocessingStep):
-    def apply(self, mesh):
+    def __call__(self, mesh):
         return (
             np.array(mesh.vertices),
             np.array(mesh.faces),
@@ -30,7 +30,7 @@ class DataFromTrimesh(PreprocessingStep):
 
 
 class TrimeshFromPv(PreprocessingStep):
-    def apply(self, poly_data):
+    def __call__(self, poly_data):
         vertex_colors = (
             poly_data["colors"] if "colors" in poly_data.array_names else None
         )
@@ -44,10 +44,11 @@ class TrimeshFaceRemoverByArea(PreprocessingStep):
     # TODO: generalize?
 
     def __init__(self, threshold=0.01, inplace=True):
+        super().__init__()
         self.threshold = threshold
         self.inplace = inplace
 
-    def apply(self, mesh):
+    def __call__(self, mesh):
         if not self.inplace:
             mesh = mesh.copy()
 
@@ -70,10 +71,11 @@ class TrimeshDegenerateFacesRemover(PreprocessingStep):
     """
 
     def __init__(self, height=1e-08, inplace=True):
+        super().__init__()
         self.height = height
         self.inplace = inplace
 
-    def apply(self, mesh):
+    def __call__(self, mesh):
         if not self.inplace:
             mesh = mesh.copy()
 
@@ -104,7 +106,7 @@ class TrimeshDecimator(PreprocessingStep):
         self.face_count = face_count
         self.agression = agression
 
-    def apply(self, mesh):
+    def __call__(self, mesh):
         # TODO: issue with colors?
         decimated_mesh = mesh.simplify_quadric_decimation(
             percent=self.percent,
@@ -121,9 +123,10 @@ class TrimeshDecimator(PreprocessingStep):
 
 class TrimeshLargestComponentSelector(PreprocessingStep):
     def __init__(self, only_watertight=False):
+        super().__init__()
         self.only_watertight = only_watertight
 
-    def apply(self, mesh):
+    def __call__(self, mesh):
         components = mesh.split(only_watertight=self.only_watertight)
         if len(components) == 0:
             return mesh
@@ -140,6 +143,7 @@ class TrimeshToPly(PreprocessingStep):
         vertex_normal=None,
         include_attributes=True,
     ):
+        super().__init__()
         # TODO: create dir if does not exist?
         self.dirname = dirname
         self.encoding = encoding
@@ -148,7 +152,7 @@ class TrimeshToPly(PreprocessingStep):
 
         # TODO: add override?
 
-    def apply(self, data):
+    def __call__(self, data):
         filename, mesh = data
 
         ext = ".ply"
@@ -183,7 +187,7 @@ class TrimeshReader(PreprocessingStep):
         super().__init__()
         self._supported_fmts = {"stl", "ply", "dxf"}
 
-    def apply(self, path):
+    def __call__(self, path):
         ext = path.split(".")[-1]
         if ext in self._supported_fmts:
             return trimesh.load_mesh(path)
@@ -208,6 +212,7 @@ class TrimeshLaplacianSmoothing(PreprocessingStep):
         laplacian_operator=None,
         inplace=True,
     ):
+        super().__init__()
         self.lamb = lamb
         self.iterations = iterations
         self.implicit_time_integration = implicit_time_integration
@@ -215,7 +220,7 @@ class TrimeshLaplacianSmoothing(PreprocessingStep):
         self.laplacian_operator = laplacian_operator
         self.inplace = inplace
 
-    def apply(self, mesh):
+    def __call__(self, mesh):
         if not self.inplace:
             mesh = mesh.copy()
 
@@ -232,7 +237,7 @@ class TrimeshLaplacianSmoothing(PreprocessingStep):
 
 
 class TrimeshClone(PreprocessingStep):
-    def apply(self, mesh):
+    def __call__(self, mesh):
         return mesh.copy()
 
 
@@ -241,7 +246,7 @@ class TrimeshMeshBounds(PreprocessingStep):
         super().__init__()
         self.ratio = ratio
 
-    def apply(self, mesh):
+    def __call__(self, mesh):
         bounds = mesh.bounds
 
         if abs(self.ratio) < 1e-4:

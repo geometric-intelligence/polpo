@@ -15,7 +15,7 @@ class BaseMeshInfoPrinter(PreprocessingStep, abc.ABC):
     def msg(self, mesh):
         pass
 
-    def apply(self, mesh):
+    def __call__(self, mesh):
         logger.info(self.msg(mesh))
         return mesh
 

@@ -19,6 +19,6 @@ except ImportError:
 class IdentityMeshAligner(PreprocessingStep):
     # useful for debugging
 
-    def apply(self, meshes):
+    def __call__(self, meshes):
         target_mesh, _ = meshes
         return target_mesh

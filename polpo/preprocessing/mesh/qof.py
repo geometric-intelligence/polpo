@@ -9,7 +9,7 @@ except ImportError:
 
 
 class ColorCentroids(PreprocessingStep):
-    def apply(self, data):
+    def __call__(self, data):
         vertices, _, vertex_colors = data
 
         colors = np.unique(vertex_colors, axis=0)
