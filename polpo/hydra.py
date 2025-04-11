@@ -1,3 +1,4 @@
+import yaml
 from hydra.utils import instantiate
 from omegaconf import OmegaConf
 from omegaconf.errors import InterpolationResolutionError, UnsupportedInterpolationType
@@ -64,3 +65,68 @@ def load_models(model_cfg, name=None):
             value, operation="create"
         ),
     )
+
+
+class DefaultsResolver:
+    """Defaults resolver.
+
+    Checks use of `${var}` in main config file.
+    If file does not exists, overrides to `default`.
+
+    Avoids defining empty yaml files.
+    """
+
+    def _load_config_defaults(self, config_path, config_name="config"):
+        # loads default section of main config
+        with open(config_path / f"{config_name}.yaml", "r") as f:
+            raw = yaml.safe_load(f)
+
+        return raw.get("defaults", [])
+
+    def _parse_dict_for_deps(self, key, config_defaults):
+        # finds key_value (e.g. data: {key_value})
+        # finds dep vars (e.g. objs: ${data})
+        key_spec = f"${{{key}}}"
+
+        key_value = None
+        dep_keys = []
+        for entry in config_defaults:
+            if not isinstance(entry, dict):
+                continue
+
+            if key in entry:
+                key_value = entry[key]
+            elif key_spec in entry.values():
+                dep_keys.append(list(entry.keys())[0])
+
+        if key_value is None:
+            raise ValueError("Can't find data key")
+
+        return key_value, dep_keys
+
+    def _check_overrides(self, key, key_value, dep_keys, overrides):
+        # checks if key or dep_vars are overriden
+        for override in overrides:
+            key_, value_ = override.split("=")
+            if key == key_:
+                key_value = value_
+            elif key_ in dep_keys:
+                dep_keys.remove(key_)
+
+        return key_value, dep_keys
+
+    def _update_overrides(self, config_path, key_value, dep_keys, overrides):
+        # updates overrides
+        for var_ in dep_keys:
+            if not (config_path / var_ / f"{key_value}.yaml").exists():
+                overrides.append(f"{var_}=default")
+
+        return overrides
+
+    def resolve(self, config_path, key, overrides, config_name="config"):
+        # NB: overrides are updated
+        defaults_ls = self._load_config_defaults(config_path, config_name)
+
+        key_value, dep_keys = self._parse_dict_for_deps(key, defaults_ls)
+        key_value, dep_keys = self._check_overrides(key, key_value, dep_keys, overrides)
+        return self._update_overrides(config_path, key_value, dep_keys, overrides)
