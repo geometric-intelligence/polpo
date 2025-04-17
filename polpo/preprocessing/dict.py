@@ -1,3 +1,6 @@
+import warnings
+
+from joblib import Parallel, delayed
 from tqdm import tqdm
 
 from polpo.collections import swap_nested_dict
@@ -147,8 +150,8 @@ class DictUpdate(PreprocessingStep):
         return new_data
 
 
-class DictMap(StepWrappingPreprocessingStep):
-    """Apply a given step to each element of a dictionary.
+class SerialDictMap(StepWrappingPreprocessingStep):
+    """Apply a given step to each element of a dict.
 
     Parameters
     ----------
@@ -193,6 +196,87 @@ class DictMap(StepWrappingPreprocessingStep):
             out[self.key_step(key)] = value_
 
         return out
+
+
+class ParDictMap(StepWrappingPreprocessingStep):
+    """Apply a given step to each element of a dict in parallel.
+
+    Parameters
+    ----------
+    step : callable
+        Preprocessing step to apply to value.
+    n_jobs : int
+        The maximum number of concurrently running jobs.
+    verbose : int
+        The verbosity level: if non zero, progress messages are
+        printed. Above 50, the output is sent to stdout.
+        The frequency of the messages increases with the verbosity level.
+        If it more than 10, all iterations are reported.
+
+    Notes
+    -----
+    * has less functionality than `DictMap`
+    """
+
+    def __init__(self, step, n_jobs=-1, verbose=0):
+        super().__init__(step)
+        self.n_jobs = n_jobs
+        self.verbose = verbose
+
+    def __call__(self, data):
+        with Parallel(n_jobs=self.n_jobs, verbose=self.verbose) as parallel:
+            res = parallel(delayed(self.step)(datum) for datum in data.items())
+
+        return dict(zip(data.keys(), res))
+
+
+class DictMap:
+    """Apply a given step to each element of a dict."""
+
+    def __new__(
+        cls,
+        step=None,
+        pbar=False,
+        key_step=None,
+        special_keys=(),
+        special_step=None,
+        n_jobs=0,
+        verbose=0,
+    ):
+        """Instantiate class.
+
+        Parameters
+        ----------
+        step : callable
+            Preprocessing step to apply to value.
+        pbar : bool
+            Whether to show a progress bar. Only if serial.
+        key_step : callable
+            Preprocessing step to apply to key. Only if serial.
+        special_keys : array-like
+            Keys to be subject to a different step.  Only if serial.
+        special_step : callable
+            Step to apply to special keys.  Only if serial.
+        n_jobs : int
+            The maximum number of concurrently running jobs.
+        verbose : int
+            The verbosity level. Only if parallel.
+        """
+        if n_jobs != 0:
+            if pbar or key_step is not None or special_keys or special_step:
+                warnings.warn(
+                    "Several arguments where ignored, check `ParDictMap` for more info"
+                )
+
+            return ParDictMap(step, n_jobs=n_jobs, verbose=verbose)
+
+        return SerialDictMap(
+            step=step,
+            pbar=pbar,
+            key_step=key_step,
+            special_keys=special_keys,
+            special_step=special_step,
+        )
 
 
 class NestedDictSwapper(PreprocessingStep):
