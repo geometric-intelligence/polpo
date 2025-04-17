@@ -27,6 +27,7 @@ class StructEncoding:
 
         self._structs2ids = None
         self._ids2colors = None
+        self._stucts2colors = None
 
     @property
     def structs2ids(self):
@@ -41,6 +42,13 @@ class StructEncoding:
             self._ids2colors = dict(zip(self.ids, self.colors))
 
         return self._ids2colors
+
+    @property
+    def structs2colors(self):
+        if self._stucts2colors is None:
+            self._stucts2colors = dict(zip(self.structs, self.colors))
+
+        return self._stucts2colors
 
 
 class AshsPrincetonYoungAdult3TEncoding(StructEncoding):
@@ -203,8 +211,9 @@ def segmtool2encoding(tool=None, struct=None, raise_=False):
     if tool_l.startswith("fsl"):
         return FslFirstStructEncoding()
 
+    tools = ("ashs", "fast", "free", "fsl")
     if raise_:
-        raise ValueError(f"Cannot manage `{tool}`")
+        raise ValueError(f"Cannot manage `{tool}`. Try one of: {'.'.join(tools)}")
 
 
 class MriImageLoader(PreprocessingStep):
