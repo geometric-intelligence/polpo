@@ -182,15 +182,14 @@ class EmptySkipper(StepWrappingPreprocessingStep):
         return self.step(data)
 
 
-class ToList(PreprocessingStep):
-    # TODO: better naming?
+class WrapInList(PreprocessingStep):
     def __call__(self, data):
         return [data]
 
 
-class TupleToList(PreprocessingStep):
+class Listify(PreprocessingStep):
     def __call__(self, data):
-        return [x for x in data]
+        return list(data)
 
 
 class SerialMap(StepWrappingPreprocessingStep):
@@ -202,7 +201,7 @@ class SerialMap(StepWrappingPreprocessingStep):
         return [self.step(datum) for datum in tqdm(data, disable=not self.pbar)]
 
 
-class ParallelMap(StepWrappingPreprocessingStep):
+class ParMap(StepWrappingPreprocessingStep):
     def __init__(self, step, n_jobs=-1, verbose=0):
         super().__init__(step)
         self.n_jobs = n_jobs
@@ -233,7 +232,7 @@ class DecorateToIterable(StepWrappingPreprocessingStep):
 class Map:
     def __new__(cls, step, n_jobs=0, verbose=0, force_iter=False):
         if n_jobs != 0:
-            map_ = ParallelMap(step, n_jobs=n_jobs, verbose=verbose)
+            map_ = ParMap(step, n_jobs=n_jobs, verbose=verbose)
 
         else:
             map_ = SerialMap(step, pbar=verbose > 0)
