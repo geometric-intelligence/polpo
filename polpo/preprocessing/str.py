@@ -2,6 +2,7 @@
 
 import re
 
+from ._preprocessing import Contains, ContainsAll, MethodApplier  # noqa:F401
 from .base import PreprocessingStep
 
 
@@ -31,3 +32,8 @@ class DigitFinder(PreprocessingStep):
         """
         digits = re.findall(r"\d+", string)
         return int(digits[self.index])
+
+
+class StartsWith(MethodApplier):
+    def __init__(self, value):
+        super().__init__(value, method="startswith")

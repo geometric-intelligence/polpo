@@ -3,41 +3,11 @@
 import os
 import warnings
 
+from ._preprocessing import MethodApplier
 from .base import PreprocessingStep
 
 
-class FileRule(PreprocessingStep):
-    """File rule.
-
-    Parameters
-    ----------
-    value : str
-        Value to call ``func`` on.
-    func : callable
-        ``str`` function that outputs a boolean.
-    """
-
-    def __init__(self, value, func="startswith"):
-        super().__init__()
-        self.value = value
-        self.func = func
-
-    def __call__(self, file):
-        """Apply step.
-
-        Parameters
-        ----------
-        file : str
-
-        Returns
-        -------
-        bool
-        """
-        func = getattr(file, self.func)
-        return func(self.value)
-
-
-class IsFileType(FileRule):
+class IsFileType(MethodApplier):
     """Check extension of file.
 
     Parameters
@@ -47,7 +17,7 @@ class IsFileType(FileRule):
     """
 
     def __init__(self, ext):
-        super().__init__(f".{ext}", func="endswith")
+        super().__init__(f".{ext}", method="endswith")
 
 
 class FileFinder(PreprocessingStep):
@@ -57,7 +27,7 @@ class FileFinder(PreprocessingStep):
     ----------
     data_dir : str
         Searching directory.
-    rules : FileRule or list[FileRule]
+    rules : callable or list[callable]
         Rules to filter files with.
     warn : bool
         Whether to warn if can't find file.
