@@ -186,7 +186,7 @@ class FslFirstStructEncoding(FreeSurferStructEncoding):
     """
 
 
-def segmtool2encoding(tool=None, struct=None, raise_=False):
+def segmtool2encoding(tool=None, struct=None, raise_=True):
     # struct is ignored if tool is not None
 
     if tool is None and isinstance(struct, str):
@@ -335,7 +335,7 @@ class MeshExtractorFromSegmentedImage(PreprocessingStep):
         encoding=None,
     ):
         if encoding is None or isinstance(encoding, str):
-            encoding = segmtool2encoding(encoding, struct_id)
+            encoding = segmtool2encoding(encoding, struct_id, raise_=False)
 
         if encoding is None and isinstance(struct_id, str):
             raise ValueError(f"Need encoding to handle str id: `{struct_id}`")
