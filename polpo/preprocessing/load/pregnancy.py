@@ -6,6 +6,8 @@ from pathlib import Path
 import polpo.preprocessing.pd as ppd
 from polpo.preprocessing import (
     Constant,
+    Contains,
+    ContainsAll,
     Filter,
     Map,
     PartiallyInitializedStep,
@@ -20,11 +22,10 @@ from polpo.preprocessing.dict import (
 from polpo.preprocessing.path import (
     ExpandUser,
     FileFinder,
-    FileRule,
     IsFileType,
     PathShortener,
 )
-from polpo.preprocessing.str import DigitFinder
+from polpo.preprocessing.str import DigitFinder, StartsWith
 
 from ._load import FigshareDataLoader, _get_basename
 
@@ -257,7 +258,7 @@ def PregnancyPilotMriLoader(
     files_selector = DictMap(
         step=FileFinder(
             rules=[
-                FileRule(value="BrainNormalized", func="startswith"),
+                StartsWith(value="BrainNormalized"),
                 IsFileType("nii.gz"),
             ]
         )
@@ -300,14 +301,14 @@ def PregnancyPilotSegmentationsLoader(
 
     left_file_selector = FileFinder(
         rules=[
-            FileRule(value="left", func="startswith"),
+            StartsWith(value="left"),
             IsFileType("nii.gz"),
         ]
     )
 
     right_file_selector = FileFinder(
         rules=[
-            FileRule(value="right", func="startswith"),
+            StartsWith(value="right"),
             IsFileType("nii.gz"),
         ]
     )
@@ -378,7 +379,7 @@ def PregnancyPilotRegisteredMeshesLoader(
         )
         + FileFinder(
             rules=[
-                FileRule(value="left_", func="startswith"),
+                StartsWith(value="left_"),
                 IsFileType("ply"),
             ],
         )
@@ -461,8 +462,25 @@ def DenseMaternalFoldersSelector(
     subject_id=None,
     subset=None,
     as_dict=False,
+    derivative="fsl",
 ):
     """Create pipeline to load maternal sessions folder names.
+
+    Assumes the following folder structure:
+    - <data_dir>
+        - maternal_brain_project
+        - maternal_brain_project_pilot
+
+    For each of the projects folder assumes:
+    - <project_folder>
+        - derivatives
+            - <derivative_1>
+            - <derivative_2>
+
+    For each of the tools folder assumes:
+    - <tool>
+        - <session-folder>
+        - ...
 
     Parameters
     ----------
@@ -475,6 +493,8 @@ def DenseMaternalFoldersSelector(
         Subset of sessions to load. If `None`, loads all.
     as_dict : bool
         Whether to create a dictionary with session as key.
+    derivative : str
+        Derivative folder starting (e.g. "fsl_first", "fastsurfer-long").
 
     Returns
     -------
@@ -500,11 +520,9 @@ def DenseMaternalFoldersSelector(
             logging.warning("`subject_id` is ignored, as there's only one subject")
 
         path_to_session = PathShortener() + DigitFinder(index=-1)
-        sorter = Sorter(lambda x: x)
+        sorter = Sorter()
     else:
-        path_to_session = PathShortener() + [
-            lambda path: path.split("_")[1].split("-")[1]
-        ]
+        path_to_session = PathShortener() + [lambda path: path.split("-")[-1]]
         sorter = Sorter(
             lambda x: (
                 re.sub(r"\d+$", "", path_to_session(x)),
@@ -512,12 +530,12 @@ def DenseMaternalFoldersSelector(
             )
         )
 
-    folder_name = os.path.join(data_dir, project_folder, "derivatives/fsl_first")
-    if "~" in folder_name:
-        folder_name = os.path.expanduser(folder_name)
-
-    folders_selector = Constant(folder_name) + FileFinder(
-        rules=[lambda folder_name: subject_id in folder_name], as_list=True
+    folder_name = os.path.join(data_dir, project_folder, "derivatives")
+    folders_selector = (
+        Constant(folder_name)
+        + ExpandUser()
+        + FileFinder(rules=StartsWith(derivative))
+        + FileFinder(rules=ContainsAll([subject_id, "ses"]), as_list=True)
     )
 
     if subset is not None:
@@ -597,7 +615,11 @@ def DenseMaternalMeshLoader(
 
 
 def DenseMaternalSegmentationsLoader(
-    data_dir="~/.herbrain/data/maternal", subset=None, subject_id=None, as_dict=False
+    data_dir="~/.herbrain/data/maternal",
+    subset=None,
+    subject_id=None,
+    as_dict=False,
+    tool="fsl_first",
 ):
     """Create pipeline to load segmented mri filenames.
 
@@ -612,6 +634,9 @@ def DenseMaternalSegmentationsLoader(
         One of the following: "01", "1001", "1004".
     as_dict : bool
         Whether to create a dictionary with session as key.
+    tool : str
+        Tool used to generate derivatives.
+        One of the following: "fsl*", "fast*".
 
     Returns
     -------
@@ -619,17 +644,28 @@ def DenseMaternalSegmentationsLoader(
         Pipeline to load segmented mri filenames.
     """
     folders_selector = DenseMaternalFoldersSelector(
-        data_dir=data_dir, subject_id=subject_id, subset=subset, as_dict=True
+        data_dir=data_dir,
+        subject_id=subject_id,
+        subset=subset,
+        as_dict=True,
+        derivative=tool,
     )
 
-    file_finder = folders_selector + DictMap(
-        FileFinder(
+    if tool.startswith("fsl"):
+        image_selector = FileFinder(
             rules=[
                 IsFileType("nii.gz"),
-                lambda filename: "all_fast_firstseg" in filename,
+                Contains("all_fast_firstseg"),
             ]
         )
-    )
+    elif tool.startswith("fast") or tool.startswith("free"):
+        image_selector = FileFinder(rules=lambda x: x == "mri") + FileFinder(
+            rules=lambda x: x == "aseg.auto.mgz"
+        )
+    else:
+        raise ValueError(f"Ups, don't know how to handle: {tool}")
+
+    file_finder = folders_selector + DictMap(image_selector)
 
     if as_dict:
         return file_finder
