@@ -414,4 +414,89 @@ class Constant(PreprocessingStep):
         -------
         constant : any
         """
-        return value or self.value
+        return value if value is not None else self.value
+
+
+class Contains(PreprocessingStep):
+    """Check if an item is in a collection.
+
+    Examples include substring in string,
+    item in list, key in dict.
+
+    Parameters
+    ----------
+    item : object
+    negate : bool
+        Whether to negate predicate.
+    """
+
+    def __init__(self, item, negate=False):
+        super().__init__()
+        self.item = item
+        self.negate = negate
+
+    def __call__(self, collection):
+        """Apply step.
+
+        Returns
+        -------
+        membership : bool
+            Membership or lack of it (depending on negate).
+        """
+        out = self.item in collection
+        if self.negate:
+            return not out
+
+        return out
+
+
+class ContainsAll(PreprocessingStep):
+    """Check if a subset of items in a collection."""
+
+    def __init__(self, items, negate=False):
+        super().__init__()
+        self.items = items
+        self.negate = negate
+
+    def __call__(self, collection):
+        """Apply step.
+
+        Returns
+        -------
+        membership : bool
+            Membership or lack of it (depending on negate) for all items.
+        """
+        out = all([item in collection for item in self.items])
+        if self.negate:
+            return not out
+
+        return out
+
+
+class MethodApplier(PreprocessingStep):
+    """Applies a named method with preset args and kwargs.
+
+    Parameters
+    ----------
+    method : str
+        Named method.
+    """
+
+    def __init__(self, *args, method, **kwargs):
+        super().__init__()
+        self.method = method
+        self.args = args
+        self.kwargs = kwargs
+
+    def __call__(self, obj):
+        """Apply step.
+
+        Parameters
+        ----------
+        obj : object
+
+        Returns
+        -------
+        bool
+        """
+        return getattr(obj, self.method)(*self.args, **self.kwargs)
