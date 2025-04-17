@@ -290,9 +290,20 @@ class DataPrinter(PreprocessingStep):
 
 
 class PartiallyInitializedStep(PreprocessingStep):
-    def __init__(self, Step, **kwargs):
+    """Instantiate a step based on data.
+
+    Parameters
+    ----------
+    Step : PreprocessingStep
+        Step to be instantiated.
+    pass_data : bool
+        Whether to pass that to callable after instantiation.
+    """
+
+    def __init__(self, Step, pass_data=True, **kwargs):
         super().__init__()
         self.Step = Step
+        self.pass_data = pass_data
         self.kwargs = kwargs
 
     def __call__(self, data):
@@ -301,7 +312,12 @@ class PartiallyInitializedStep(PreprocessingStep):
         for key in dependent_keys:
             kwargs[key[1:]] = kwargs.pop(key)(data)
 
-        return self.Step(**kwargs)(data)
+        step = self.Step(**kwargs)
+
+        if self.pass_data:
+            return step(data)
+
+        return step()
 
 
 class IfCondition(StepWrappingPreprocessingStep):
