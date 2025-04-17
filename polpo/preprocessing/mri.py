@@ -6,21 +6,209 @@ from polpo.utils import params_to_kwargs
 
 from .base import PreprocessingStep
 
-BRAINSTRUCT2COLOR = {
-    "PRC": (255, 0, 255, 255),
-    "PHC": (0, 255, 255, 255),
-    "AntHipp": (255, 215, 0, 255),
-    "ERC": (255, 255, 0, 255),
-    "SUB": (80, 179, 221, 255),
-    "PostHipp": (184, 115, 51, 255),
-    "CA1": (255, 0, 0, 255),
-    "DG": (0, 0, 255, 255),
-    "CA2+3": (0, 255, 0, 255),
+HippStructs = {
+    "CA1",
+    "CA2+3",
+    "DG",
+    "ERC",
+    "PHC",
+    "PRC",
+    "SUB",
+    "AntHipp",
+    "PostHipp",
 }
 
 
+class StructEncoding:
+    def __init__(self, structs, ids, colors):
+        self.structs = structs
+        self.ids = ids
+        self.colors = colors
+
+        self._structs2ids = None
+        self._ids2colors = None
+
+    @property
+    def structs2ids(self):
+        if self._structs2ids is None:
+            self._structs2ids = dict(zip(self.structs, self.ids))
+
+        return self._structs2ids
+
+    @property
+    def ids2colors(self):
+        if self._ids2colors is None:
+            self._ids2colors = dict(zip(self.ids, self.colors))
+
+        return self._ids2colors
+
+
+class AshsPrincetonYoungAdult3TEncoding(StructEncoding):
+    """Encoding of hippocampus subfields.
+
+    https://www.nitrc.org/projects/ashs
+
+    Check out [PTC2024]_ for more details.
+
+    Structure_ID names, numbers, and colors:
+    ----------------------------------------
+    1   255    0    0        1  1  1    "CA1"
+    2     0  255    0        1  1  1    "CA2+3"
+    3     0    0  255        1  1  1    "DG"
+    4   255  255    0        1  1  1    "ERC"
+    5     0  255  255        1  1  1    "PHC"
+    6   255    0  255        1  1  1    "PRC"
+    7    80  179  221        1  1  1    "SUB"
+    8   255  215    0        1  1  1    "AntHipp"
+    9   184  115   51        1  1  1    "PostHipp"
+    2, 6 are expected to grow in volume with progesterone
+    4, 5 are expected to shrink in volume with progesterone
+
+    References
+    ----------
+    .. [PTC2024] L. Pritschet, C.M. Taylor, et al., 2024. Neuroanatomical changes observed
+        over the course of a human pregnancy. Nat Neurosci 27, 2253–2260.
+        https://doi.org/10.1038/s41593-024-01741-0
+    """
+
+    def __init__(self):
+        structs = [
+            "CA1",
+            "CA2+3",
+            "DG",
+            "ERC",
+            "PHC",
+            "PRC",
+            "SUB",
+            "AntHipp",
+            "PostHipp",
+        ]
+        labels = (1, 2, 3, 4, 5, 6, 7, 8, 9)
+        colors = [
+            (255, 0, 0, 255),
+            (0, 255, 0, 255),
+            (0, 0, 255, 255),
+            (255, 255, 0, 255),
+            (0, 255, 255, 255),
+            (255, 0, 255, 255),
+            (80, 179, 221, 255),
+            (255, 215, 0, 255),
+            (184, 115, 51, 255),
+        ]
+        super().__init__(structs, labels, colors)
+
+
+class BrainStructEncoding(StructEncoding):
+    def __init__(
+        self, midline_structs, bilateral_structs, ids, midline_colors, bilateral_colors
+    ):
+        self.midline_structs = midline_structs
+        self.bilateral_structs = bilateral_structs
+
+        sides = ["L", "R"]
+
+        structs = midline_structs + [
+            f"{side}_{struct}" for struct in bilateral_structs for side in sides
+        ]
+
+        colors = midline_colors.copy()
+        for color in bilateral_colors:
+            colors.extend([color, color])
+
+        super().__init__(structs, ids, colors)
+
+
+class FreeSurferStructEncoding(BrainStructEncoding):
+    """
+    https://surfer.nmr.mgh.harvard.edu/fswiki/FsTutorial/AnatomicalROI/FreeSurferColorLUT
+    """
+
+    def __init__(self):
+        midline_structs = ["BrStem"]
+        bilateral_structs = [
+            "Thal",
+            "Caud",
+            "Puta",
+            "Pall",
+            "Hipp",
+            "Amyg",
+            "Accu",
+        ]
+
+        ids = [
+            16,
+            10,  # Left-Thamalus-Proper
+            49,  # Right-Thamalus-Proper
+            11,
+            50,
+            12,
+            51,
+            13,
+            52,
+            17,
+            53,
+            18,
+            54,
+            26,
+            58,
+        ]
+
+        # NB: sides have same color
+        midline_colors = [(119, 159, 176, 0)]
+        bilateral_colors = [
+            (0, 118, 14, 0),
+            (122, 186, 220, 0),
+            (236, 13, 176, 0),
+            (13, 48, 255, 0),
+            (220, 216, 20, 0),
+            (103, 255, 255, 0),
+            (255, 165, 0, 0),
+        ]
+
+        super().__init__(
+            midline_structs, bilateral_structs, ids, midline_colors, bilateral_colors
+        )
+
+
+class FslFirstStructEncoding(FreeSurferStructEncoding):
+    """
+    https://fsl.fmrib.ox.ac.uk/fsl/docs/#/structural/first?id=supported-structures
+
+    NB: compatible with FreeSurfer for the existing ones.
+    """
+
+
+def segmtool2encoding(tool=None, struct=None, raise_=False):
+    # struct is ignored if tool is not None
+
+    if tool is None and isinstance(struct, str):
+        if struct in HippStructs:
+            return AshsPrincetonYoungAdult3TEncoding()
+
+        return FreeSurferStructEncoding()
+
+    if tool is None:
+        if raise_:
+            raise ValueError("Need to know tool or struct")
+
+        return None
+
+    tool_l = tool.lower()
+    if tool_l.startswith("ashs"):
+        return AshsPrincetonYoungAdult3TEncoding()
+
+    if tool_l.startswith("fast") or tool_l.startswith("free"):
+        return FreeSurferStructEncoding()
+
+    if tool_l.startswith("fsl"):
+        return FslFirstStructEncoding()
+
+    if raise_:
+        raise ValueError(f"Cannot manage `{tool}`")
+
+
 class MriImageLoader(PreprocessingStep):
-    """Load image from .nii file.
+    """Load image from .nii/.mgz file.
 
     Parameters
     ----------
@@ -113,52 +301,45 @@ class LocalToTemplateTransform(PreprocessingStep):
 class MeshExtractorFromSegmentedImage(PreprocessingStep):
     """Mesh extractor from images.
 
-    Structure_ID names, numbers, and colors:
-    ----------------------------------------
-    1   255    0    0        1  1  1    "CA1"
-    2     0  255    0        1  1  1    "CA2+3"
-    3     0    0  255        1  1  1    "DG"
-    4   255  255    0        1  1  1    "ERC"
-    5     0  255  255        1  1  1    "PHC"
-    6   255    0  255        1  1  1    "PRC"
-    7    80  179  221        1  1  1    "SUB"
-    8   255  215    0        1  1  1    "AntHipp"
-    9   184  115   51        1  1  1    "PostHipp"
-    2, 6 are expected to grow in volume with progesterone
-    4, 5 are expected to shrink in volume with progesterone
-
     Parameters
     ----------
-    structured_id : int
-        Structure to select.
+    struct_id : int or str
+        Structure to select. Depends on segmentation tool.
+        If -1 considers full structure. If integer, ignores encoding.
     marching_cubes : callable
         Marching cubes algorithm.
     return_colors : bool
         Whether to output colors.
+        Ignored if marching_cubes is not None or no encoding.
+        For the former, output len sets value.
+    encoding : str or StructEncoding
+        Encoding or used segmentation tool.
+        One of the following: 'ashs*', 'fast*', 'free*', 'fsl*'.
+        If None, tries to figure it out.
     """
 
-    # TODO: adapt this for tool
+    def __init__(
+        self,
+        struct_id=-1,
+        marching_cubes=None,
+        return_colors=True,
+        encoding=None,
+    ):
+        if encoding is None or isinstance(encoding, str):
+            encoding = segmtool2encoding(encoding, struct_id)
 
-    def __init__(self, structure_id=-1, marching_cubes=None, return_colors=True):
+        if encoding is None and isinstance(struct_id, str):
+            raise ValueError(f"Need encoding to handle str id: `{struct_id}`")
+
         if marching_cubes is None:
-            marching_cubes = SkimageMarchingCubes(level=0, method="lewiner")
+            marching_cubes = SkimageMarchingCubes(
+                level=0, method="lewiner", return_values=return_colors
+            )
 
         super().__init__()
-        self.structure_id = structure_id
+        self.structure_id = struct_id
         self.marching_cubes = marching_cubes
-        self.return_colors = return_colors
-
-        self.color_dict = {  # trimesh uses format [r, g, b, a] where a is alpha
-            1: [255, 0, 0, 255],
-            2: [0, 255, 0, 255],
-            3: [0, 0, 255, 255],
-            4: [255, 255, 0, 255],
-            5: [0, 255, 255, 255],
-            6: [255, 0, 255, 255],
-            7: [80, 179, 221, 255],
-            8: [255, 215, 0, 255],
-            9: [184, 115, 51, 255],
-        }
+        self.encoding = encoding
 
     def __call__(self, img_fdata):
         """Extract one surface mesh from the fdata of a segmented image.
@@ -169,25 +350,30 @@ class MeshExtractorFromSegmentedImage(PreprocessingStep):
             according to substructure assignment. For example, color of voxel
             (0, 0, 0) is an integer value that can be anywhere from 0-9.
         """
-        # TODO: implement as a pipeline (syntax sugar!)
+        structure_id = (
+            self.structure_id
+            if isinstance(self.structure_id, int)
+            else self.encoding.structs2ids.get(self.structure_id)
+        )
 
-        if self.structure_id == -1:
+        if structure_id == -1:
             img_mask = img_fdata != 0
         else:
-            img_mask = img_fdata == self.structure_id
+            img_mask = img_fdata == structure_id
 
         masked_img_fdata = np.where(img_mask, img_fdata, 0)
-        (
-            vertices,
-            faces,
-            values,
-        ) = self.marching_cubes(masked_img_fdata)
+        # (vertices, faces) or (vertices, faces, values)
+        out = self.marching_cubes(masked_img_fdata)
 
-        if not self.return_colors:
-            return vertices, faces
+        if len(out) == 2:
+            return out
 
-        colors = np.array([np.array(self.color_dict[value]) for value in values])
-        return vertices, faces, colors
+        if self.encoding is None:
+            return out[:2]
+
+        colors2dict = self.encoding.ids2colors
+        colors = np.array([np.array(colors2dict[value]) for value in out[-1]])
+        return out[:2] + (colors,)
 
 
 class SkimageMarchingCubes(PreprocessingStep):
@@ -201,13 +387,15 @@ class SkimageMarchingCubes(PreprocessingStep):
         step_size=1,
         allow_degenerate=False,
         method="lewiner",
-        return_values=True,
+        return_normals=False,
+        return_values=False,
     ):
         super().__init__()
         self.level = level
         self.step_size = step_size
         self.allow_degenerate = allow_degenerate
         self.method = method
+        self.return_normals = return_normals
         self.return_values = return_values
 
     def __call__(self, data):
@@ -220,15 +408,20 @@ class SkimageMarchingCubes(PreprocessingStep):
         (
             vertices,
             faces,
-            _,
+            normals,
             values,
         ) = skimage.measure.marching_cubes(
             img_fdata,
             mask=mask,
-            **params_to_kwargs(self, ignore=("return_values",)),
+            **params_to_kwargs(self, ignore=("return_values", "return_normals")),
         )
 
-        if self.return_values:
-            return vertices, faces, values
+        out = (vertices, faces)
 
-        return vertices, faces
+        if self.return_normals:
+            out = out + (normals,)
+
+        if self.return_values:
+            out = out + (values,)
+
+        return out
