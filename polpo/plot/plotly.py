@@ -63,8 +63,8 @@ class BaseMeshPlotter(GoPlotter, abc.ABC):
         if layout is True:
             layout = go.Layout(
                 margin=go.layout.Margin(l=0, r=0, b=0, t=0),
-                width=700,
-                height=700,
+                # width=700,
+                # height=700,
                 scene=dict(
                     xaxis=dict(showgrid=True),
                     yaxis=dict(showgrid=True),
