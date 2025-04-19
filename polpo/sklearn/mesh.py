@@ -6,7 +6,7 @@ from polpo.preprocessing import Map
 from polpo.preprocessing.mesh.conversion import FromCombinatorialStructure, ToVertices
 
 
-class InvertibleMeshesToVertices(FunctionTransformer):
+class BiMeshesToVertices(FunctionTransformer):
     """Function transformer for mesh to vertices conversion.
 
     During fit selects a particular mesh providing the combinatorial

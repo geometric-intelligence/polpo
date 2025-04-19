@@ -136,6 +136,21 @@ class DictToValuesList(PreprocessingStep):
         return list(data.values())
 
 
+class ValuesListToDict(PreprocessingStep):
+    def __init__(self, keys=None):
+        super().__init__()
+        self.keys = keys
+
+    def __call__(self, data):
+        if isinstance(data, tuple) and len(data) == 2:
+            keys, values = data
+        else:
+            keys = self.keys
+            values = data
+
+        return dict(zip(keys, values))
+
+
 class DictToTuplesList(PreprocessingStep):
     def __call__(self, data):
         return list(zip(data.keys(), data.values()))
@@ -282,3 +297,20 @@ class DictMap:
 class NestedDictSwapper(PreprocessingStep):
     def __call__(self, nested_dict):
         return swap_nested_dict(nested_dict)
+
+
+class ListDictSwapper(PreprocessingStep):
+    # swap a list of dict
+    # assumes same keys
+
+    def __call__(self, ls):
+        if len(ls) == 0:
+            return {}
+
+        keys = ls[0].keys()
+        out = {key: [] for key in keys}
+        for elem in ls:
+            for key in keys:
+                out[key].append(elem[key])
+
+        return out
