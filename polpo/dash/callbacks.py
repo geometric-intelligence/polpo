@@ -4,7 +4,12 @@ from polpo.utils import unnest_list
 
 
 def create_view_model_update(
-    input_view, output_view, model, allow_duplicate=False, prevent_initial_call=False
+    input_view,
+    output_view,
+    model,
+    allow_duplicate=False,
+    prevent_initial_call=False,
+    postproc_pred=None,
 ):
     empty_output = output_view.as_empty_output()
 
@@ -18,6 +23,9 @@ def create_view_model_update(
             return empty_output
 
         pred = model.predict(args)
+        if postproc_pred is not None:
+            pred = postproc_pred(pred)
+
         return output_view.to_dash(pred)
 
 

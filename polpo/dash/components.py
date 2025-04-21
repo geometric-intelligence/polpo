@@ -9,7 +9,9 @@ from polpo.models import (
     MriSlicesLookup,
     PdDfLookup,
 )
+from polpo.plot.mesh import MeshPlotter
 from polpo.plot.plotly import SlicePlotter
+from polpo.preprocessing import ListSqueeze
 from polpo.utils import unnest_list
 
 from .callbacks import (
@@ -508,10 +510,17 @@ class MriExplorer(BaseComponentGroup):
 
 
 class MeshExplorer(BaseComponentGroup):
-    def __init__(self, graph, model, inputs, id_prefix=""):
-        self.graph = graph
+    def __init__(self, model, inputs, graph=None, id_prefix="", postproc_pred=None):
+        if graph is None:
+            graph = Graph(id_="mesh-plot", plotter=MeshPlotter(), id_prefix=id_prefix)
+
+        if postproc_pred is None:
+            postproc_pred = ListSqueeze()
+
         self.model = model
+        self.graph = graph
         self.inputs = inputs
+        self.postproc_pred = postproc_pred
 
         super().__init__([self.graph, self.inputs], id_prefix=id_prefix)
 
@@ -549,6 +558,7 @@ class MeshExplorer(BaseComponentGroup):
             output_view=self.graph,
             input_view=self.inputs,
             model=self.model,
+            postproc_pred=self.postproc_pred,
         )
 
         return out
