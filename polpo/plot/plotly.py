@@ -178,10 +178,10 @@ class MeshPlotter(BaseMeshPlotter):
 
 
 class MeshesPlotter(BaseMeshPlotter):
-    def __init__(self, plotters, overlay_plotter, bounds=None, overlay_bounds=None):
+    def __init__(
+        self, plotters, overlay_plotter=None, bounds=None, overlay_bounds=None
+    ):
         # NB: overlay_bounds are given priority if overlay is active
-
-        # TODO: make overlay optional?
 
         super().__init__(layout=True)
         # TODO: warn if layout is not None?
@@ -199,14 +199,18 @@ class MeshesPlotter(BaseMeshPlotter):
 
     @property
     def n_graphs(self):
-        return len(self.plotters) + 1
+        return len(self.plotters) + self.has_overlay
+
+    @property
+    def has_overlay(self):
+        return self.overlay_plotter is not None
 
     def transform_data(self, data):
         if not isinstance(data, list):
             # TODO: consider tuple
             data = [data]
 
-        if len(data) < self.n_graphs:
+        if self.has_overlay and len(data) < self.n_graphs:
             data = data + [None]
 
         out_data = unnest_list(
@@ -218,16 +222,17 @@ class MeshesPlotter(BaseMeshPlotter):
         return out_data
 
     def update_layout(self, data):
+        overlay_vis = self.has_overlay and data[-1]
         if (
             not isinstance(data, list)
             or not isinstance(data[0], bool)
             or (self.bounds is None and self.overlay_bounds is None)
-            or (data[-1] and self.overlay_bounds is None)
-            or (not data[-1] and self.bounds is None)
+            or (overlay_vis and self.overlay_bounds is None)
+            or (not overlay_vis and self.bounds is None)
         ):
             return self.layout
 
-        mins, maxs = self.overlay_bounds if data[-1] else self.bounds
+        mins, maxs = self.overlay_bounds if overlay_vis else self.bounds
         self.layout.scene.xaxis.range = [mins[0], maxs[0]]
         self.layout.scene.yaxis.range = [mins[1], maxs[1]]
         self.layout.scene.zaxis.range = [mins[2], maxs[2]]
