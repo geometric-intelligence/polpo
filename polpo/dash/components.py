@@ -514,9 +514,6 @@ class MeshExplorer(BaseComponentGroup):
         if graph is None:
             graph = Graph(id_="mesh-plot", plotter=MeshPlotter(), id_prefix=id_prefix)
 
-        if postproc_pred is None:
-            postproc_pred = ListSqueeze()
-
         self.model = model
         self.graph = graph
         self.inputs = inputs
@@ -567,14 +564,17 @@ class MeshExplorer(BaseComponentGroup):
 class MultipleModelsMeshExplorer(BaseComponentGroup):
     def __init__(
         self,
-        graph,
         models,
         inputs,
+        graph=None,
         id_prefix="",
         button_label="Switch model",
         checkbox_labels=None,
+        postproc_pred=None,
     ):
         # TODO: add verifications?
+        if graph is None:
+            graph = Graph(id_="mesh-plot", plotter=MeshPlotter(), id_prefix=id_prefix)
 
         self.graph = graph
         self.models = models
@@ -582,6 +582,7 @@ class MultipleModelsMeshExplorer(BaseComponentGroup):
         self.button_label = button_label
         # NB: controls visibility of plots
         self.checkbox_labels = checkbox_labels
+        self.postproc_pred = postproc_pred
 
         super().__init__([self.graph].extend(self.inputs), id_prefix=id_prefix)
 
@@ -667,6 +668,7 @@ class MultipleModelsMeshExplorer(BaseComponentGroup):
             toggle_id=toggle_id,
             checklist=checklist,
             hideable_components=inputs_cards,
+            postproc_pred=self.postproc_pred,
         )
 
         return out

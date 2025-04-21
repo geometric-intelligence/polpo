@@ -51,7 +51,13 @@ def create_button_toggler(toggle_id, hideable_components):
 
 
 def create_button_toggler_for_view_model_update(
-    input_views, output_view, models, toggle_id, checklist, hideable_components
+    input_views,
+    output_view,
+    models,
+    toggle_id,
+    checklist,
+    hideable_components,
+    postproc_pred=None,
 ):
     """
 
@@ -107,11 +113,12 @@ def create_button_toggler_for_view_model_update(
 
         out[show_index] = {"display": "block"}
 
-        # TODO: create collection of models
         if ctx.triggered_id == checklist.id:
             pred = checklist.as_bool(args[-1])
         else:
             pred = model.predict(model_args)
+            if postproc_pred is not None:
+                pred = postproc_pred(pred)
 
         return out + output_view.to_dash(pred)
 
