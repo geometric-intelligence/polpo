@@ -341,7 +341,9 @@ def _week_mesh_layout(data="hipp"):
     return dbc.Container(mesh_explorer.to_dash())
 
 
-def _switchable_layout(data="hipp"):
+def _switchable_layout(data="hipp", hideable=False):
+    # hideable only applies to multiple
+
     hormones_df = _load_homornes_df()
     session_week = _load_session_week(hormones_df)
 
@@ -359,11 +361,17 @@ def _switchable_layout(data="hipp"):
     )
 
     graph = None
+    checkbox_labels = None
     if data == "multiple":
         plotter = MeshesPlotter([MeshPlotter() for _ in range(len(registered_meshes))])
         graph = Graph(id_="mesh-plot", plotter=plotter)
 
         postproc_pred = ppdict.DictMap(ListSqueeze()) + ppdict.DictToValuesList()
+
+        if hideable:
+            checkbox_labels = (
+                (index, key, True) for index, key in enumerate(registered_meshes.keys())
+            )
     else:
         postproc_pred = ListSqueeze()
 
@@ -372,12 +380,13 @@ def _switchable_layout(data="hipp"):
         inputs=[week_inputs, hormone_inputs],
         graph=graph,
         postproc_pred=postproc_pred,
+        checkbox_labels=checkbox_labels,
     )
 
     return dbc.Container(mesh_explorer.to_dash())
 
 
-def my_app(data="hipp", switchable=False):
+def my_app(data="hipp", switchable=False, hideable=False):
     style = {
         "margin_side": "20px",
         "text_fontsize": "24px",
@@ -389,7 +398,7 @@ def my_app(data="hipp", switchable=False):
     update_style(style)
 
     if switchable:
-        layout = _switchable_layout(data)
+        layout = _switchable_layout(data, hideable)
     else:
         layout = _week_mesh_layout(data)
 
