@@ -3,8 +3,6 @@ import warnings
 from joblib import Parallel, delayed
 from tqdm import tqdm
 
-from polpo.collections import swap_nested_dict
-
 from ._preprocessing import (
     Filter,
     IdentityStep,
@@ -296,7 +294,13 @@ class DictMap:
 
 class NestedDictSwapper(PreprocessingStep):
     def __call__(self, nested_dict):
-        return swap_nested_dict(nested_dict)
+        return {
+            outer_key: {
+                inner_key: nested_dict[inner_key][outer_key]
+                for inner_key in nested_dict
+            }
+            for outer_key in next(iter(nested_dict.values()))
+        }
 
 
 class ListDictSwapper(PreprocessingStep):
