@@ -182,15 +182,14 @@ class EmptySkipper(StepWrappingPreprocessingStep):
         return self.step(data)
 
 
-class ToList(PreprocessingStep):
-    # TODO: better naming?
+class WrapInList(PreprocessingStep):
     def __call__(self, data):
         return [data]
 
 
-class TupleToList(PreprocessingStep):
+class Listify(PreprocessingStep):
     def __call__(self, data):
-        return [x for x in data]
+        return list(data)
 
 
 class SerialMap(StepWrappingPreprocessingStep):
@@ -202,7 +201,7 @@ class SerialMap(StepWrappingPreprocessingStep):
         return [self.step(datum) for datum in tqdm(data, disable=not self.pbar)]
 
 
-class ParallelMap(StepWrappingPreprocessingStep):
+class ParMap(StepWrappingPreprocessingStep):
     def __init__(self, step, n_jobs=-1, verbose=0):
         super().__init__(step)
         self.n_jobs = n_jobs
@@ -233,7 +232,7 @@ class DecorateToIterable(StepWrappingPreprocessingStep):
 class Map:
     def __new__(cls, step, n_jobs=0, verbose=0, force_iter=False):
         if n_jobs != 0:
-            map_ = ParallelMap(step, n_jobs=n_jobs, verbose=verbose)
+            map_ = ParMap(step, n_jobs=n_jobs, verbose=verbose)
 
         else:
             map_ = SerialMap(step, pbar=verbose > 0)
@@ -291,9 +290,20 @@ class DataPrinter(PreprocessingStep):
 
 
 class PartiallyInitializedStep(PreprocessingStep):
-    def __init__(self, Step, **kwargs):
+    """Instantiate a step based on data.
+
+    Parameters
+    ----------
+    Step : PreprocessingStep
+        Step to be instantiated.
+    pass_data : bool
+        Whether to pass that to callable after instantiation.
+    """
+
+    def __init__(self, Step, pass_data=True, **kwargs):
         super().__init__()
         self.Step = Step
+        self.pass_data = pass_data
         self.kwargs = kwargs
 
     def __call__(self, data):
@@ -302,7 +312,12 @@ class PartiallyInitializedStep(PreprocessingStep):
         for key in dependent_keys:
             kwargs[key[1:]] = kwargs.pop(key)(data)
 
-        return self.Step(**kwargs)(data)
+        step = self.Step(**kwargs)
+
+        if self.pass_data:
+            return step(data)
+
+        return step()
 
 
 class IfCondition(StepWrappingPreprocessingStep):
@@ -414,4 +429,89 @@ class Constant(PreprocessingStep):
         -------
         constant : any
         """
-        return value or self.value
+        return value if value is not None else self.value
+
+
+class Contains(PreprocessingStep):
+    """Check if an item is in a collection.
+
+    Examples include substring in string,
+    item in list, key in dict.
+
+    Parameters
+    ----------
+    item : object
+    negate : bool
+        Whether to negate predicate.
+    """
+
+    def __init__(self, item, negate=False):
+        super().__init__()
+        self.item = item
+        self.negate = negate
+
+    def __call__(self, collection):
+        """Apply step.
+
+        Returns
+        -------
+        membership : bool
+            Membership or lack of it (depending on negate).
+        """
+        out = self.item in collection
+        if self.negate:
+            return not out
+
+        return out
+
+
+class ContainsAll(PreprocessingStep):
+    """Check if a subset of items in a collection."""
+
+    def __init__(self, items, negate=False):
+        super().__init__()
+        self.items = items
+        self.negate = negate
+
+    def __call__(self, collection):
+        """Apply step.
+
+        Returns
+        -------
+        membership : bool
+            Membership or lack of it (depending on negate) for all items.
+        """
+        out = all([item in collection for item in self.items])
+        if self.negate:
+            return not out
+
+        return out
+
+
+class MethodApplier(PreprocessingStep):
+    """Applies a named method with preset args and kwargs.
+
+    Parameters
+    ----------
+    method : str
+        Named method.
+    """
+
+    def __init__(self, *args, method, **kwargs):
+        super().__init__()
+        self.method = method
+        self.args = args
+        self.kwargs = kwargs
+
+    def __call__(self, obj):
+        """Apply step.
+
+        Parameters
+        ----------
+        obj : object
+
+        Returns
+        -------
+        bool
+        """
+        return getattr(obj, self.method)(*self.args, **self.kwargs)

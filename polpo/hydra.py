@@ -1,6 +1,6 @@
 import yaml
 from hydra.utils import instantiate
-from omegaconf import OmegaConf
+from omegaconf import DictConfig, OmegaConf
 from omegaconf.errors import InterpolationResolutionError, UnsupportedInterpolationType
 
 
@@ -8,15 +8,25 @@ def register_dict_lookup_resolver(var_name, dict_):
     OmegaConf.register_new_resolver(var_name, lambda key: dict_[key])
 
 
-def key_value_instantiate(key, value, key_name=None):
-    kwargs = {} if key_name is None else {key_name: key}
+def key_value_instantiate(key, value, key_name=None, targets=()):
+    # creates kwargs with key_name if _target_ in targets
+    kwargs = {}
+    if (
+        key_name is not None
+        and isinstance(value, DictConfig)
+        and value.get("_target_", None) in targets
+    ):
+        kwargs = {key_name: key}
 
     return instantiate(value, **kwargs)
 
 
 def operate_after_instantiate(value, operation):
     instance = instantiate(value)
-    return getattr(instance, operation)()
+    if hasattr(instance, operation):
+        return getattr(instance, operation)()
+
+    return instance
 
 
 def instantiate_dict_from_config(cfg, name=None, instantiate_func=None):
@@ -28,7 +38,11 @@ def instantiate_dict_from_config(cfg, name=None, instantiate_func=None):
     missing = {}
     for key, value in cfg.items():
         try:
-            dict_[key] = instantiate_func(key, value)
+            # TODO: avoid exception?
+            new_value = (
+                value if isinstance(value, bool) else instantiate_func(key, value)
+            )
+            dict_[key] = new_value
 
         except (UnsupportedInterpolationType, InterpolationResolutionError):
             missing[key] = value

@@ -1,22 +1,40 @@
 import abc
 
 import numpy as np
+import sklearn
 from sklearn.decomposition import PCA
 from sklearn.linear_model import LinearRegression
 from sklearn.pipeline import Pipeline as SklearnPipeline
 from sklearn.preprocessing import FunctionTransformer, StandardScaler
 
 from polpo.plot.mri import MriSlicer
-from polpo.sklearn.adapter import AdapterPipeline
+from polpo.preprocessing import IdentityStep, ListSqueeze
+from polpo.sklearn.adapter import AdapterPipeline, MapTransformer
 from polpo.sklearn.base import GetParamsMixin
 from polpo.sklearn.compose import ObjectBasedTransformedTargetRegressor
-from polpo.sklearn.mesh import InvertibleMeshesToVertices
-from polpo.sklearn.np import InvertibleFlattenButFirst
+from polpo.sklearn.dict import BiDictToValuesList
+from polpo.sklearn.mesh import BiMeshesToVertices
+from polpo.sklearn.np import BiFlattenButFirst, BiHstack
 from polpo.sklearn.point_cloud import (
     FittableRegisteredPointCloudSmoothing,
 )
 
-from .preprocessing import IdentityStep, ListSqueeze
+
+def _to_list_with_false(obj):
+    return [obj] if obj else []
+
+
+def _clone_repeat(obj, n_reps):
+    if isinstance(obj, (list, tuple)):
+        if len(obj) != n_reps:
+            raise ValueError(f"Inconsistent size for obj: {n_reps} != {len(obj)}")
+
+        return obj
+
+    if isinstance(obj, sklearn.base.BaseEstimator):
+        return [sklearn.base.clone(obj) for _ in range(n_reps)]
+
+    return [obj] * n_reps
 
 
 class Model(abc.ABC):
@@ -91,21 +109,132 @@ class MriSlicesLookup(Model):
         return self.slicer.slice(datum, slice_indices)
 
 
+def X2xPipeline(scaler=None, as_pipe=True):
+    # useful for object regressor
+    # NB: sklearn compatible pipelines
+    steps = [np.asarray, np.atleast_2d]
+
+    if scaler is not None:
+        steps.append(scaler)
+
+    if as_pipe:
+        return AdapterPipeline(steps=steps)
+
+    return steps
+
+
+def Meshes2FlatVertices(smoother=False, as_pipe=True):
+    if smoother is None:
+        smoother = FittableRegisteredPointCloudSmoothing(n_neighbors=10)
+
+    steps = (
+        [BiMeshesToVertices()]
+        + _to_list_with_false(smoother)
+        + [
+            FunctionTransformer(func=np.stack),
+            BiFlattenButFirst(),
+        ]
+    )
+
+    if as_pipe:
+        return AdapterPipeline(steps=steps)
+
+    return steps
+
+
+def Meshes2Comps(
+    scaler=None,
+    dim_reduction=None,
+    smoother=False,
+    mesh_transform=None,
+    as_pipe=True,
+):
+    # mesh_transform (e.g. AffineTransformation)
+    if scaler is None:
+        scaler = StandardScaler(with_std=False)
+
+    if dim_reduction is None:
+        dim_reduction = PCA()
+
+    if smoother is None:
+        smoother = FittableRegisteredPointCloudSmoothing(n_neighbors=10)
+
+    if mesh_transform is not None:
+        mesh_transform = FunctionTransformer(inverse_func=mesh_transform)
+
+    steps = (
+        _to_list_with_false(mesh_transform)
+        + [BiMeshesToVertices(), FunctionTransformer(func=np.stack)]
+        + _to_list_with_false(smoother)
+        + [BiFlattenButFirst()]
+        + _to_list_with_false(scaler)
+        + [dim_reduction]
+    )
+
+    if as_pipe:
+        return AdapterPipeline(steps=steps)
+
+    return steps
+
+
+def DictMeshes2y(pipes, as_pipe=True):
+    steps = [
+        BiDictToValuesList(),
+        MapTransformer(pipes),
+        BiHstack(),
+    ]
+    if as_pipe:
+        return AdapterPipeline(steps=steps)
+
+    return steps
+
+
+def DictMeshes2FlatVertices(n_pipes, smoother=False, as_pipe=True):
+    pipes = [
+        Meshes2FlatVertices(smoother=smoother_)
+        for smoother_ in _clone_repeat(smoother, n_reps=n_pipes)
+    ]
+
+    return DictMeshes2y(pipes, as_pipe=as_pipe)
+
+
+def DictMeshes2Comps(
+    n_pipes,
+    scaler=None,
+    dim_reduction=None,
+    smoother=False,
+    mesh_transform=None,
+    as_pipe=True,
+):
+    # syntax sugar
+    pipes = [
+        Meshes2Comps(
+            scaler=scaler_,
+            dim_reduction=dim_reduction_,
+            smoother=smoother_,
+            mesh_transform=mesh_transform_,
+        )
+        for scaler_, dim_reduction_, smoother_, mesh_transform_ in zip(
+            _clone_repeat(scaler, n_reps=n_pipes),
+            _clone_repeat(dim_reduction, n_reps=n_pipes),
+            _clone_repeat(smoother, n_reps=n_pipes),
+            _clone_repeat(mesh_transform, n_reps=n_pipes),
+        )
+    ]
+
+    return DictMeshes2y(pipes, as_pipe=as_pipe)
+
+
 class ObjectRegressor(GetParamsMixin, SklearnPipeline):
-    # just syntax sugar
+    # just syntax sugar for sklearn.Pipeline
 
-    def __init__(self, model, x2x=None, objs2y=None, x_scaler=None):
-        # TODO: add warning?
-        # x_scaler is ignored if x2x is not None
-
+    def __init__(self, model, objs2y, x2x=None):
+        # NB: recall sklearn.MultiOutputRegressor
         if model is None:
             model = LinearRegression()
 
         if x2x is None:
-            steps = [np.array, np.atleast_2d]
-            if x_scaler is not None:
-                steps.append(x_scaler)
-            x2x = AdapterPipeline(steps=steps)
+            x2x = X2xPipeline()
 
         tmodel = ObjectBasedTransformedTargetRegressor(
             regressor=model,
@@ -115,94 +244,14 @@ class ObjectRegressor(GetParamsMixin, SklearnPipeline):
 
         super().__init__(
             steps=[
-                ("preprocessing", x2x),
+                ("pre", x2x),
                 ("model", tmodel),
             ]
         )
 
-
-def _to_list_with_false(obj):
-    return [obj] if obj else []
-
-
-class VertexBasedMeshRegressor(ObjectRegressor):
-    # just syntax sugar
-
-    def __init__(
-        self,
-        model=None,
-        x2x=None,
-        meshes2vertices=None,
-        x_scaler=None,
-        y_smoother=None,
-    ):
-        if y_smoother is None:
-            y_smoother = FittableRegisteredPointCloudSmoothing(n_neighbors=10)
-
-        if meshes2vertices is None:
-            meshes2vertices = AdapterPipeline(
-                steps=[
-                    FunctionTransformer(func=np.squeeze),  # undo sklearn 2d
-                    FunctionTransformer(inverse_func=ListSqueeze(raise_=False)),
-                    InvertibleMeshesToVertices(),
-                ]
-                + _to_list_with_false(y_smoother)
-                + [
-                    FunctionTransformer(func=np.stack),
-                    InvertibleFlattenButFirst(),
-                ],
-            )
-
-        super().__init__(model, x2x=x2x, objs2y=meshes2vertices, x_scaler=x_scaler)
-
-
-class DimReductionBasedMeshRegressor(ObjectRegressor):
-    # just syntax sugar
-
-    def __init__(
-        self,
-        model=None,
-        x2x=None,
-        meshes2components=None,
-        y_scaler=None,
-        y_smoother=None,
-        dim_reduction=None,
-        x_scaler=None,
-        mesh_transform=None,
-    ):
-        # TODO: add warning?
-        # y_scaler, y_smoother, dim_reduction, transform
-        # are ignored if mesh2components is not None
-
-        # transform is applied after getting meshes back
-
-        if meshes2components is None:
-            if y_scaler is None:
-                y_scaler = StandardScaler(with_std=False)
-
-            if dim_reduction is None:
-                dim_reduction = PCA()
-
-            if y_smoother is None:
-                y_smoother = FittableRegisteredPointCloudSmoothing(n_neighbors=10)
-
-            if mesh_transform is not None:
-                mesh_transform = FunctionTransformer(inverse_func=mesh_transform)
-
-            meshes2components = AdapterPipeline(
-                steps=[
-                    FunctionTransformer(func=np.squeeze),  # undo sklearn 2d
-                    FunctionTransformer(inverse_func=ListSqueeze(raise_=False)),
-                ]
-                + _to_list_with_false(mesh_transform)
-                + [InvertibleMeshesToVertices(), FunctionTransformer(func=np.stack)]
-                + _to_list_with_false(y_smoother)
-                + [InvertibleFlattenButFirst()]
-                + _to_list_with_false(y_scaler)
-                + [dim_reduction],
-            )
-
-        super().__init__(model, x2x=x2x, objs2y=meshes2components, x_scaler=x_scaler)
+    @property
+    def objs2y(self):
+        return self["model"].transformer
 
 
 class SklearnLikeModelFactory(ModelFactory):

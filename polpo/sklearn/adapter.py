@@ -30,6 +30,29 @@ class TransformerAdapter(TransformerMixin, BaseEstimator):
         return self.step(X)
 
 
+class MapTransformer(TransformerMixin, BaseEstimator):
+    # TODO: create one with base step?
+    # TODO: allow parallel?
+
+    def __init__(self, par_steps):
+        self.par_steps = par_steps
+        super().__init__()
+
+    def fit(self, X, y=None):
+        self.is_fitted_ = True
+        for step, x in zip(self.par_steps, X):
+            step.fit(x)
+
+        return self
+
+    def transform(self, X):
+        return [step.transform(x) for step, x in zip(self.par_steps, X)]
+
+    def inverse_transform(self, X):
+        # NB: assumes each steps has an inverse transform
+        return [step.inverse_transform(x) for step, x in zip(self.par_steps, X)]
+
+
 class AdapterPipeline(Pipeline):
     """sklearn compatible pipeline.
 

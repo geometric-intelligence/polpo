@@ -9,6 +9,7 @@ from polpo.models import (
     MriSlicesLookup,
     PdDfLookup,
 )
+from polpo.plot.mesh import MeshPlotter
 from polpo.plot.plotly import SlicePlotter
 from polpo.utils import unnest_list
 
@@ -507,22 +508,6 @@ class MriExplorer(BaseComponentGroup):
         if hasattr(self.sliders, "update_lims"):
             self.sliders.update_lims(self.mri_data)
 
-        instructions_text = dbc.Row(
-            [
-                html.P(
-                    [
-                        "Use the 'Session Number' slider to flip through T1 brain data from each MRI session. Use the X, Y, Z coordinate sliders choose the MRI slice. Additional information about the session will be displayed to the right of the sliders.",
-                    ],
-                    style={
-                        "fontSize": S.text_fontsize,
-                        "fontFamily": S.text_fontfamily,
-                        "marginLeft": S.margin_side,
-                        "marginRight": S.margin_side,
-                    },
-                ),
-            ],
-        )
-
         plots_card = self.graph_row.to_dash()
         plots = dbc.Row(
             [
@@ -575,14 +560,18 @@ class MriExplorer(BaseComponentGroup):
 
         self._create_callbacks()
 
-        return [instructions_text, plots, sliders_and_session]
+        return [plots, sliders_and_session]
 
 
 class MeshExplorer(BaseComponentGroup):
-    def __init__(self, graph, model, inputs, id_prefix=""):
-        self.graph = graph
+    def __init__(self, model, inputs, graph=None, id_prefix="", postproc_pred=None):
+        if graph is None:
+            graph = Graph(id_="mesh-plot", plotter=MeshPlotter(), id_prefix=id_prefix)
+
         self.model = model
+        self.graph = graph
         self.inputs = inputs
+        self.postproc_pred = postproc_pred
 
         super().__init__([self.graph, self.inputs], id_prefix=id_prefix)
 
@@ -620,22 +609,28 @@ class MeshExplorer(BaseComponentGroup):
             output_view=self.graph,
             input_view=self.inputs,
             model=self.model,
+            postproc_pred=self.postproc_pred,
         )
 
         return out
 
 
-class MultipleModelsMeshExplorer(BaseComponentGroup):
+class MultiModelsMeshExplorer(BaseComponentGroup):
     def __init__(
         self,
-        graph,
         models,
         inputs,
+        graph=None,
         id_prefix="",
         button_label="Switch model",
         checkbox_labels=None,
+        postproc_pred=None,
     ):
+        # ignores button if only one model
+
         # TODO: add verifications?
+        if graph is None:
+            graph = Graph(id_="mesh-plot", plotter=MeshPlotter(), id_prefix=id_prefix)
 
         self.graph = graph
         self.models = models
@@ -643,6 +638,7 @@ class MultipleModelsMeshExplorer(BaseComponentGroup):
         self.button_label = button_label
         # NB: controls visibility of plots
         self.checkbox_labels = checkbox_labels
+        self.postproc_pred = postproc_pred
 
         super().__init__([self.graph].extend(self.inputs), id_prefix=id_prefix)
 
@@ -664,7 +660,7 @@ class MultipleModelsMeshExplorer(BaseComponentGroup):
             for index, component in enumerate(self.inputs)
         ]
 
-        toggle_id = self.prefix("switch-model-button")
+        toggle_id = self.prefix("switch-model-button") if len(self.models) > 1 else None
         checkbox_id = self.prefix("show-model-checkbox")
 
         if self.checkbox_labels:
@@ -687,13 +683,17 @@ class MultipleModelsMeshExplorer(BaseComponentGroup):
             checklist = DummyComponent()
 
         inputs_column = (
-            [
-                html.Button(
-                    self.button_label,
-                    id=toggle_id,
-                    n_clicks=0,
-                ),
-            ]
+            (
+                [
+                    html.Button(
+                        self.button_label,
+                        id=toggle_id,
+                        n_clicks=0,
+                    ),
+                ]
+                if toggle_id
+                else []
+            )
             + checklist.to_dash()
             + unnest_list([component_card.to_dash() for component_card in inputs_cards])
         )
@@ -736,6 +736,7 @@ class MultipleModelsMeshExplorer(BaseComponentGroup):
             toggle_id=toggle_id,
             checklist=checklist,
             hideable_components=inputs_cards,
+            postproc_pred=self.postproc_pred,
         )
 
         return out
@@ -767,29 +768,33 @@ class Checklist(IdComponent):
     ):
         super().__init__(id_, id_prefix, id_suffix)
 
-        self.checkbox_labels = checkbox_labels
-        self.n_options = n_options or len(checkbox_labels)
         self.inline = inline
 
-        values = [checkbox_label[0] for checkbox_label in checkbox_labels]
+        self.n_options = n_options or len(checkbox_labels)
+
+        false_indices = []
+        self.options = []
+        for option in checkbox_labels:
+            option_ = {
+                "label": option[1],
+                "value": option[0] if option[0] >= 0 else self.n_options + option[0],
+            }
+            self.options.append(option_)
+            visible = option[2] if len(option) > 2 else False
+            if not visible:
+                false_indices.append(option_["value"])
+
         self._default_bool = [
-            False if index in values else True for index in range(n_options)
+            False if index in false_indices else True for index in range(n_options)
         ]
 
     def to_dash(self):
-        options = [
-            {"label": option[1], "value": option[0]} for option in self.checkbox_labels
-        ]
         # NB: defaults to uncheck if not specified
-        value = []
-        for option in self.checkbox_labels:
-            if len(option) == 3 and option[2]:
-                value.append(option[0])
         return [
             dcc.Checklist(
                 id=self.id,
-                options=options,
-                value=value,
+                options=self.options,
+                value=self.as_value(self._default_bool),
                 inline=self.inline,
             )
         ]
@@ -797,10 +802,14 @@ class Checklist(IdComponent):
     def as_bool(self, value):
         # NB: updates read from callbacks
         bool_ls = self._default_bool.copy()
+
         for value_ in value:
             bool_ls[value_] = True
 
         return bool_ls
+
+    def as_value(self, value):
+        return [index for index, value_ in enumerate(value) if value_]
 
     def as_input(self):
         return [Input(self.id, "value")]

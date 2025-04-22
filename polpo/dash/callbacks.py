@@ -4,7 +4,12 @@ from polpo.utils import unnest_list
 
 
 def create_view_model_update(
-    input_view, output_view, model, allow_duplicate=False, prevent_initial_call=False
+    input_view,
+    output_view,
+    model,
+    allow_duplicate=False,
+    prevent_initial_call=False,
+    postproc_pred=None,
 ):
     empty_output = output_view.as_empty_output()
 
@@ -18,6 +23,9 @@ def create_view_model_update(
             return empty_output
 
         pred = model.predict(args)
+        if postproc_pred is not None:
+            pred = postproc_pred(pred)
+
         return output_view.to_dash(pred)
 
 
@@ -43,7 +51,13 @@ def create_button_toggler(toggle_id, hideable_components):
 
 
 def create_button_toggler_for_view_model_update(
-    input_views, output_view, models, toggle_id, checklist, hideable_components
+    input_views,
+    output_view,
+    models,
+    checklist,
+    hideable_components,
+    toggle_id=None,
+    postproc_pred=None,
 ):
     """
 
@@ -80,14 +94,17 @@ def create_button_toggler_for_view_model_update(
         )
         + output_view.as_output(),
         *(
-            [
-                Input(toggle_id, "n_clicks"),
-            ]
+            ([Input(toggle_id, "n_clicks")] if toggle_id else [])
             + inputs
             + checklist.as_input()
         ),
     )
-    def button_toggler(n_clicks, *args):
+    def button_toggler(*args):
+        if toggle_id:
+            n_clicks, *args = args
+        else:
+            n_clicks = 1
+
         out = [{"display": "none"}] * n_components
 
         if args[0] is None:
@@ -99,11 +116,12 @@ def create_button_toggler_for_view_model_update(
 
         out[show_index] = {"display": "block"}
 
-        # TODO: create collection of models
         if ctx.triggered_id == checklist.id:
             pred = checklist.as_bool(args[-1])
         else:
             pred = model.predict(model_args)
+            if postproc_pred is not None:
+                pred = postproc_pred(pred)
 
         return out + output_view.to_dash(pred)
 

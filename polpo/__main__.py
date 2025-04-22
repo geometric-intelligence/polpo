@@ -1,0 +1,51 @@
+from enum import Enum
+
+import typer
+
+app = typer.Typer()
+
+
+class DataOptions(str, Enum):
+    hipp = "hipp"
+    maternal = "maternal"
+    multiple = "multiple"
+
+
+@app.command()
+def mesh_explorer(
+    data: DataOptions = DataOptions.hipp,
+    hideable: bool = False,
+    overlay: bool = False,
+    week: bool = True,
+    hormones: bool = True,
+):
+    """Launch mesh explorer app."""
+    from polpo.dash.app.mesh_explorer import my_app
+
+    data = data.value
+
+    if hideable and data != "multiple":
+        # TODO: extend to single model?
+        raise ValueError(
+            "Cannot handle hiddeable for single structure and multiple models."
+        )
+
+    my_app(
+        data=data,
+        hideable=hideable,
+        overlay=overlay,
+        week=week,
+        hormones=hormones,
+    )
+
+
+@app.command()
+def mri_explorer():
+    """Launch mri explorer app."""
+    from polpo.dash.app.mri_explorer import my_app
+
+    my_app()
+
+
+if __name__ == "__main__":
+    app()

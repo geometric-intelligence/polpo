@@ -50,6 +50,19 @@ class FlattenButFirst(PreprocessingStep):
         return np.reshape(data, (data.shape[0], -1))
 
 
+class InvHstack(PreprocessingStep):
+    def __init__(self, sizes):
+        super().__init__()
+        self.sizes = sizes
+
+    def __call__(self, data):
+        cumsize = np.r_[[0], np.cumsum(self.sizes)]
+        return [
+            data[:, init_index:last_index]
+            for init_index, last_index in zip(cumsize, cumsize[1:])
+        ]
+
+
 class Complex2RealsRepr(PreprocessingStep):
     """Transforms a complex number into a 2-vector."""
 
