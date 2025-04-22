@@ -7,7 +7,6 @@ from sklearn.linear_model import LinearRegression
 from polpo.dash.components import (
     ComponentGroup,
     Graph,
-    MeshExplorer,
     MultiModelsMeshExplorer,
     Slider,
 )
@@ -17,7 +16,6 @@ from polpo.models import DictMeshes2Comps, Meshes2Comps, ObjectRegressor
 from polpo.plot.mesh import MeshesPlotter, MeshPlotter, StaticMeshPlotter
 from polpo.preprocessing import (
     IndexMap,
-    IndexSelector,
     ListSqueeze,
     Map,
     NestingSwapper,
@@ -32,13 +30,17 @@ from polpo.preprocessing import pd as ppd
 from polpo.preprocessing.load.pregnancy import (
     DenseMaternalCsvDataLoader,
     DenseMaternalMeshLoader,
+    DenseMaternalSegmentationsLoader,
     PregnancyPilotMriLoader,
     PregnancyPilotRegisteredMeshesLoader,
+    PregnancyPilotSegmentationsLoader,
 )
 from polpo.preprocessing.mesh.conversion import TrimeshFromData, TrimeshFromPv
 from polpo.preprocessing.mesh.io import PvReader, TrimeshReader
 from polpo.preprocessing.mesh.registration import PvAlign
+from polpo.preprocessing.mesh.transform import AffineTransformation
 from polpo.preprocessing.mri import (
+    LocalToTemplateTransform,
     MriImageLoader,
     SkimageMarchingCubes,
     segmtool2encoding,
@@ -88,7 +90,7 @@ def _load_hipp_meshes():
     )()
 
 
-def _load_overlay_mesh():
+def _load_overlay_image():
     image_loader = Pipeline(
         steps=[
             PregnancyPilotMriLoader(subset=[1]),
@@ -97,14 +99,37 @@ def _load_overlay_mesh():
         ]
     )
 
+    return image_loader()
+
+
+def _load_reference_image(data="hipp"):
+    if data == "hipp":
+        return Pipeline(
+            steps=[
+                PregnancyPilotSegmentationsLoader(subset=[1]),
+                ListSqueeze(),
+                MriImageLoader(return_affine=True),
+            ]
+        )()
+
+    # FIXME: this leads to identity
+    return Pipeline(
+        steps=[
+            DenseMaternalSegmentationsLoader(subset=[1]),
+            ListSqueeze(),
+            MriImageLoader(return_affine=True),
+        ]
+    )()
+
+
+def _load_overlay_mesh(overlay_image):
     img2mesh = Pipeline(
         steps=[
-            IndexSelector(index=0),
             SkimageMarchingCubes(return_values=False),
             TrimeshFromData(),
         ]
     )
-    return (image_loader + img2mesh)()
+    return img2mesh(overlay_image)
 
 
 def _load_maternal_pilot():
@@ -170,12 +195,13 @@ def _merge_session_week_meshes(session_week, registered_meshes):
     return X, meshes
 
 
-def _instantiate_mesh_model(X, y):
+def _instantiate_mesh_model(X, y, mesh_transform=None):
     model = ObjectRegressor(
         model=LinearRegression(),
         objs2y=Meshes2Comps(
             dim_reduction=PCA(n_components=4),
             smoother=False,
+            mesh_transform=mesh_transform,
         ),
     )
 
@@ -184,10 +210,10 @@ def _instantiate_mesh_model(X, y):
     return model
 
 
-def _instantiate_week_mesh_model(session_week, registered_meshes):
+def _instantiate_week_mesh_model(session_week, registered_meshes, mesh_transform=None):
     X, y = _merge_session_week_meshes(session_week, registered_meshes)
 
-    return _instantiate_mesh_model(X, y)
+    return _instantiate_mesh_model(X, y, mesh_transform=mesh_transform)
 
 
 def _merge_session_week_multi_meshes(X, registered_meshes):
@@ -205,10 +231,12 @@ def _merge_session_week_multi_meshes(X, registered_meshes):
     return X, meshes_
 
 
-def _instantiate_multi_mesh_model(X, y):
+def _instantiate_multi_mesh_model(X, y, mesh_transform=None):
     n_structs = len(y)
     pca = PCA(n_components=4)
-    objs2y = DictMeshes2Comps(n_pipes=n_structs, dim_reduction=pca)
+    objs2y = DictMeshes2Comps(
+        n_pipes=n_structs, dim_reduction=pca, mesh_transform=mesh_transform
+    )
 
     model = ObjectRegressor(LinearRegression(fit_intercept=True), objs2y=objs2y)
     model.fit(X, y)
@@ -216,10 +244,12 @@ def _instantiate_multi_mesh_model(X, y):
     return model
 
 
-def _instantiate_week_multi_mesh_model(session_week, registered_meshes):
+def _instantiate_week_multi_mesh_model(
+    session_week, registered_meshes, mesh_transform=None
+):
     X, y = _merge_session_week_multi_meshes(session_week, registered_meshes)
 
-    return _instantiate_multi_mesh_model(X, y)
+    return _instantiate_multi_mesh_model(X, y, mesh_transform=mesh_transform)
 
 
 def _merge_session_hormones_meshes(session_hormones, registered_meshes):
@@ -234,10 +264,12 @@ def _merge_session_hormones_meshes(session_hormones, registered_meshes):
     return X, meshes
 
 
-def _instantiate_hormones_mesh_model(session_hormones, registered_meshes):
+def _instantiate_hormones_mesh_model(
+    session_hormones, registered_meshes, mesh_transform=None
+):
     X, y = _merge_session_hormones_meshes(session_hormones, registered_meshes)
 
-    return _instantiate_mesh_model(X, y)
+    return _instantiate_mesh_model(X, y, mesh_transform=mesh_transform)
 
 
 def _merge_session_hormones_multi_meshes(X, registered_meshes):
@@ -256,10 +288,12 @@ def _merge_session_hormones_multi_meshes(X, registered_meshes):
     return X, meshes_
 
 
-def _instantiate_hormones_multi_mesh_model(session_hormones, registered_meshes):
+def _instantiate_hormones_multi_mesh_model(
+    session_hormones, registered_meshes, mesh_transform=None
+):
     X, y = _merge_session_hormones_multi_meshes(session_hormones, registered_meshes)
 
-    return _instantiate_multi_mesh_model(X, y)
+    return _instantiate_multi_mesh_model(X, y, mesh_transform=mesh_transform)
 
 
 def _create_week_inputs():
@@ -350,6 +384,25 @@ def _create_layout(
 
     registered_meshes = Key2MeshLoader[data]()
 
+    postproc_pred = None
+    checkbox_labels = []
+    overlay_plotter = None
+
+    affine_transform = None
+    if overlay:
+        overlay_image, overlay_affine = _load_overlay_image()
+        overlay_mesh = _load_overlay_mesh(overlay_image)
+        _, reference_affine = _load_reference_image(data)
+
+        # NB: identity if not pilot
+        affine_mat = LocalToTemplateTransform(template_affine=overlay_affine)(
+            reference_affine
+        )
+        affine_transform = Map(AffineTransformation(affine_mat))
+
+        overlay_plotter = StaticMeshPlotter(overlay_mesh)
+        checkbox_labels = [(-1, "Show Full Brain", False)]
+
     hormones_df = _load_homornes_df()
 
     if week:
@@ -358,7 +411,9 @@ def _create_layout(
         inputs.append(_create_week_inputs())
 
         models.append(
-            Key2WeekModelInstantiator[data](session_week_data, registered_meshes)
+            Key2WeekModelInstantiator[data](
+                session_week_data, registered_meshes, mesh_transform=affine_transform
+            )
         )
 
     if hormones:
@@ -370,19 +425,11 @@ def _create_layout(
 
         models.append(
             Key2HormonesModelInstantiator[data](
-                session_hormones_data, registered_meshes
+                session_hormones_data,
+                registered_meshes,
+                mesh_transform=affine_transform,
             )
         )
-
-    postproc_pred = None
-    checkbox_labels = []
-    overlay_plotter = None
-
-    # TODO: need to consider affine transformation for overlay
-    if overlay:
-        overlay_mesh = _load_overlay_mesh()
-        overlay_plotter = StaticMeshPlotter(overlay_mesh)
-        checkbox_labels = [(-1, "Show Full Brain", False)]
 
     if data == "multiple":
         plotter = MeshesPlotter(

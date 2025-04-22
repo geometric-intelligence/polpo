@@ -303,6 +303,7 @@ class LocalToTemplateTransform(PreprocessingStep):
             if self.template_affine is None:
                 raise ValueError("Template affine is undefined.")
             template_affine_inv = self._template_affine_inv
+            local_affine = data
 
         return template_affine_inv @ local_affine
 

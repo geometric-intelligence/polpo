@@ -1,9 +1,8 @@
+from enum import Enum
+
 import typer
 
 app = typer.Typer()
-
-
-from enum import Enum
 
 
 class DataOptions(str, Enum):
