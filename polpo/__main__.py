@@ -19,7 +19,7 @@ def mesh_explorer(
     week: bool = True,
     hormones: bool = True,
 ):
-    """Launch mesh_explorer app."""
+    """Launch mesh explorer app."""
     from polpo.dash.app.mesh_explorer import my_app
 
     data = data.value
@@ -37,6 +37,14 @@ def mesh_explorer(
         week=week,
         hormones=hormones,
     )
+
+
+@app.command()
+def mri_explorer():
+    """Launch mri explorer app."""
+    from polpo.dash.app.mri_explorer import my_app
+
+    my_app()
 
 
 if __name__ == "__main__":
