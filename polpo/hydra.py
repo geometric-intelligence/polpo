@@ -28,7 +28,11 @@ def instantiate_dict_from_config(cfg, name=None, instantiate_func=None):
     missing = {}
     for key, value in cfg.items():
         try:
-            dict_[key] = instantiate_func(key, value)
+            # TODO: avoid exception?
+            new_value = (
+                value if isinstance(value, bool) else instantiate_func(key, value)
+            )
+            dict_[key] = new_value
 
         except (UnsupportedInterpolationType, InterpolationResolutionError):
             missing[key] = value
