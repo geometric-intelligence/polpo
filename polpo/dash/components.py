@@ -437,22 +437,6 @@ class MriExplorer(BaseComponentGroup):
         if hasattr(self.sliders, "update_lims"):
             self.sliders.update_lims(self.mri_data)
 
-        instructions_text = dbc.Row(
-            [
-                html.P(
-                    [
-                        "Use the 'Session Number' slider to flip through T1 brain data from each MRI session. Use the X, Y, Z coordinate sliders choose the MRI slice. Additional information about the session will be displayed to the right of the sliders.",
-                    ],
-                    style={
-                        "fontSize": S.text_fontsize,
-                        "fontFamily": S.text_fontfamily,
-                        "marginLeft": S.margin_side,
-                        "marginRight": S.margin_side,
-                    },
-                ),
-            ],
-        )
-
         plots_card = self.graph_row.to_dash()
         plots = dbc.Row(
             [
@@ -505,7 +489,7 @@ class MriExplorer(BaseComponentGroup):
 
         self._create_callbacks()
 
-        return [instructions_text, plots, sliders_and_session]
+        return [plots, sliders_and_session]
 
 
 class MeshExplorer(BaseComponentGroup):
