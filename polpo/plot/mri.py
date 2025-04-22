@@ -7,6 +7,11 @@ try:
 except ImportError:
     pass
 
+try:
+    from .plotly import SlicePlotter  # noqa:F401
+except ImportError:
+    pass
+
 from .base import Plotter
 
 

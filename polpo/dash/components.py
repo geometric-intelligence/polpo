@@ -10,7 +10,7 @@ from polpo.models import (
     PdDfLookup,
 )
 from polpo.plot.mesh import MeshPlotter
-from polpo.plot.plotly import SlicePlotter
+from polpo.plot.mri import SlicePlotter
 from polpo.utils import unnest_list
 
 from .callbacks import (
@@ -161,6 +161,52 @@ class ComponentGroup(BaseComponentGroup):
         return unnest_list(component.as_input() for component in self)
 
 
+class RadioButton(Component):
+    """Radio button group.
+
+    Parameters
+    ----------
+    id_ : str
+        The unique ID for the radio button group.
+    options : list of tuple
+        A list of (value, label) tuples for the options.
+    default_value : str
+        The default selected value.
+    inline : bool
+        Whether to display options inline (horizontally).
+    """
+
+    def __init__(self, id_, options, default_value=None, inline=True):
+        super().__init__(id_=id_)
+        self.options = options
+        self.default_value = default_value or options[0][0]
+        self.inline = inline
+
+    def to_dash(self):
+        """Convert the component into a Dash UI element."""
+        return [
+            dbc.FormGroup(
+                [
+                    dcc.RadioItems(
+                        id=self.id,
+                        options=[
+                            {"label": label, "value": value}
+                            for value, label in self.options
+                        ],
+                        value=self.default_value,
+                        inline=self.inline,
+                    )
+                ]
+            )
+        ]
+
+    def as_input(self):
+        return [Input(self.id, "value")]
+
+    def as_output(self, component_property="value", allow_duplicate=False):
+        return [Output(self.id, component_property, allow_duplicate=allow_duplicate)]
+
+
 class Checkbox(Component):
     """Checkbox.
 
@@ -290,8 +336,13 @@ class Graph(IdComponent):
             return [self.plotter.update(self.graph_.figure, data)]
         self.graph_ = dcc.Graph(
             id=self.id,
-            config={"displayModeBar": False},
+            config={"displayModeBar": False, "responsive": True},
             figure=self.plotter.plot(data),
+            style={
+                "aspectRatio": "1",
+                "width": "25vw",
+                "height": "auto",
+            },
         )
         return [self.graph_]
 
@@ -332,8 +383,8 @@ class GraphRow(ComponentGroup):
                 ],
                 align="center",
                 style={
-                    "marginLeft": S.margin_side,
-                    "marginRight": S.margin_side,
+                    "marginLeft": "10px",
+                    "marginRight": "10px",
                     "marginTop": "50px",
                 },
             )
@@ -519,11 +570,11 @@ class MeshExplorer(BaseComponentGroup):
                             graph,
                             style={"paddingTop": "0px"},
                         ),
-                        sm=4,
-                        width=700,
+                        sm=6,
+                        width=900,
                     ),
                     dbc.Col(sm=3, width=100),
-                    dbc.Col(inputs_column, sm=4, width=700),
+                    dbc.Col(inputs_column, sm=3, width=500),
                 ],
                 align="center",
                 style={
@@ -633,21 +684,33 @@ class MultiModelsMeshExplorer(BaseComponentGroup):
                     dbc.Col(
                         html.Div(
                             graph,
-                            style={"paddingTop": "0px"},
+                            style={
+                                "paddingTop": "0px",
+                                "width": "100%",  # full width of this col
+                                "maxWidth": "100%",  # prevent overflow
+                            },
                         ),
-                        sm=4,
-                        width=700,
+                        xs=12,
+                        sm=12,
+                        md=6,  # full width on small screens, half on medium+
+                        style={"padding": "10px"},
                     ),
-                    dbc.Col(sm=3, width=100),
-                    dbc.Col(inputs_column, sm=4, width=700),
+                    dbc.Col(
+                        html.Div(inputs_column),
+                        xs=12,
+                        sm=12,
+                        md=6,  # full width on small screens, half on medium+
+                        style={"padding": "10px"},
+                    ),
                 ],
-                align="center",
+                align="start",
                 style={
-                    "marginLeft": S.margin_side,
-                    "marginRight": S.margin_side,
-                    "marginTop": "50px",
+                    "margin": "0 auto",
+                    "width": "100%",
+                    "maxWidth": "1200px",  # max total width of row
+                    "flexWrap": "wrap",  # important for responsive stacking
                 },
-            ),
+            )
         ]
 
         create_button_toggler_for_view_model_update(
