@@ -10,6 +10,6 @@ def load_variables(variables_cfg, name=None):
         variables_cfg,
         name=name,
         instantiate_func=lambda key, value: key_value_instantiate(
-            key, value, key_name="id_"
+            key, value, key_name="id_", targets=("polpo.dash.variables.VarDef",)
         ),
     )
