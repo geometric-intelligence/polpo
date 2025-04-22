@@ -11,7 +11,6 @@ from polpo.models import (
 )
 from polpo.plot.mesh import MeshPlotter
 from polpo.plot.plotly import SlicePlotter
-from polpo.preprocessing import ListSqueeze
 from polpo.utils import unnest_list
 
 from .callbacks import (
@@ -561,7 +560,7 @@ class MeshExplorer(BaseComponentGroup):
         return out
 
 
-class MultipleModelsMeshExplorer(BaseComponentGroup):
+class MultiModelsMeshExplorer(BaseComponentGroup):
     def __init__(
         self,
         models,
@@ -572,6 +571,8 @@ class MultipleModelsMeshExplorer(BaseComponentGroup):
         checkbox_labels=None,
         postproc_pred=None,
     ):
+        # ignores button if only one model
+
         # TODO: add verifications?
         if graph is None:
             graph = Graph(id_="mesh-plot", plotter=MeshPlotter(), id_prefix=id_prefix)
@@ -604,7 +605,7 @@ class MultipleModelsMeshExplorer(BaseComponentGroup):
             for index, component in enumerate(self.inputs)
         ]
 
-        toggle_id = self.prefix("switch-model-button")
+        toggle_id = self.prefix("switch-model-button") if len(self.models) > 1 else None
         checkbox_id = self.prefix("show-model-checkbox")
 
         if self.checkbox_labels:
@@ -627,13 +628,17 @@ class MultipleModelsMeshExplorer(BaseComponentGroup):
             checklist = DummyComponent()
 
         inputs_column = (
-            [
-                html.Button(
-                    self.button_label,
-                    id=toggle_id,
-                    n_clicks=0,
-                ),
-            ]
+            (
+                [
+                    html.Button(
+                        self.button_label,
+                        id=toggle_id,
+                        n_clicks=0,
+                    ),
+                ]
+                if toggle_id
+                else []
+            )
             + checklist.to_dash()
             + unnest_list([component_card.to_dash() for component_card in inputs_cards])
         )
@@ -700,29 +705,33 @@ class Checklist(IdComponent):
     ):
         super().__init__(id_, id_prefix, id_suffix)
 
-        self.checkbox_labels = checkbox_labels
-        self.n_options = n_options or len(checkbox_labels)
         self.inline = inline
 
-        values = [checkbox_label[0] for checkbox_label in checkbox_labels]
+        self.n_options = n_options or len(checkbox_labels)
+
+        false_indices = []
+        self.options = []
+        for option in checkbox_labels:
+            option_ = {
+                "label": option[1],
+                "value": option[0] if option[0] >= 0 else self.n_options + option[0],
+            }
+            self.options.append(option_)
+            visible = option[2] if len(option) > 2 else False
+            if not visible:
+                false_indices.append(option_["value"])
+
         self._default_bool = [
-            False if index in values else True for index in range(n_options)
+            False if index in false_indices else True for index in range(n_options)
         ]
 
     def to_dash(self):
-        options = [
-            {"label": option[1], "value": option[0]} for option in self.checkbox_labels
-        ]
         # NB: defaults to uncheck if not specified
-        value = []
-        for option in self.checkbox_labels:
-            if len(option) == 3 and option[2]:
-                value.append(option[0])
         return [
             dcc.Checklist(
                 id=self.id,
-                options=options,
-                value=value,
+                options=self.options,
+                value=self.as_value(self._default_bool),
                 inline=self.inline,
             )
         ]
@@ -730,10 +739,14 @@ class Checklist(IdComponent):
     def as_bool(self, value):
         # NB: updates read from callbacks
         bool_ls = self._default_bool.copy()
+
         for value_ in value:
             bool_ls[value_] = True
 
         return bool_ls
+
+    def as_value(self, value):
+        return [index for index, value_ in enumerate(value) if value_]
 
     def as_input(self):
         return [Input(self.id, "value")]
