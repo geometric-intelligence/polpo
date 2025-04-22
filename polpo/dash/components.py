@@ -10,7 +10,7 @@ from polpo.models import (
     PdDfLookup,
 )
 from polpo.plot.mesh import MeshPlotter
-from polpo.plot.plotly import SlicePlotter
+from polpo.plot.mri import SlicePlotter
 from polpo.utils import unnest_list
 
 from .callbacks import (
@@ -339,17 +339,10 @@ class Graph(IdComponent):
             config={"displayModeBar": False, "responsive": True},
             figure=self.plotter.plot(data),
             style={
-                "aspectRatio": "1",  
-                "width": "25vw",   
-                "height": "auto",    
+                "aspectRatio": "1",
+                "width": "25vw",
+                "height": "auto",
             },
-            # config={"displayModeBar": False},
-            # style={
-            #     "height": "350px",
-            #     "width": "350px",
-            #     "margin": "0 auto",
-            #     "padding": "0px",
-            # },
         )
         return [self.graph_]
 
@@ -359,6 +352,7 @@ class Graph(IdComponent):
 
     def as_empty_output(self):
         return [self.plotter.plot()]
+
 
 class GraphRow(ComponentGroup):
     def __init__(self, n_graphs=3, graphs=None, id_prefix=""):
@@ -371,22 +365,6 @@ class GraphRow(ComponentGroup):
 
         super().__init__(components=graphs, id_prefix=id_prefix)
 
-    # def to_dash(self, data=None):
-    #     if data is not None:
-    #         return super().to_dash(data)
-
-    #     return [
-    #         html.Div(
-    #             [
-    #                 html.Div(
-    #                     graph.to_dash()[0],
-    #                     style={"display": "inline-block", "verticalAlign": "top", "marginRight": "5px", } # small manual spacing}
-    #                 )
-    #                 for graph in self
-    #             ],
-    #             style={"textAlign": "center"},
-    #         )
-    #     ]
     def to_dash(self, data=None):
         if data is not None:
             return super().to_dash(data)
@@ -411,6 +389,8 @@ class GraphRow(ComponentGroup):
                 },
             )
         ]
+
+
 class MriSliders(ComponentGroup):
     def __init__(self, components, trims=((20, 40), 50, 70), id_prefix="", title=None):
         super().__init__(components, id_prefix=id_prefix, title=title)
@@ -710,12 +690,16 @@ class MultiModelsMeshExplorer(BaseComponentGroup):
                                 "maxWidth": "100%",  # prevent overflow
                             },
                         ),
-                        xs=12, sm=12, md=6,  # full width on small screens, half on medium+
+                        xs=12,
+                        sm=12,
+                        md=6,  # full width on small screens, half on medium+
                         style={"padding": "10px"},
                     ),
                     dbc.Col(
                         html.Div(inputs_column),
-                        xs=12, sm=12, md=6,  # full width on small screens, half on medium+
+                        xs=12,
+                        sm=12,
+                        md=6,  # full width on small screens, half on medium+
                         style={"padding": "10px"},
                     ),
                 ],
@@ -724,7 +708,7 @@ class MultiModelsMeshExplorer(BaseComponentGroup):
                     "margin": "0 auto",
                     "width": "100%",
                     "maxWidth": "1200px",  # max total width of row
-                    "flexWrap": "wrap",     # important for responsive stacking
+                    "flexWrap": "wrap",  # important for responsive stacking
                 },
             )
         ]
