@@ -54,9 +54,9 @@ def create_button_toggler_for_view_model_update(
     input_views,
     output_view,
     models,
-    toggle_id,
     checklist,
     hideable_components,
+    toggle_id=None,
     postproc_pred=None,
 ):
     """
@@ -94,14 +94,17 @@ def create_button_toggler_for_view_model_update(
         )
         + output_view.as_output(),
         *(
-            [
-                Input(toggle_id, "n_clicks"),
-            ]
+            ([Input(toggle_id, "n_clicks")] if toggle_id else [])
             + inputs
             + checklist.as_input()
         ),
     )
-    def button_toggler(n_clicks, *args):
+    def button_toggler(*args):
+        if toggle_id:
+            n_clicks, *args = args
+        else:
+            n_clicks = 1
+
         out = [{"display": "none"}] * n_components
 
         if args[0] is None:

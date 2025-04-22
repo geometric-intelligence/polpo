@@ -8,15 +8,16 @@ from polpo.dash.components import (
     ComponentGroup,
     Graph,
     MeshExplorer,
-    MultipleModelsMeshExplorer,
+    MultiModelsMeshExplorer,
     Slider,
 )
 from polpo.dash.style import update_style
 from polpo.dash.variables import VarDef
 from polpo.models import DictMeshes2Comps, Meshes2Comps, ObjectRegressor
-from polpo.plot.mesh import MeshesPlotter, MeshPlotter
+from polpo.plot.mesh import MeshesPlotter, MeshPlotter, StaticMeshPlotter
 from polpo.preprocessing import (
     IndexMap,
+    IndexSelector,
     ListSqueeze,
     Map,
     NestingSwapper,
@@ -31,12 +32,17 @@ from polpo.preprocessing import pd as ppd
 from polpo.preprocessing.load.pregnancy import (
     DenseMaternalCsvDataLoader,
     DenseMaternalMeshLoader,
+    PregnancyPilotMriLoader,
     PregnancyPilotRegisteredMeshesLoader,
 )
-from polpo.preprocessing.mesh.conversion import TrimeshFromPv
+from polpo.preprocessing.mesh.conversion import TrimeshFromData, TrimeshFromPv
 from polpo.preprocessing.mesh.io import PvReader, TrimeshReader
 from polpo.preprocessing.mesh.registration import PvAlign
-from polpo.preprocessing.mri import segmtool2encoding
+from polpo.preprocessing.mri import (
+    MriImageLoader,
+    SkimageMarchingCubes,
+    segmtool2encoding,
+)
 
 
 def _load_homornes_df():
@@ -80,6 +86,25 @@ def _load_hipp_meshes():
             ppdict.DictMap(step=TrimeshReader()),
         ]
     )()
+
+
+def _load_overlay_mesh():
+    image_loader = Pipeline(
+        steps=[
+            PregnancyPilotMriLoader(subset=[1]),
+            ListSqueeze(),
+            MriImageLoader(return_affine=True),
+        ]
+    )
+
+    img2mesh = Pipeline(
+        steps=[
+            IndexSelector(index=0),
+            SkimageMarchingCubes(return_values=False),
+            TrimeshFromData(),
+        ]
+    )
+    return (image_loader + img2mesh)()
 
 
 def _load_maternal_pilot():
@@ -312,73 +337,82 @@ Key2HormonesModelInstantiator = {
 }
 
 
-def _week_mesh_layout(data="hipp"):
-    hormones_df = _load_homornes_df()
-    session_week = _load_session_week(hormones_df)
-
-    inputs = _create_week_inputs()
-
-    registered_meshes = Key2MeshLoader[data]()
-    model = Key2WeekModelInstantiator[data](session_week, registered_meshes)
-
-    postproc_pred = None
-    graph = None
-    if data == "multiple":
-        plotter = MeshesPlotter([MeshPlotter() for _ in range(len(registered_meshes))])
-        graph = Graph(id_="mesh-plot", plotter=plotter)
-
-        postproc_pred = ppdict.DictMap(ListSqueeze()) + ppdict.DictToValuesList()
-    else:
-        postproc_pred = ListSqueeze()
-
-    mesh_explorer = MeshExplorer(
-        model=model,
-        inputs=inputs,
-        graph=graph,
-        postproc_pred=postproc_pred,
-    )
-
-    return dbc.Container(mesh_explorer.to_dash())
-
-
-def _switchable_layout(data="hipp", hideable=False):
+def _create_layout(
+    data="hipp", hideable=False, overlay=False, week=True, hormones=True
+):
     # hideable only applies to multiple
 
-    hormones_df = _load_homornes_df()
-    session_week = _load_session_week(hormones_df)
+    if not (week or hormones):
+        raise ValueError("At least week or hormones")
 
-    hormones_ordering = _load_hormones_ordering()
-    session_hormones = _load_session_hormones(hormones_df, hormones_ordering)
-
-    week_inputs = _create_week_inputs()
-    hormone_inputs = _create_hormones_inputs(hormones_ordering)
+    inputs = []
+    models = []
 
     registered_meshes = Key2MeshLoader[data]()
 
-    week_model = Key2WeekModelInstantiator[data](session_week, registered_meshes)
-    hormones_model = Key2HormonesModelInstantiator[data](
-        session_hormones, registered_meshes
-    )
+    hormones_df = _load_homornes_df()
 
-    graph = None
-    checkbox_labels = None
+    if week:
+        session_week_data = _load_session_week(hormones_df)
+
+        inputs.append(_create_week_inputs())
+
+        models.append(
+            Key2WeekModelInstantiator[data](session_week_data, registered_meshes)
+        )
+
+    if hormones:
+        hormones_ordering = _load_hormones_ordering()
+
+        session_hormones_data = _load_session_hormones(hormones_df, hormones_ordering)
+
+        inputs.append(_create_hormones_inputs(hormones_ordering))
+
+        models.append(
+            Key2HormonesModelInstantiator[data](
+                session_hormones_data, registered_meshes
+            )
+        )
+
+    postproc_pred = None
+    checkbox_labels = []
+    overlay_plotter = None
+
+    # TODO: need to consider affine transformation for overlay
+    if overlay:
+        overlay_mesh = _load_overlay_mesh()
+        overlay_plotter = StaticMeshPlotter(overlay_mesh)
+        checkbox_labels = [(-1, "Show Full Brain", False)]
+
     if data == "multiple":
-        plotter = MeshesPlotter([MeshPlotter() for _ in range(len(registered_meshes))])
-        graph = Graph(id_="mesh-plot", plotter=plotter)
+        plotter = MeshesPlotter(
+            [MeshPlotter() for _ in range(len(registered_meshes))],
+            overlay_plotter=overlay_plotter,
+        )
 
         postproc_pred = ppdict.DictMap(ListSqueeze()) + ppdict.DictToValuesList()
 
         if hideable:
-            checkbox_labels = (
-                (index, key, True) for index, key in enumerate(registered_meshes.keys())
+            checkbox_labels.extend(
+                [
+                    (index, key, True)
+                    for index, key in enumerate(registered_meshes.keys())
+                ]
             )
     else:
-        postproc_pred = ListSqueeze()
+        if overlay:
+            plotter = MeshesPlotter(
+                plotters=[MeshPlotter()],
+                overlay_plotter=overlay_plotter,
+            )
+        else:
+            plotter = MeshPlotter()
+            postproc_pred = ListSqueeze()
 
-    mesh_explorer = MultipleModelsMeshExplorer(
-        models=[week_model, hormones_model],
-        inputs=[week_inputs, hormone_inputs],
-        graph=graph,
+    mesh_explorer = MultiModelsMeshExplorer(
+        models=models,
+        inputs=inputs,
+        graph=Graph(id_="mesh-plot", plotter=plotter),
         postproc_pred=postproc_pred,
         checkbox_labels=checkbox_labels,
     )
@@ -386,7 +420,13 @@ def _switchable_layout(data="hipp", hideable=False):
     return dbc.Container(mesh_explorer.to_dash())
 
 
-def my_app(data="hipp", switchable=False, hideable=False):
+def my_app(
+    data="hipp",
+    hideable=False,
+    overlay=False,
+    week=True,
+    hormones=True,
+):
     style = {
         "margin_side": "20px",
         "text_fontsize": "24px",
@@ -397,10 +437,9 @@ def my_app(data="hipp", switchable=False, hideable=False):
     }
     update_style(style)
 
-    if switchable:
-        layout = _switchable_layout(data, hideable)
-    else:
-        layout = _week_mesh_layout(data)
+    layout = _create_layout(
+        data=data, hideable=hideable, overlay=overlay, week=week, hormones=hormones
+    )
 
     app = Dash(
         __name__,
