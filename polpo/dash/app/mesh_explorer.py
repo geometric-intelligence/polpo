@@ -3,6 +3,7 @@ import numpy as np
 from dash import Dash
 from sklearn.decomposition import PCA
 from sklearn.linear_model import LinearRegression
+from sklearn.preprocessing import StandardScaler
 
 from polpo.dash.components import (
     ComponentGroup,
@@ -12,7 +13,15 @@ from polpo.dash.components import (
 )
 from polpo.dash.style import update_style
 from polpo.dash.variables import VarDef
-from polpo.models import DictMeshes2Comps, Meshes2Comps, ObjectRegressor
+from polpo.models import (
+    DictMeshColorizer,
+    DictMeshes2Comps,
+    MeshColorizer,
+    Meshes2Comps,
+    ObjectRegressor,
+    ObjectRegressorWithColors,
+    X2xPipeline,
+)
 from polpo.plot.mesh import MeshesPlotter, MeshPlotter, StaticMeshPlotter
 from polpo.preprocessing import (
     IndexMap,
@@ -195,25 +204,51 @@ def _merge_session_week_meshes(session_week, registered_meshes):
     return X, meshes
 
 
-def _instantiate_mesh_model(X, y, mesh_transform=None):
-    model = ObjectRegressor(
-        model=LinearRegression(),
-        objs2y=Meshes2Comps(
-            dim_reduction=PCA(n_components=4),
-            smoother=False,
-            mesh_transform=mesh_transform,
-        ),
-    )
+def _instantiate_mesh_model(X, y, mesh_transform=None, colorizer=False):
+    if colorizer is None:
+        model = ObjectRegressor(
+            model=LinearRegression(),
+            objs2y=Meshes2Comps(
+                dim_reduction=PCA(n_components=4),
+                smoother=False,
+                mesh_transform=mesh_transform,
+            ),
+        )
+
+    else:
+        model = ObjectRegressorWithColors(
+            model=LinearRegression(),
+            objs2y=Meshes2Comps(
+                dim_reduction=PCA(n_components=4),
+                smoother=False,
+                mesh_transform=mesh_transform,
+            ),
+            x2x=X2xPipeline(scaler=StandardScaler()),
+            colorizer=colorizer,
+        )
 
     model.fit(X, y)
 
     return model
 
 
-def _instantiate_week_mesh_model(session_week, registered_meshes, mesh_transform=None):
+def _instantiate_week_mesh_model(
+    session_week, registered_meshes, mesh_transform=None, colorized=False
+):
     X, y = _merge_session_week_meshes(session_week, registered_meshes)
 
-    return _instantiate_mesh_model(X, y, mesh_transform=mesh_transform)
+    colorizer = (
+        MeshColorizer(
+            x_ref=np.array(0.0),
+            delta_lim=np.array(15.0),
+        )
+        if colorized
+        else None
+    )
+
+    return _instantiate_mesh_model(
+        X, y, mesh_transform=mesh_transform, colorizer=colorizer
+    )
 
 
 def _merge_session_week_multi_meshes(X, registered_meshes):
@@ -231,25 +266,44 @@ def _merge_session_week_multi_meshes(X, registered_meshes):
     return X, meshes_
 
 
-def _instantiate_multi_mesh_model(X, y, mesh_transform=None):
+def _instantiate_multi_mesh_model(X, y, mesh_transform=None, colorizer=None):
     n_structs = len(y)
     pca = PCA(n_components=4)
     objs2y = DictMeshes2Comps(
         n_pipes=n_structs, dim_reduction=pca, mesh_transform=mesh_transform
     )
+    inner_model = LinearRegression(fit_intercept=True)
 
-    model = ObjectRegressor(LinearRegression(fit_intercept=True), objs2y=objs2y)
+    if colorizer is None:
+        model = ObjectRegressor(inner_model, objs2y=objs2y)
+
+    else:
+        model = ObjectRegressorWithColors(
+            inner_model, objs2y=objs2y, colorizer=colorizer
+        )
+
     model.fit(X, y)
 
     return model
 
 
 def _instantiate_week_multi_mesh_model(
-    session_week, registered_meshes, mesh_transform=None
+    session_week, registered_meshes, mesh_transform=None, colorized=False
 ):
     X, y = _merge_session_week_multi_meshes(session_week, registered_meshes)
 
-    return _instantiate_multi_mesh_model(X, y, mesh_transform=mesh_transform)
+    colorizer = (
+        DictMeshColorizer(
+            x_ref=np.array(0.0),
+            delta_lim=np.array(15.0),
+        )
+        if colorized
+        else None
+    )
+
+    return _instantiate_multi_mesh_model(
+        X, y, mesh_transform=mesh_transform, colorizer=colorizer
+    )
 
 
 def _merge_session_hormones_meshes(session_hormones, registered_meshes):
@@ -265,11 +319,25 @@ def _merge_session_hormones_meshes(session_hormones, registered_meshes):
 
 
 def _instantiate_hormones_mesh_model(
-    session_hormones, registered_meshes, mesh_transform=None
+    session_hormones,
+    registered_meshes,
+    mesh_transform=None,
+    colorized=False,
 ):
     X, y = _merge_session_hormones_meshes(session_hormones, registered_meshes)
 
-    return _instantiate_mesh_model(X, y, mesh_transform=mesh_transform)
+    colorizer = (
+        MeshColorizer(
+            delta_lim=None,
+            scaling_factor=2.0,
+        )
+        if colorized
+        else None
+    )
+
+    return _instantiate_mesh_model(
+        X, y, mesh_transform=mesh_transform, colorizer=colorizer
+    )
 
 
 def _merge_session_hormones_multi_meshes(X, registered_meshes):
@@ -289,11 +357,21 @@ def _merge_session_hormones_multi_meshes(X, registered_meshes):
 
 
 def _instantiate_hormones_multi_mesh_model(
-    session_hormones, registered_meshes, mesh_transform=None
+    session_hormones, registered_meshes, mesh_transform=None, colorized=False
 ):
     X, y = _merge_session_hormones_multi_meshes(session_hormones, registered_meshes)
 
-    return _instantiate_multi_mesh_model(X, y, mesh_transform=mesh_transform)
+    colorizer = (
+        DictMeshColorizer(
+            scaling_factor=2.0,
+        )
+        if colorized
+        else None
+    )
+
+    return _instantiate_multi_mesh_model(
+        X, y, mesh_transform=mesh_transform, colorizer=colorizer
+    )
 
 
 def _create_week_inputs():
@@ -372,7 +450,12 @@ Key2HormonesModelInstantiator = {
 
 
 def _create_layout(
-    data="hipp", hideable=False, overlay=False, week=True, hormones=True
+    data="hipp",
+    hideable=False,
+    overlay=False,
+    week=True,
+    hormones=True,
+    colorized=False,
 ):
     # hideable only applies to multiple
 
@@ -412,7 +495,10 @@ def _create_layout(
 
         models.append(
             Key2WeekModelInstantiator[data](
-                session_week_data, registered_meshes, mesh_transform=affine_transform
+                session_week_data,
+                registered_meshes,
+                mesh_transform=affine_transform,
+                colorized=colorized,
             )
         )
 
@@ -428,6 +514,7 @@ def _create_layout(
                 session_hormones_data,
                 registered_meshes,
                 mesh_transform=affine_transform,
+                colorized=colorized,
             )
         )
 
@@ -473,6 +560,7 @@ def my_app(
     overlay=False,
     week=True,
     hormones=True,
+    colorized=False,
 ):
     style = {
         "margin_side": "20px",
@@ -485,7 +573,12 @@ def my_app(
     update_style(style)
 
     layout = _create_layout(
-        data=data, hideable=hideable, overlay=overlay, week=week, hormones=hormones
+        data=data,
+        hideable=hideable,
+        overlay=overlay,
+        week=week,
+        hormones=hormones,
+        colorized=colorized,
     )
 
     app = Dash(

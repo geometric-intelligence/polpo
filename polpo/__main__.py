@@ -18,6 +18,7 @@ def mesh_explorer(
     overlay: bool = False,
     week: bool = True,
     hormones: bool = True,
+    colorized: bool = True,
 ):
     """Launch mesh explorer app."""
     from polpo.dash.app.mesh_explorer import my_app
@@ -36,6 +37,7 @@ def mesh_explorer(
         overlay=overlay,
         week=week,
         hormones=hormones,
+        colorized=colorized,
     )
 
 

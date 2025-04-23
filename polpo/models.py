@@ -1,14 +1,16 @@
 import abc
 
+import matplotlib.pyplot as plt
 import numpy as np
 import sklearn
+from matplotlib.colors import TwoSlopeNorm
 from sklearn.decomposition import PCA
 from sklearn.linear_model import LinearRegression
 from sklearn.pipeline import Pipeline as SklearnPipeline
 from sklearn.preprocessing import FunctionTransformer, StandardScaler
 
 from polpo.plot.mri import MriSlicer
-from polpo.preprocessing import IdentityStep, ListSqueeze
+from polpo.preprocessing import IdentityStep
 from polpo.sklearn.adapter import AdapterPipeline, MapTransformer
 from polpo.sklearn.base import GetParamsMixin
 from polpo.sklearn.compose import ObjectBasedTransformedTargetRegressor
@@ -252,6 +254,145 @@ class ObjectRegressor(GetParamsMixin, SklearnPipeline):
     @property
     def objs2y(self):
         return self["model"].transformer
+
+
+class MeshColorizer:
+    def __init__(self, x_ref=None, delta_lim=None, scaling_factor=1.0, cmap="coolwarm"):
+        # uses mean if x_ref is None
+        # uses max changes in data if delta_lim is None
+        self.x_ref = x_ref
+        self.delta_lim = delta_lim
+        self.scaling_factor = scaling_factor
+
+        self.ref_vertices_ = None
+        self.color_norm_ = None
+
+        self.cmap = plt.get_cmap(cmap)
+
+    def _magnitude2color(self, value):
+        return self.cmap(self.color_norm_(value * self.scaling_factor), bytes=True)
+
+    def _computed_velocity_norm(self, meshes, ref_vertices, signed=True):
+        # meshes: list[Trimesh]
+        vel = np.array([mesh.vertices - ref_vertices for mesh in meshes])
+        vel_norm = np.linalg.norm(vel, axis=-1)
+
+        if not signed:
+            return vel_norm
+
+        signed_vel_norm = []
+        for mesh, vel_, vel_norm_ in zip(meshes, vel, vel_norm):
+            signed_vel_norm.append(
+                np.sign(np.vecdot(mesh.vertex_normals, vel_, axis=-1)) * vel_norm_
+            )
+
+        return np.stack(signed_vel_norm)
+
+    def fit(self, predict, X=None, y=None):
+        # y is ignored if delta_lim
+        # X is ignored if x_ref
+        # predict: callable
+
+        x_ref = self.x_ref if self.x_ref is not None else np.mean(X, axis=0)
+        ref_mesh = predict(x_ref)[0]
+        self.ref_vertices_ = ref_mesh.vertices
+
+        if self.delta_lim:
+            lim_meshes = predict(x_ref + self.delta_lim)
+        else:
+            lim_meshes = y
+
+        vel_norms = self._computed_velocity_norm(
+            lim_meshes, self.ref_vertices_, signed=False
+        )
+        vmax = np.amax(vel_norms)
+
+        self.color_norm_ = TwoSlopeNorm(vmin=-vmax, vcenter=0, vmax=vmax)
+
+        return self
+
+    def __call__(self, meshes):
+        # meshes: list[Trimesh]
+        signed_vel_norms = self._computed_velocity_norm(
+            meshes, self.ref_vertices_, signed=True
+        )
+
+        for mesh, signed_vel_norm in zip(meshes, signed_vel_norms):
+            colors = self._magnitude2color(signed_vel_norm)
+
+            mesh.visual.vertex_colors = colors.astype(np.uint8)
+
+        return meshes
+
+
+class DictMeshColorizer(MeshColorizer):
+    def fit(self, predict, X=None, y=None):
+        # y is ignored if delta_lim
+        # X is ignored if x_ref
+        # predict: callable
+
+        x_ref = self.x_ref if self.x_ref is not None else np.mean(X, axis=0)
+        ref_mesh = predict(x_ref)
+        self.ref_vertices_ = {
+            key: meshes[0].vertices for key, meshes in ref_mesh.items()
+        }
+
+        if self.delta_lim:
+            lim_meshes = predict(x_ref + self.delta_lim)
+        else:
+            lim_meshes = y
+
+        self.color_norm_ = {}
+        for key, lim_meshes_ in lim_meshes.items():
+            vel_norms = self._computed_velocity_norm(
+                lim_meshes_, self.ref_vertices_[key], signed=False
+            )
+            vmax = np.amax(vel_norms)
+            self.color_norm_[key] = TwoSlopeNorm(vmin=-vmax, vcenter=0, vmax=vmax)
+
+        return self
+
+    def __call__(self, meshes):
+        # meshes: list[Trimesh]
+
+        for key, meshes_ in meshes.items():
+            signed_vel_norms = self._computed_velocity_norm(
+                meshes_, self.ref_vertices_[key], signed=True
+            )
+
+            for mesh, signed_vel_norm in zip(meshes_, signed_vel_norms):
+                colors = self._magnitude2color(signed_vel_norm, key)
+
+                mesh.visual.vertex_colors = colors.astype(np.uint8)
+
+        return meshes
+
+    def _magnitude2color(self, value, key):
+        return self.cmap(self.color_norm_[key](value * self.scaling_factor), bytes=True)
+
+
+class ObjectRegressorWithColors(ObjectRegressor):
+    # TODO: homogenize with ObjectRegressor?
+
+    def __init__(self, model, objs2y, colorizer, x2x=None):
+        super().__init__(model, objs2y=objs2y, x2x=x2x)
+        self.colorizer = colorizer
+
+    @property
+    def objs2y(self):
+        return self["model"].transformer
+
+    def fit(self, X, y=None):
+        super().fit(X, y=y)
+
+        self.colorizer.fit(super().predict, X, y)
+
+        return self
+
+    def predict(self, X):
+        # NB: X is not transformed yet
+        objs = super().predict(X)
+        return self.colorizer(objs)
 
 
 class SklearnLikeModelFactory(ModelFactory):
