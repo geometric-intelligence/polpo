@@ -757,6 +757,7 @@ class Checklist(IdComponent):
         self.n_options = n_options or len(checkbox_labels)
 
         false_indices = []
+        existing_indices = []
         self.options = []
         for option in checkbox_labels:
             option_ = {
@@ -764,12 +765,16 @@ class Checklist(IdComponent):
                 "value": option[0] if option[0] >= 0 else self.n_options + option[0],
             }
             self.options.append(option_)
+            existing_indices.append(option_["value"])
             visible = option[2] if len(option) > 2 else False
             if not visible:
                 false_indices.append(option_["value"])
 
-        self._default_bool = [
+        self._default_bool_vis = [
             False if index in false_indices else True for index in range(n_options)
+        ]
+        self._default_bool = [
+            False if index in existing_indices else True for index in range(n_options)
         ]
 
     def to_dash(self):
@@ -778,7 +783,7 @@ class Checklist(IdComponent):
             dcc.Checklist(
                 id=self.id,
                 options=self.options,
-                value=self.as_value(self._default_bool),
+                value=self.as_value(self._default_bool_vis),
                 inline=self.inline,
             )
         ]
