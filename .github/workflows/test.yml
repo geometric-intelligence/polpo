@@ -49,4 +49,4 @@ jobs:
 
       - name: unit testing for polpo [pytest]
         run: |
-          xvfb-run pytest --cov-report term -m "not (local or deformetrica)" --cov=polpo ${{matrix.test-folder}}
+          xvfb-run pytest tests --cov-report term -m "not (local or deformetrica)" --cov=polpo ${{matrix.test-folder}}
