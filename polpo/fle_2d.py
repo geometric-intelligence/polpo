@@ -6,6 +6,8 @@ import finufft
 import numpy as np
 import scipy
 
+from polpo.cache import LruCache
+
 # TODO: add references
 
 
@@ -367,14 +369,15 @@ class PiConjSymCartesianizedPolarGrid:
         # [..., partial_dim]
         # TODO: handle vectorization
         # TODO: improve notation
+        batch_shape = f.shape[:-1]
 
-        z = np.zeros((self.n_radial, self.n_angular), dtype=f.dtype)
+        z = np.zeros(batch_shape + (self.n_radial, self.n_angular), dtype=f.dtype)
 
-        z0 = f.reshape(self.n_radial, self.n_angular // 2)
+        z0 = f.reshape(batch_shape + (self.n_radial, self.n_angular // 2))
 
         z[..., :, : self.n_angular // 2] = z0
         z[..., :, self.n_angular // 2 :] = np.conj(z0)
-        return z.reshape(self.n_angular * self.n_radial)
+        return z.reshape(batch_shape + (self.n_angular * self.n_radial,))
 
     def to_partial(self, f):
         # [..., dim]
@@ -483,31 +486,39 @@ class Nufft:
 
     # TODO: test with vectorization cache (maybe setpts is slow)
 
-    def __init__(self, grid, image_size, eps=1e-7):
+    def __init__(self, grid, image_size, eps=1e-7, cache_size=10):
         self.grid = grid
         self._image_shape = (image_size, image_size)
 
-        # TODO: update for vectorization
-        self._plan = finufft.Plan(
-            nufft_type=2, n_modes_or_dim=self._image_shape, n_trans=1, isign=-1, eps=eps
+        def make_plan(n_trans, nufft_type, isign):
+            if isinstance(n_trans, tuple):
+                n_trans = 1 if len(n_trans) == 0 else n_trans[0]
+
+            plan = finufft.Plan(
+                nufft_type=nufft_type,
+                n_modes_or_dim=self._image_shape,
+                n_trans=n_trans,
+                isign=isign,
+                eps=eps,
+            )
+            # NUFFT has opposite meshgrid ordering
+            plan.setpts(grid.ys, grid.xs)
+            return plan
+
+        self._plan = LruCache(
+            cache_size, lambda n_trans: make_plan(n_trans, nufft_type=2, isign=-1)
         )
 
-        # TODO: is this costly?
-        # NUFFT has opposite meshgrid ordering
-        self._plan.setpts(grid.ys, grid.xs)
-
-        # TODO: update for vectorization
-        self._plan_inv = finufft.Plan(
-            nufft_type=1, n_modes_or_dim=self._image_shape, n_trans=1, isign=1, eps=eps
+        self._plan_inv = LruCache(
+            cache_size, lambda n_trans: make_plan(n_trans, nufft_type=1, isign=1)
         )
-        # NUFFT has opposite meshgrid ordering
-        self._plan_inv.setpts(grid.ys, grid.xs)
 
         self._image_cropper = ImageCropper(image_size)
 
     def __call__(self, f, full=True):
         # required by plan
-        z0 = self._plan.execute(f.astype(np.complex128)) * self.grid.h**2
+        f = f.astype(np.complex128)
+        z0 = self._plan.get(f.shape[:-2]).execute(f) * self.grid.h**2
 
         if full:
             return self.grid.to_full(z0)
@@ -517,12 +528,13 @@ class Nufft:
     def inverse(self, z):
         # TODO: check if already partial?
         # assumes full
+        batch_shape = z.shape[:-1]
         z = self.grid.to_partial(z)
 
-        f = self._plan_inv.execute(z)
+        f = self._plan_inv.get(batch_shape).execute(z)
         f = f + np.conj(f)
         f = np.real(f)
-        f = f.reshape(self._image_shape)
+        f = f.reshape(batch_shape + self._image_shape)
 
         return self._image_cropper(f)
 
@@ -564,7 +576,7 @@ class Step2:
     def inverse(self, b):
         # TODO: handle vectorization (easy)
 
-        tmp = np.zeros((b.shape[-2], self.grid.n_angular), dtype=np.complex128)
+        tmp = np.zeros(b.shape[:-1] + (self.grid.n_angular,), dtype=np.complex128)
 
         b = matvecmul(self.r2c_nus, b)
 
@@ -643,26 +655,22 @@ class SparseInterpolator:
         return A3, A3_T
 
     def __call__(self, b):
-        # TODO: handle vectorization
-
-        a = np.zeros(self.basis.n_elems, dtype=np.float64)
+        a = np.zeros(b.shape[:-2] + (self.basis.n_elems,), dtype=np.float64)
         for n, indices in self.basis.ns_to_indices.items():
-            a[indices] = matvecmul(self.A3[n], b[..., self.basis.ns_to_fle[n]])
+            a[..., indices] = matvecmul(self.A3[n], b[..., self.basis.ns_to_fle[n]])
 
         a = a * self.basis.cs / self.grid.h
 
         return self.basis.r2c(a)
 
     def inverse(self, a):
-        # TODO: handle vectorization
-
         a = self.basis.c2r(a)
 
         # TODO: confirm it is not a mistake, i.e. divide by cs?
         a = a * self.grid.h * self.basis.cs
 
         b = np.zeros(
-            (self.n_interp, self.basis.ndmax + 1),
+            a.shape[:-1] + (self.n_interp, self.basis.ndmax + 1),
             dtype=np.float64,
             order="F",
         )
