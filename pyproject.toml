@@ -56,6 +56,9 @@ all = ["polpo[dash,plot,preprocessing,hydra,varifold]"]
 [project.urls]
 repository = "http://github.com/luisfpereira/polpo"
 
+[tool.setuptools]
+include-package-data = true
+
 [tool.setuptools.dynamic]
 version = { attr = "polpo.__version__" }
 
