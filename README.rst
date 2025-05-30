@@ -12,12 +12,23 @@ Installation
     pip install polpo@git+https://github.com/geometric-intelligence/polpo.git@main
 
 
-Or, to also install all the dependencies:
-
+and to also install all the dependencies,
 
 ::
 
     pip install polpo[all]@git+https://github.com/geometric-intelligence/polpo@main
 
-Or the classic pipeline ``clone + pip install .``.
+
+Alternatively, you can use the classic pipeline: 
+::
+    git clone https://github.com/geometric-intelligence/polpo.git
+    
+::
+
+and then create an environment with all required dependences:
+::
+    conda create -n polpo python=3.11
+    conda activate polpo
+    pip install .
+::
 
