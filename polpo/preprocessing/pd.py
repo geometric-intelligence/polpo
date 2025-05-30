@@ -4,7 +4,7 @@ import pandas as pd
 
 from polpo.utils import params_to_kwargs
 
-from .base import PreprocessingStep
+from .base import Pipeline, PreprocessingStep
 
 
 class CsvReader(PreprocessingStep):
@@ -131,7 +131,7 @@ class DfToDict(PreprocessingStep):
     Parameters
     ----------
     orient : str
-        Determines the type of the values of the dictionary.
+        Determines the type of the values of the dict.
     """
 
     def __init__(self, orient="dict"):
@@ -279,3 +279,43 @@ class DfIsInFilter(PreprocessingStep):
             indices = ~indices
 
         return df[indices]
+
+
+class ColumnToDict(Pipeline):
+    """Extract a column from a dataframe and convert it to a dict.
+
+    Parameters
+    ----------
+    column_name : str
+        Name of the column to extract.
+    """
+
+    def __init__(self, column_name):
+        super().__init__(
+            steps=[
+                ColumnsSelector(column_names=column_name),
+                SeriesToDict(),
+            ]
+        )
+
+
+class ColumnsToDict(Pipeline):
+    """
+    Extract one or more columns from a dataframe and convert them to a row-indexed dict.
+
+    Parameters
+    ----------
+    column_names : list of str
+        Names of the columns to extract.
+    """
+
+    # TODO: make dropna optional?
+
+    def __init__(self, column_names):
+        super().__init__(
+            steps=[
+                ColumnsSelector(column_names=column_names),
+                Dropna(),
+                DfToDict(orient="index"),
+            ]
+        )
