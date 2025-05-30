@@ -19,7 +19,6 @@ from polpo.models import (
     MeshColorizer,
     Meshes2Comps,
     ObjectRegressor,
-    ObjectRegressorWithColors,
     X2xPipeline,
 )
 from polpo.plot.mesh import MeshesPlotter, MeshPlotter, StaticMeshPlotter
@@ -54,6 +53,7 @@ from polpo.preprocessing.mri import (
     SkimageMarchingCubes,
     segmtool2encoding,
 )
+from polpo.sklearn.compose import PostTransformingEstimator
 
 
 def _load_homornes_df():
@@ -205,27 +205,17 @@ def _merge_session_week_meshes(session_week, registered_meshes):
 
 
 def _instantiate_mesh_model(X, y, mesh_transform=None, colorizer=False):
-    if colorizer is None:
-        model = ObjectRegressor(
-            model=LinearRegression(),
-            objs2y=Meshes2Comps(
-                dim_reduction=PCA(n_components=4),
-                smoother=False,
-                mesh_transform=mesh_transform,
-            ),
-        )
+    model = ObjectRegressor(
+        model=LinearRegression(),
+        objs2y=Meshes2Comps(
+            dim_reduction=PCA(n_components=4),
+            smoother=False,
+            mesh_transform=mesh_transform,
+        ),
+    )
 
-    else:
-        model = ObjectRegressorWithColors(
-            model=LinearRegression(),
-            objs2y=Meshes2Comps(
-                dim_reduction=PCA(n_components=4),
-                smoother=False,
-                mesh_transform=mesh_transform,
-            ),
-            x2x=X2xPipeline(scaler=StandardScaler()),
-            colorizer=colorizer,
-        )
+    if colorizer:
+        model = PostTransformingEstimator(model, colorizer)
 
     model.fit(X, y)
 
@@ -273,14 +263,10 @@ def _instantiate_multi_mesh_model(X, y, mesh_transform=None, colorizer=None):
         n_pipes=n_structs, dim_reduction=pca, mesh_transform=mesh_transform
     )
     inner_model = LinearRegression(fit_intercept=True)
+    model = ObjectRegressor(inner_model, objs2y=objs2y)
 
-    if colorizer is None:
-        model = ObjectRegressor(inner_model, objs2y=objs2y)
-
-    else:
-        model = ObjectRegressorWithColors(
-            inner_model, objs2y=objs2y, colorizer=colorizer
-        )
+    if colorizer:
+        model = PostTransformingEstimator(model, colorizer)
 
     model.fit(X, y)
 
