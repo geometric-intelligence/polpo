@@ -1,3 +1,4 @@
+from sklearn.base import clone
 from sklearn.compose import TransformedTargetRegressor
 from sklearn.utils.validation import check_is_fitted
 
@@ -81,3 +82,55 @@ class ObjectBasedTransformedTargetRegressor(TransformedTargetRegressor):
             pred_trans = self.transformer_.inverse_transform(pred)
 
         return pred_trans
+
+
+class PostTransformingEstimator:
+    """Estimator wrapper that learns a post-processing transform after model fitting.
+
+    It applies a learned post-processing transformation to the output of a base estimator.
+
+    The `post_transform` is trained after fitting the base estimator, with access
+    to the fitted model, input features `X`, and true targets `y`. This allows
+    the transformation to depend on model behavior.
+
+    During `predict`, the base estimator's prediction is passed through the
+    trained `post_transform`.
+
+    Parameters
+    ----------
+    estimator : object
+        The base estimator implementing `fit` and `predict`.
+    post_transform : object
+        A callable with `.fit(model, X, y)` and `__call__(pred)`
+        for transforming predictions.
+    """
+
+    def __init__(self, model, post_transform):
+        self.model = model
+        self.post_transform = post_transform
+
+    def __getattr__(self, name):
+        """Get attribute.
+
+        It is only called when ``__getattribute__`` fails.
+        Delegates attribute calling to model.
+        """
+        return getattr(self.model, name)
+
+    def __sklearn_clone__(self):
+        # TODO: also clone post_transform
+        return PostTransformingEstimator(
+            model=clone(self.model), post_transform=self.post_transform
+        )
+
+    def fit(self, X, y=None):
+        self.model.fit(X, y=y)
+
+        self.post_transform.fit(self.model, X, y)
+
+        return self
+
+    def predict(self, X):
+        # NB: X is not transformed yet
+        objs = self.model.predict(X)
+        return self.post_transform(objs)

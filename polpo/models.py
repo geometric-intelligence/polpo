@@ -288,17 +288,17 @@ class MeshColorizer:
 
         return np.stack(signed_vel_norm)
 
-    def fit(self, predict, X=None, y=None):
+    def fit(self, model, X=None, y=None):
         # y is ignored if delta_lim
         # X is ignored if x_ref
-        # predict: callable
+        # model: BaseEstimator
 
         x_ref = self.x_ref if self.x_ref is not None else np.mean(X, axis=0)
-        ref_mesh = predict(x_ref)[0]
+        ref_mesh = model.predict(x_ref)[0]
         self.ref_vertices_ = ref_mesh.vertices
 
         if self.delta_lim:
-            lim_meshes = predict(x_ref + self.delta_lim)
+            lim_meshes = model.predict(x_ref + self.delta_lim)
         else:
             lim_meshes = y
 
@@ -326,19 +326,19 @@ class MeshColorizer:
 
 
 class DictMeshColorizer(MeshColorizer):
-    def fit(self, predict, X=None, y=None):
+    def fit(self, model, X=None, y=None):
         # y is ignored if delta_lim
         # X is ignored if x_ref
-        # predict: callable
+        # model: BaseEstimator
 
         x_ref = self.x_ref if self.x_ref is not None else np.mean(X, axis=0)
-        ref_mesh = predict(x_ref)
+        ref_mesh = model.predict(x_ref)
         self.ref_vertices_ = {
             key: meshes[0].vertices for key, meshes in ref_mesh.items()
         }
 
         if self.delta_lim:
-            lim_meshes = predict(x_ref + self.delta_lim)
+            lim_meshes = model.predict(x_ref + self.delta_lim)
         else:
             lim_meshes = y
 
@@ -369,30 +369,6 @@ class DictMeshColorizer(MeshColorizer):
 
     def _magnitude2color(self, value, key):
         return self.cmap(self.color_norm_[key](value * self.scaling_factor), bytes=True)
-
-
-class ObjectRegressorWithColors(ObjectRegressor):
-    # TODO: homogenize with ObjectRegressor?
-
-    def __init__(self, model, objs2y, colorizer, x2x=None):
-        super().__init__(model, objs2y=objs2y, x2x=x2x)
-        self.colorizer = colorizer
-
-    @property
-    def objs2y(self):
-        return self["model"].transformer
-
-    def fit(self, X, y=None):
-        super().fit(X, y=y)
-
-        self.colorizer.fit(super().predict, X, y)
-
-        return self
-
-    def predict(self, X):
-        # NB: X is not transformed yet
-        objs = super().predict(X)
-        return self.colorizer(objs)
 
 
 class SklearnLikeModelFactory(ModelFactory):
