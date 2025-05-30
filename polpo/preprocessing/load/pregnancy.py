@@ -227,6 +227,54 @@ def _FigsharePregnancyFolderLoader(
     )
 
 
+
+def PregnancyImageSeqLoader( # Adele
+    subset=None,
+    data_dir="~/.herbrain/data/pregnancy",
+    as_dict=False,
+):
+    """Create pipeline to load pregnancy image sequences.
+
+    Parameters
+    ----------
+    subset : array-like
+        Subset of sessions to load. If `None`, loads all.
+    data_dir : str
+        Directory where to store data.
+    as_dict : bool
+        Whether to create a dictionary with session as key.
+
+    Returns
+    -------
+    pipe : Pipeline
+        Pipeline whose output is list[str] or dict[int, str].
+        String represents filename. Sorting is by session id.
+    """
+    folders_selector = _FigsharePregnancyFolderLoader(
+        subset,
+        data_dir,
+        remote_path="pregnancy_art_sequence",
+        id_to_path=lambda session_id: f"ses-{str(session_id).zfill(2)}", # TODO EDIT
+        none_to_subset=lambda: list(range(1, 27)),
+    )
+
+    files_selector = DictMap(
+        step=FileFinder(
+            rules=[
+                StartsWith(value="pregnancy_art_sequence_"),
+                IsFileType(".png"),
+            ]
+        )
+    )
+
+    pipe = folders_selector + files_selector
+
+    if as_dict:
+        return pipe
+
+    return pipe + DictToValuesList()
+
+
 def PregnancyPilotMriLoader(
     subset=None, data_dir="~/.herbrain/data/pregnancy", as_dict=False
 ):

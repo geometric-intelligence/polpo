@@ -1,6 +1,7 @@
 """Components."""
 
 import abc
+import os
 
 import dash_bootstrap_components as dbc
 from dash import Input, Output, dcc, get_asset_url, html
@@ -899,3 +900,83 @@ class SidebarElem(Component):
         page_register.add_page(self.tab_header.href, compns[-1])
 
         return compns
+    
+
+class ImageSeqExplorer(Component): # Adele
+    """Component for displaying an image sequence.
+
+    Given a folder with images, this component allows us to
+    display the images in a sequence, with controls to navigate
+    through the images.
+
+    Parameters
+    ----------
+    folder_path : str
+        Path to the folder containing images.
+    id_prefix : str
+        Prefix for the component ID.
+    """
+
+    def __init__(self, folder_path, id_prefix=""):
+        super().__init__(id_prefix)
+        self.folder_path = folder_path
+        self.images = sorted([
+            f for f in os.listdir(folder_path)
+            if f.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.gif'))
+        ])
+        self.n_images = len(self.images)
+
+    @property
+    def id(self):
+        return f"{self.id_prefix}image-seq-explorer"
+
+    def to_dash(self):
+        slider_id = f"{self.id}-slider"
+        image_id = f"{self.id}-image"
+
+        # Initial image
+        initial_index = 0
+        initial_image = self.images[initial_index] if self.images else ""
+
+        # Compose the layout
+        layout = dbc.Card(
+            [
+                html.Div(
+                    [
+                        html.Img(
+                            id=image_id,
+                            src=get_asset_url(os.path.join(self.folder_path, initial_image)) if initial_image else "",
+                            style={"width": "100%", "height": "auto"},
+                        ),
+                        dcc.Slider(
+                            id=slider_id,
+                            min=0,
+                            max=self.n_images - 1 if self.n_images > 0 else 0,
+                            step=1,
+                            value=initial_index,
+                            marks={
+                                i: f"Week {i+1}" for i in range(self.n_images)
+                            },
+                            tooltip={"placement": "bottom", "always_visible": True},
+                        ),
+                    ]
+                )
+            ],
+            body=True,
+            style={"margin": "20px"},
+        )
+
+        # Register callback to update image on slider change
+        from dash import callback
+
+        @callback(
+            Output(image_id, "src"),
+            Input(slider_id, "value"),
+        )
+        def update_image(idx):
+            if self.n_images == 0:
+                return ""
+            image_file = self.images[idx]
+            return get_asset_url(os.path.join(self.folder_path, image_file))
+
+        return [layout]
