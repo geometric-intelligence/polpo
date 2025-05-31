@@ -1,9 +1,11 @@
 """Components."""
 
 import abc
+import os
 
 import dash_bootstrap_components as dbc
-from dash import Input, Output, dcc, get_asset_url, html
+from dash import Input, Output, dcc, get_asset_url, html, callback
+
 
 from polpo.models import (
     MriSlicesLookup,
@@ -541,6 +543,208 @@ class MriExplorer(BaseComponentGroup):
         self._create_callbacks()
 
         return [plots, sliders_and_session]
+    
+
+class ImageSeqExplorer(Component): # Adele
+    """Component for displaying an image sequence.
+
+    Given a folder with images, this component allows us to
+    display the images in a sequence, with controls to navigate
+    through the images.
+
+    Parameters
+    ----------
+    folder_path : str
+        Path to the folder containing images.
+    id_prefix : str
+        Prefix for the component ID.
+    """
+    def __init__(
+        self,
+        images,
+        gest_week_keys,
+        sliders,
+        graph_row=None,
+        id_prefix="",
+    ):
+        if graph_row is None:
+            graph_row = MriGraphRow(index_ordering=list(range(len(sliders) - 1)))
+
+        # TODO: used to train the model and to update the controller
+        self.images = images
+        self.gest_week_keys = gest_week_keys
+
+        # NB: an input view
+        self.sliders = sliders
+        # NB: an output view of the brain data
+        self.graph_row = graph_row
+
+        super().__init__([sliders, graph_row], id_prefix)
+
+    def _create_callbacks(self):
+        create_view_model_update(self.sliders, self.graph_row)
+        create_view_model_update(
+            self.sliders[0], self.session_info, self.session_info_model
+        )
+
+    def to_dash(self):
+        if hasattr(self.sliders, "update_lims"):
+            self.sliders.update_lims(self.mri_data)
+
+        plots_card = self.graph_row.to_dash()
+        plots = dbc.Row(
+            [
+                dbc.Col(plots_card, sm=14),
+            ],
+            align="center",
+            style={
+                "marginLeft": S.margin_side,
+                "marginRight": S.margin_side,
+                "marginTop": "50px",
+            },
+        )
+
+        sliders_card = dbc.Card(
+            [
+                dbc.Stack(
+                    self.sliders.to_dash(),
+                    gap=3,
+                )
+            ],
+            body=True,
+        )
+        sliders_column = [
+            dbc.Row(sliders_card),
+        ]
+
+        session_info = self.session_info.to_dash()
+        sess_info_card = dbc.Card(
+            [
+                dbc.Stack(
+                    session_info,
+                    gap=0,
+                )
+            ],
+            body=True,
+        )
+
+        sliders_and_session = dbc.Row(
+            [
+                dbc.Col(sliders_column, sm=7, width=700),
+                dbc.Col(sess_info_card, sm=4, width=700),
+            ],
+            align="center",
+            style={
+                "marginLeft": S.margin_side,
+                "marginRight": S.margin_side,
+                "marginTop": "50px",
+            },
+        )
+
+        # Callback to update the displayed image based on slider value
+        @callback(
+            Output(self.graph_row.id, "children"),
+            Input(self.sliders.id, "value"),
+        )
+        def update_image(slider_value):
+            # self.images: dict mapping end_week -> image
+            # self.gest_week_keys: list of end_weeks (sorted)
+            # Each image is valid for start_week <= slider_value <= end_week
+            # start_week for each image is previous end_week + 1 (or 0 for first)
+            gest_week_keys = sorted(self.gest_week_keys)
+            images = self.images
+
+            # Find which image to show
+            selected_image = None
+            for i, end_week in enumerate(gest_week_keys):
+                start_week = 0 if i == 0 else gest_week_keys[i-1] + 1
+                if start_week <= slider_value <= end_week:
+                    selected_image = images[end_week]
+                    break
+            if selected_image is None:
+                # If slider_value is after last gestational week, show last image
+                selected_image = images[gest_week_keys[-1]]
+
+            # Assume self.graph_row expects a list of dash components (e.g., [html.Img(...)])
+            # If selected_image is a path, wrap in html.Img
+            if isinstance(selected_image, str):
+                return [html.Img(src=selected_image, style={"width": "100%"})]
+            else:
+                # If already a dash component
+                return [selected_image]
+
+        return [plots, sliders_and_session]
+    
+    # def __init__(self, images, gest_week_keys, id_prefix=""):
+    #     super().__init__(id_prefix)
+    #     self.images = images
+    #     self.gest_week_keys = gest_week_keys
+    #     self.image_seq_explorer = None
+    #     self.id_prefix = id_prefix
+    #     self.id = f"{self.id_prefix}image-seq-explorer"
+    # def _create_callbacks(self):
+    #     create_view_model_update(self.sliders, self.graph_row, self.mri_model)
+    #     create_view_model_update(
+    #         self.sliders[0], self.session_info, self.session_info_model
+    #     )
+
+    # def to_dash(self):
+    #     if hasattr(self.sliders, "update_lims"):
+    #         self.sliders.update_lims(self.mri_data)
+
+    #     plots_card = self.graph_row.to_dash()
+    #     plots = dbc.Row(
+    #         [
+    #             dbc.Col(plots_card, sm=14),
+    #         ],
+    #         align="center",
+    #         style={
+    #             "marginLeft": S.margin_side,
+    #             "marginRight": S.margin_side,
+    #             "marginTop": "50px",
+    #         },
+    #     )
+
+    #     sliders_card = dbc.Card(
+    #         [
+    #             dbc.Stack(
+    #                 self.sliders.to_dash(),
+    #                 gap=3,
+    #             )
+    #         ],
+    #         body=True,
+    #     )
+    #     sliders_column = [
+    #         dbc.Row(sliders_card),
+    #     ]
+
+    #     session_info = self.session_info.to_dash()
+    #     sess_info_card = dbc.Card(
+    #         [
+    #             dbc.Stack(
+    #                 session_info,
+    #                 gap=0,
+    #             )
+    #         ],
+    #         body=True,
+    #     )
+
+    #     sliders_and_session = dbc.Row(
+    #         [
+    #             dbc.Col(sliders_column, sm=7, width=700),
+    #             dbc.Col(sess_info_card, sm=4, width=700),
+    #         ],
+    #         align="center",
+    #         style={
+    #             "marginLeft": S.margin_side,
+    #             "marginRight": S.margin_side,
+    #             "marginTop": "50px",
+    #         },
+    #     )
+
+    #     self._create_callbacks()
+
+    #     return [plots, sliders_and_session]
 
 
 class MeshExplorer(BaseComponentGroup):
@@ -724,6 +928,7 @@ class MultiModelsMeshExplorer(BaseComponentGroup):
         )
 
         return out
+    
 
 
 class HideableComponent(IdComponent):
@@ -899,3 +1104,5 @@ class SidebarElem(Component):
         page_register.add_page(self.tab_header.href, compns[-1])
 
         return compns
+    
+

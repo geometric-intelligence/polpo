@@ -49,5 +49,13 @@ def mri_explorer():
     my_app()
 
 
+@app.command()
+def image_seq_explorer():
+    """Launch image sequence explorer app."""
+    from polpo.dash.app.image_sequence_explorer import my_app
+
+    my_app()
+
+
 if __name__ == "__main__":
     app()
