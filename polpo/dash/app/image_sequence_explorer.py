@@ -12,19 +12,16 @@ from polpo.dash.style import update_style
 from polpo.dash.variables import VarDef
 from polpo.preprocessing import Map, Pipeline, Sorter, Truncater
 from polpo.preprocessing.load.pregnancy import (
-    DenseMaternalCsvDataLoader,
-    PregnancyPilotMriLoader,
+    PregnancyImageSeqLoader
 )
-from polpo.preprocessing.mri import MriImageLoader
 
 
 def _load_images():
     return Pipeline(
         steps=[
-            PregnancyPilotMriLoader(as_dict=False),
+            PregnancyImageSeqLoader(as_dict=True), # returns list of dicts: [key, image, gestation_week]
             Sorter(),
             Truncater(value=2),  # For debugging
-            Map(step=MriImageLoader(), n_jobs=1, verbose=1),
         ]
     )()
 
