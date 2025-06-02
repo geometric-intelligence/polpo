@@ -1,11 +1,9 @@
 """Components."""
 
 import abc
-import os
 
 import dash_bootstrap_components as dbc
-from dash import Input, Output, dcc, get_asset_url, html, callback
-
+from dash import Input, Output, callback, dcc, get_asset_url, html
 
 from polpo.models import (
     MriSlicesLookup,
@@ -354,6 +352,29 @@ class Graph(IdComponent):
 
     def as_empty_output(self):
         return [self.plotter.plot()]
+
+
+class Image(IdComponent):
+    def __init__(self, id_, id_prefix="", id_suffix=""):
+        super().__init__(id_, id_prefix, id_suffix)
+
+        self._image = html.Img(
+            id=self.id_,
+            src="",
+            style={"width": "100%"},
+        )
+
+    def to_dash(self, data=None):
+        if data is not None:
+            return [data]
+
+        return [self._image]
+
+    def as_output(self, component_property="src", allow_duplicate=False):
+        return [Output(self.id, component_property, allow_duplicate=allow_duplicate)]
+
+    def as_empty_output(self):
+        return self.to_dash()
 
 
 class GraphRow(ComponentGroup):
