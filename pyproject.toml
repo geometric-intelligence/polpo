@@ -65,6 +65,9 @@ version = { attr = "polpo.__version__" }
 [tool.setuptools.packages.find]
 include = ["polpo", "polpo.*"]
 
+[tool.setuptools.package-data]
+polpo = ["*.png"]
+
 [tool.ruff]
 extend-include = ["*.ipynb"]
 

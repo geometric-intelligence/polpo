@@ -616,7 +616,7 @@ class ModelBasedExplorer(BaseComponentGroup):
         return out
 
 
-class ImgExplorer(ModelBasedExplorer):
+class ImageExplorer(ModelBasedExplorer):
     def __init__(self, model, inputs, image=None, id_prefix=""):
         if image is None:
             image = Image(id_="image-expl", id_prefix=id_prefix)

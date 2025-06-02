@@ -1,42 +1,43 @@
-import dash_bootstrap_components as dbc
-from dash import Dash
+import os
+import sys
 
-import polpo.preprocessing.pd as ppd
-from polpo.dash.components import (
-    ComponentGroup,
-    DepVar,
-    ImageSeqExplorer,
-    Slider,
-)
+import dash_bootstrap_components as dbc
+from dash import Dash, get_asset_url
+
+from polpo.dash.components import ImageExplorer, Slider
 from polpo.dash.style import update_style
 from polpo.dash.variables import VarDef
-from polpo.preprocessing import Map, Pipeline, Sorter, Truncater
-from polpo.preprocessing.load.pregnancy import (
-    PregnancyImageSeqLoader
-)
+from polpo.models import ListLookup
+from polpo.preprocessing import Sorter
+from polpo.preprocessing.path import FileFinder
 
 
-def _load_images():
-    return Pipeline(
-        steps=[
-            PregnancyImageSeqLoader(as_dict=True), # returns list of dicts: [key, image, gestation_week]
-            Sorter(),
-            Truncater(value=2),  # For debugging
-        ]
+def _load_images(assets_folder):
+    # assumes assets at app folder level
+    file_path = os.path.dirname(sys.modules[__package__].__file__)
+    # removes ./
+    short_assets_folder = "/".join(assets_folder.split("/")[1:])
+
+    assets_folder_abs = os.path.join(file_path, short_assets_folder)
+
+    images = (
+        FileFinder(data_dir=os.path.join(assets_folder_abs, "digits")) + Sorter()
     )()
 
+    n_path_assets = len(assets_folder_abs)
+    return [get_asset_url(image[n_path_assets + 1 :]) for image in images]
 
-def _create_layout():
 
-    images = _load_images()
+def _create_layout(assets_folder):
+    images = _load_images(assets_folder)
 
-    gest_week_ID = VarDef(
-        id_="gestweekID", name="Gestation Week", min_value=0, max_value=41
-    )
+    # TODO: do version with DictLookup
+    model = ListLookup(images)
 
-    image_seq_explorer = ImageSeqExplorer(
-        
-    )
+    digits = VarDef(id_="digitsID", name="Digits", min_value=0, max_value=9)
+    inputs = Slider(digits)
+
+    image_seq_explorer = ImageExplorer(model, inputs)
     return dbc.Container(image_seq_explorer.to_dash())
 
 
@@ -51,13 +52,16 @@ def my_app():
     }
     update_style(style)
 
-    layout = _create_layout()
+    assets_folder = "./image_sequence_explorer"
 
     app = Dash(
         __name__,
         external_stylesheets=[dbc.themes.BOOTSTRAP],
-        suppress_callback_exceptions=True,
+        suppress_callback_exceptions=False,
+        assets_folder=assets_folder,
     )
+
+    layout = _create_layout(assets_folder)
 
     app.layout = layout
 
