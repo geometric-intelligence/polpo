@@ -7,7 +7,9 @@ A `Geometric Intelligence Lab <https://gi.ece.ucsb.edu/>`_'s collection of weakl
 Installation
 ------------
 
-The following are three common ways for installating a Python package from a github repo:
+The following are three common ways for installating a Python package from a github repo.
+
+To install ``polpo`` and its required dependencies:
 
 
 ::
@@ -15,7 +17,7 @@ The following are three common ways for installating a Python package from a git
     pip install polpo@git+https://github.com/geometric-intelligence/polpo.git@main
 
 
-or, to also install all the dependencies:
+To install ``polpo`` and all its optional dependencies:
 
 
 ::
@@ -23,7 +25,7 @@ or, to also install all the dependencies:
     pip install polpo[all]@git+https://github.com/geometric-intelligence/polpo@main
 
 
-or, the classic pipeline:
+Or, first manually clone the repo and proceed with a local installation:
 
 :: 
 
@@ -33,7 +35,7 @@ or, the classic pipeline:
 
 
 NB: Use flag ``-e`` for editable mode.
-Optional dependencies can be added as above (e.g. ``pip install .[all]``).
+Optional dependencies can be installed as above (e.g. ``pip install .[all]``).
 
 
 
