@@ -46,15 +46,6 @@ class FileFinder(PreprocessingStep):
 
         self.rules = rules
 
-    def _postprocess(self, out, data_dir):
-        if self.warn and len(out) == 0:
-            warnings.warn(f"Couldn't find file in: {data_dir}")
-
-        if len(out) == 1 and not self.as_list:
-            return out[0]
-
-        return out
-
     def __call__(self, data=None):
         """Apply step.
 
@@ -67,10 +58,12 @@ class FileFinder(PreprocessingStep):
         -------
         list[str] or str
         """
-        data_dir = data or self.data_dir
+        data_dir = ExpandUser()(data or self.data_dir)
 
         if not os.path.exists(data_dir):
-            return self._postprocess([], data_dir)
+            if self.warn:
+                warnings.warn(f"`{data_dir}` does not exist.")
+            return []
 
         files = os.listdir(data_dir)
 
@@ -79,7 +72,13 @@ class FileFinder(PreprocessingStep):
 
         out = list(map(lambda name: os.path.join(data_dir, name), files))
 
-        return self._postprocess(out, data_dir)
+        if self.warn and len(out) == 0:
+            warnings.warn(f"Couldn't find file in: {data_dir}")
+
+        if len(out) == 1 and not self.as_list:
+            return out[0]
+
+        return out
 
 
 class PathShortener(PreprocessingStep):

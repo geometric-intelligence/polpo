@@ -33,6 +33,7 @@ doc = [
 lint = ["ruff"]
 test = ["pytest", "pytest-cov", "coverage", "jupyter", "ipython", "ipykernel"]
 dash = ["dash", "dash-bootstrap-components"]
+app = ["typer", "polpo[dash]"]
 plot = ["plotly"]
 mri = ["nibabel", "scikit-image"]
 point_cloud = ["open3d", "scikit-learn"]
@@ -51,7 +52,7 @@ ssh = ["paramiko", "scp"]
 preprocessing = ["polpo[mri,mesh,dataframe,ssh,point_cloud]"]
 hydra = ["hydra-core", "omegaconf"]
 dev = ["polpo[doc,lint,test]"]
-all = ["polpo[dash,plot,preprocessing,hydra,varifold]"]
+all = ["polpo[dash,app,plot,preprocessing,hydra,varifold]"]
 
 [project.urls]
 repository = "http://github.com/luisfpereira/polpo"
@@ -64,6 +65,9 @@ version = { attr = "polpo.__version__" }
 
 [tool.setuptools.packages.find]
 include = ["polpo", "polpo.*"]
+
+[tool.setuptools.package-data]
+polpo = ["*.png"]
 
 [tool.ruff]
 extend-include = ["*.ipynb"]

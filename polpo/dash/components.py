@@ -3,7 +3,7 @@
 import abc
 
 import dash_bootstrap_components as dbc
-from dash import Input, Output, dcc, get_asset_url, html
+from dash import Input, Output, callback, dcc, get_asset_url, html
 
 from polpo.models import (
     MriSlicesLookup,
@@ -354,6 +354,29 @@ class Graph(IdComponent):
         return [self.plotter.plot()]
 
 
+class Image(IdComponent):
+    def __init__(self, id_, id_prefix="", id_suffix=""):
+        super().__init__(id_, id_prefix, id_suffix)
+
+        self._image = html.Img(
+            id=self.id_,
+            src="",
+            style={"width": "100%"},
+        )
+
+    def to_dash(self, data=None):
+        if data is not None:
+            return [data]
+
+        return [self._image]
+
+    def as_output(self, component_property="src", allow_duplicate=False):
+        return [Output(self.id, component_property, allow_duplicate=allow_duplicate)]
+
+    def as_empty_output(self):
+        return [""]
+
+
 class GraphRow(ComponentGroup):
     def __init__(self, n_graphs=3, graphs=None, id_prefix=""):
         # NB: `n_graphs`` is ignored if `graphs` is not None
@@ -543,31 +566,29 @@ class MriExplorer(BaseComponentGroup):
         return [plots, sliders_and_session]
 
 
-class MeshExplorer(BaseComponentGroup):
-    def __init__(self, model, inputs, graph=None, id_prefix="", postproc_pred=None):
-        if graph is None:
-            graph = Graph(id_="mesh-plot", plotter=MeshPlotter(), id_prefix=id_prefix)
-
+class ModelBasedExplorer(BaseComponentGroup):
+    def __init__(self, model, inputs, output, id_prefix="", postproc_pred=None):
         self.model = model
-        self.graph = graph
         self.inputs = inputs
+        self.output = output
         self.postproc_pred = postproc_pred
 
-        super().__init__([self.graph, self.inputs], id_prefix=id_prefix)
+        super().__init__([output, inputs], id_prefix=id_prefix)
 
     def to_dash(self):
-        graph = self.graph.to_dash()
+        output = self.output.to_dash()
         inputs_column = dbc.Stack(
             self.inputs.to_dash(),
             gap=3,
         )
 
+        # TODO: abstract this to e.g. layout?
         out = [
             dbc.Row(
                 [
                     dbc.Col(
                         html.Div(
-                            graph,
+                            output,
                             style={"paddingTop": "0px"},
                         ),
                         sm=6,
@@ -586,13 +607,36 @@ class MeshExplorer(BaseComponentGroup):
         ]
 
         create_view_model_update(
-            output_view=self.graph,
+            output_view=self.output,
             input_view=self.inputs,
             model=self.model,
             postproc_pred=self.postproc_pred,
         )
 
         return out
+
+
+class ImageExplorer(ModelBasedExplorer):
+    def __init__(self, model, inputs, image=None, id_prefix=""):
+        if image is None:
+            image = Image(id_="image-expl", id_prefix=id_prefix)
+
+        super().__init__(model, inputs, image, id_prefix=id_prefix)
+
+
+class MeshExplorer(ModelBasedExplorer):
+    def __init__(self, model, inputs, graph=None, id_prefix="", postproc_pred=None):
+        if graph is None:
+            graph = Graph(id_="mesh-plot", plotter=MeshPlotter(), id_prefix=id_prefix)
+
+        self.model = model
+        self.graph = graph
+        self.inputs = inputs
+        self.postproc_pred = postproc_pred
+
+        super().__init__(
+            model, inputs, graph, id_prefix=id_prefix, postproc_pred=postproc_pred
+        )
 
 
 class MultiModelsMeshExplorer(BaseComponentGroup):

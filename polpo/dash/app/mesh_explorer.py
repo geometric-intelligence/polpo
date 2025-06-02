@@ -3,7 +3,6 @@ import numpy as np
 from dash import Dash
 from sklearn.decomposition import PCA
 from sklearn.linear_model import LinearRegression
-from sklearn.preprocessing import StandardScaler
 
 from polpo.dash.components import (
     ComponentGroup,
@@ -19,7 +18,6 @@ from polpo.models import (
     MeshColorizer,
     Meshes2Comps,
     ObjectRegressor,
-    X2xPipeline,
 )
 from polpo.plot.mesh import MeshesPlotter, MeshPlotter, StaticMeshPlotter
 from polpo.preprocessing import (
