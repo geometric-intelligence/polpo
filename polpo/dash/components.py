@@ -374,7 +374,7 @@ class Image(IdComponent):
         return [Output(self.id, component_property, allow_duplicate=allow_duplicate)]
 
     def as_empty_output(self):
-        return self.to_dash()
+        return [""]
 
 
 class GraphRow(ComponentGroup):
