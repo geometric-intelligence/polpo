@@ -50,9 +50,9 @@ def mri_explorer():
 
 
 @app.command()
-def image_seq_explorer():
+def image_explorer():
     """Launch image sequence explorer app."""
-    from polpo.dash.app.image_sequence_explorer import my_app
+    from polpo.dash.app.image_explorer import my_app
 
     my_app()
 
