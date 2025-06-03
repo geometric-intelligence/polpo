@@ -197,3 +197,52 @@ class GraphInputTwoColumnLayout(Layout):
                 },
             )
         ]
+
+
+class MultiRowLayout(Layout):
+    def to_dash(self, comps):
+        # NB: top is treated differently
+        top, other = comps
+
+        top_comp = dbc.Stack(
+            top.to_dash(),
+            gap=3,
+        )
+        other_comps = [other_.to_dash() for other_ in other]
+
+        top_row_style = {
+            "marginLeft": S.margin_side,
+            "marginRight": S.margin_side,
+            "marginTop": "50px",
+        }
+        row_style = {
+            "marginLeft": S.margin_side,
+            "marginRight": S.margin_side,
+        }
+        return [
+            dbc.Row(
+                [dbc.Col(top_comp, sm=3, width=500)],
+                align="center",
+                style=top_row_style,
+            ),
+            dbc.Stack(
+                [
+                    dbc.Row(
+                        [
+                            dbc.Col(
+                                html.Div(
+                                    other_comp,
+                                    style={"paddingTop": "0px"},
+                                ),
+                                sm=6,
+                                width=900,
+                                align="center",
+                            )
+                        ],
+                        style=row_style,
+                    )
+                    for other_comp in other_comps
+                ],
+                gap=0,
+            ),
+        ]

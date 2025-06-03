@@ -17,7 +17,7 @@ from .callbacks import (
     create_button_toggler_for_view_model_update,
     create_view_model_update,
 )
-from .layout import GraphInputTwoColumnLayout, TwoColumnLayout
+from .layout import GraphInputTwoColumnLayout, MultiRowLayout, TwoColumnLayout
 from .style import STYLE as S
 
 
@@ -369,14 +369,13 @@ class Graph(IdComponent):
 
 
 class Image(IdComponent):
-    def __init__(self, id_, id_prefix="", id_suffix=""):
+    def __init__(self, id_, id_prefix="", id_suffix="", style=None):
         super().__init__(id_, id_prefix, id_suffix)
 
-        self._image = html.Img(
-            id=self.id_,
-            src="",
-            style={"width": "100%"},
-        )
+        if style is None:
+            style = {"width": "100%"}
+
+        self._image = html.Img(id=self.id_, src="", style=style)
 
     def to_dash(self, data=None):
         if data is not None:
@@ -636,6 +635,35 @@ class MeshExplorer(ModelBasedExplorer):
             postproc_pred=postproc_pred,
             layout=layout,
         )
+
+
+class SharedInputModelsBasedExplorer(BaseComponentGroup):
+    def __init__(
+        self, models, inputs, outputs, id_prefix="", postproc_pred=None, layout=None
+    ):
+        if layout is None:
+            layout = MultiRowLayout()
+
+        self.models = models
+        self.inputs = inputs
+        self.outputs = outputs
+        self.postproc_pred = postproc_pred
+        self.layout = layout
+
+        super().__init__([outputs, inputs], id_prefix=id_prefix)
+
+    def to_dash(self):
+        out = self.layout.to_dash([self.inputs, self.outputs])
+
+        for output_, model in zip(self.outputs, self.models):
+            create_view_model_update(
+                output_view=output_,
+                input_view=self.inputs,
+                model=model,
+                postproc_pred=self.postproc_pred,
+            )
+
+        return out
 
 
 class MultiModelsMeshExplorer(BaseComponentGroup):
