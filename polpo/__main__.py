@@ -1,3 +1,4 @@
+import logging
 from enum import Enum
 
 import typer
@@ -19,9 +20,12 @@ def mesh_explorer(
     week: bool = True,
     hormones: bool = True,
     colorized: bool = True,
+    logging_level: int = 20,
 ):
     """Launch mesh explorer app."""
     from polpo.dash.app.mesh_explorer import my_app
+
+    logging.basicConfig(level=logging_level)
 
     data = data.value
 
@@ -42,17 +46,25 @@ def mesh_explorer(
 
 
 @app.command()
-def mri_explorer():
+def mri_explorer(
+    logging_level: int = 20,
+):
     """Launch mri explorer app."""
     from polpo.dash.app.mri_explorer import my_app
+
+    logging.basicConfig(level=logging_level)
 
     my_app()
 
 
 @app.command()
-def image_explorer():
+def image_explorer(
+    logging_level: int = 20,
+):
     """Launch image sequence explorer app."""
     from polpo.dash.app.image_explorer import my_app
+
+    logging.basicConfig(level=logging_level)
 
     my_app()
 
