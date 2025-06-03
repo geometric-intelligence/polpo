@@ -448,13 +448,9 @@ def DenseMaternalCsvDataLoader(
     pipe : Pipeline
         Pipeline to load maternal csv data.
     """
-    project_folder = "maternal_brain_project"
-
     if pilot:
         if subject_id is not None and subject_id != "01":
             logging.warning("`subject_id` is ignored, as there's only one subject")
-
-        project_folder += "_pilot"
 
         loader = FigsharePregnancyDataLoader(
             data_dir=f"{data_dir}/raw",
@@ -466,6 +462,8 @@ def DenseMaternalCsvDataLoader(
         ) + ppd.IndexSetter(key="sessionID", drop=True)
 
     else:
+        project_folder = "maternal_brain_project"
+
         loader = Constant(
             Path(data_dir) / project_folder / "rawdata" / "SubjectData.csv"
         )
