@@ -1,5 +1,6 @@
 import abc
 import importlib
+import logging
 import warnings
 
 from joblib import Parallel, delayed
@@ -515,3 +516,14 @@ class MethodApplier(PreprocessingStep):
         bool
         """
         return getattr(obj, self.method)(*self.args, **self.kwargs)
+
+
+class StepWithLogging(StepWrappingPreprocessingStep):
+    # TODO: control logging level
+    def __init__(self, step, msg):
+        super().__init__(step)
+        self.msg = msg
+
+    def __call__(self, data=None):
+        logging.info(self.msg)
+        return self.step(data)
