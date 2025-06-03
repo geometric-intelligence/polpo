@@ -12,6 +12,7 @@ from polpo.preprocessing import (
     Map,
     PartiallyInitializedStep,
     Sorter,
+    StepWithLogging,
 )
 from polpo.preprocessing.dict import (
     DictMap,
@@ -157,7 +158,13 @@ class FigsharePregnancyDataLoader:
 
 
 def _FigsharePregnancyFolderLoader(
-    subset, data_dir, remote_path, id_to_path, none_to_subset, thresh=4
+    subset,
+    data_dir,
+    remote_path,
+    id_to_path,
+    none_to_subset,
+    thresh=4,
+    local_basename=None,
 ):
     """Create pipeline to load folders.
 
@@ -171,6 +178,8 @@ def _FigsharePregnancyFolderLoader(
         Remote directory where data is stored.
     id_to_path : callable
         Maps a session id to basename.
+    local_basename : str
+        Basename of transferred file/folder if different from remote host.
     none_to_subset : callable
         Creates subset with all session ids.
     thresh : int
@@ -183,47 +192,70 @@ def _FigsharePregnancyFolderLoader(
         Pipeline whose output is dict[int, string].
         Key represents session id and value the corresponding filename.
     """
+    if local_basename is None:
+        local_basename = remote_path
+
     data_dir = ExpandUser()(data_dir)
-    local_dir = f"{data_dir}/{remote_path}"
+    local_dir = f"{data_dir}/{local_basename}"
 
     paths_to_ids = Map([PathShortener(), DigitFinder(index=0)])
 
-    subfolders_selector = FileFinder() + Sorter()
     if subset is None and not os.path.exists(local_dir):
-        figshare_loader = FigsharePregnancyDataLoader(
-            data_dir=data_dir, remote_path=remote_path
+        files_loader = (
+            FigsharePregnancyDataLoader(
+                data_dir=data_dir,
+                remote_path=remote_path,
+                local_basename=local_basename,
+            )
+            + FileFinder()
+            + Sorter()
         )
 
     else:
         if subset is None:
             subset = none_to_subset()
 
-        if len(subset) <= thresh or (
-            len(
-                set(subset)
-                - set((FileFinder(as_list=True, warn=False) + paths_to_ids)(local_dir))
-            )
-            <= thresh
-        ):
-            figshare_loader = Constant(subset) + Map(
-                PartiallyInitializedStep(
-                    FigsharePregnancyDataLoader,
-                    data_dir=local_dir,
-                    _remote_path=lambda session_id: f"{remote_path}/{id_to_path(session_id)}",
-                    validate=True,
+        files = FileFinder(as_list=True, warn=False)(local_dir)
+        missing_subset = set(subset) - set(paths_to_ids(files))
+
+        if len(missing_subset) == 0:
+            files_loader = (
+                StepWithLogging(
+                    Constant(files),
+                    msg=f"Data has already been downloaded... using cached file ('{local_dir}').",
                 )
+                + Sorter()
             )
-            subfolders_selector = Sorter()
+
+        elif len(subset) <= thresh or len(missing_subset) <= thresh:
+            files_loader = (
+                Constant(subset)
+                + Map(
+                    PartiallyInitializedStep(
+                        FigsharePregnancyDataLoader,
+                        data_dir=data_dir,
+                        _remote_path=lambda session_id: f"{remote_path}/{id_to_path(session_id)}",
+                        _local_basename=lambda session_id: f"{local_basename}/{id_to_path(session_id)}",
+                        validate=False,
+                    )
+                )
+                + Sorter()
+            )
+
         else:
-            figshare_loader = FigsharePregnancyDataLoader(
-                data_dir=data_dir, remote_path=remote_path, use_cache=False
+            files_loader = (
+                FigsharePregnancyDataLoader(
+                    data_dir=data_dir,
+                    local_basename=local_basename,
+                    remote_path=remote_path,
+                    use_cache=False,
+                )
+                + FileFinder()
+                + Sorter()
             )
 
     return (
-        figshare_loader
-        + subfolders_selector
-        + HashWithIncoming(key_step=paths_to_ids)
-        + SelectKeySubset(subset)
+        files_loader + HashWithIncoming(key_step=paths_to_ids) + SelectKeySubset(subset)
     )
 
 
@@ -251,6 +283,7 @@ def PregnancyPilotMriLoader(
         subset,
         data_dir,
         remote_path="mri",
+        local_basename="raw/mri",
         id_to_path=lambda session_id: f"ses-{str(session_id).zfill(2)}",
         none_to_subset=lambda: list(range(1, 27)),
     )
@@ -295,6 +328,7 @@ def PregnancyPilotSegmentationsLoader(
         subset,
         data_dir,
         remote_path="Segmentations",
+        local_basename="derivatives/segmentations",
         id_to_path=lambda session_id: f"BB{str(session_id).zfill(2)}",
         none_to_subset=lambda: list(range(1, 15)) + list(range(16, 27)),
     )
@@ -365,7 +399,7 @@ def PregnancyPilotRegisteredMeshesLoader(
     }
     path = method_to_path[(method, version)]
 
-    local_basename = method
+    local_basename = f"derivatives/{method}"
     if method == "elastic":
         local_basename = f"{local_basename}_{version}"
 
@@ -373,7 +407,7 @@ def PregnancyPilotRegisteredMeshesLoader(
 
     pipe = (
         FigsharePregnancyDataLoader(
-            data_dir="~/.herbrain/data/pregnancy/registration",
+            data_dir="~/.herbrain/data/pregnancy",
             remote_path=f"registration/{path}",
             local_basename=local_basename,
         )
@@ -423,7 +457,7 @@ def DenseMaternalCsvDataLoader(
         project_folder += "_pilot"
 
         loader = FigsharePregnancyDataLoader(
-            data_dir=data_dir,
+            data_dir=f"{data_dir}/raw",
             remote_path="28Baby_Hormones.csv",
             use_cache=True,
         )
