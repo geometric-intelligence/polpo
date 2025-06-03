@@ -3,7 +3,7 @@
 import abc
 
 import dash_bootstrap_components as dbc
-from dash import Input, Output, callback, dcc, get_asset_url, html
+from dash import Input, Output, dcc, get_asset_url, html
 
 from polpo.models import (
     MriSlicesLookup,
@@ -17,6 +17,7 @@ from .callbacks import (
     create_button_toggler_for_view_model_update,
     create_view_model_update,
 )
+from .layout import TwoColumnLayout
 from .style import STYLE as S
 
 
@@ -567,44 +568,22 @@ class MriExplorer(BaseComponentGroup):
 
 
 class ModelBasedExplorer(BaseComponentGroup):
-    def __init__(self, model, inputs, output, id_prefix="", postproc_pred=None):
+    def __init__(
+        self, model, inputs, output, id_prefix="", postproc_pred=None, layout=None
+    ):
+        if layout is None:
+            layout = TwoColumnLayout()
+
         self.model = model
         self.inputs = inputs
         self.output = output
         self.postproc_pred = postproc_pred
+        self.layout = layout
 
         super().__init__([output, inputs], id_prefix=id_prefix)
 
     def to_dash(self):
-        output = self.output.to_dash()
-        inputs_column = dbc.Stack(
-            self.inputs.to_dash(),
-            gap=3,
-        )
-
-        # TODO: abstract this to e.g. layout?
-        out = [
-            dbc.Row(
-                [
-                    dbc.Col(
-                        html.Div(
-                            output,
-                            style={"paddingTop": "0px"},
-                        ),
-                        sm=6,
-                        width=900,
-                    ),
-                    dbc.Col(sm=3, width=100),
-                    dbc.Col(inputs_column, sm=3, width=500),
-                ],
-                align="center",
-                style={
-                    "marginLeft": S.margin_side,
-                    "marginRight": S.margin_side,
-                    "marginTop": "50px",
-                },
-            ),
-        ]
+        out = self.layout.to_dash([self.inputs, self.output])
 
         create_view_model_update(
             output_view=self.output,
@@ -617,15 +596,17 @@ class ModelBasedExplorer(BaseComponentGroup):
 
 
 class ImageExplorer(ModelBasedExplorer):
-    def __init__(self, model, inputs, image=None, id_prefix=""):
+    def __init__(self, model, inputs, image=None, id_prefix="", layout=None):
         if image is None:
             image = Image(id_="image-expl", id_prefix=id_prefix)
 
-        super().__init__(model, inputs, image, id_prefix=id_prefix)
+        super().__init__(model, inputs, image, id_prefix=id_prefix, layout=layout)
 
 
 class MeshExplorer(ModelBasedExplorer):
-    def __init__(self, model, inputs, graph=None, id_prefix="", postproc_pred=None):
+    def __init__(
+        self, model, inputs, graph=None, id_prefix="", postproc_pred=None, layout=None
+    ):
         if graph is None:
             graph = Graph(id_="mesh-plot", plotter=MeshPlotter(), id_prefix=id_prefix)
 
@@ -635,7 +616,12 @@ class MeshExplorer(ModelBasedExplorer):
         self.postproc_pred = postproc_pred
 
         super().__init__(
-            model, inputs, graph, id_prefix=id_prefix, postproc_pred=postproc_pred
+            model,
+            inputs,
+            graph,
+            id_prefix=id_prefix,
+            postproc_pred=postproc_pred,
+            layout=layout,
         )
 
 

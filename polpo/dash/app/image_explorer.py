@@ -5,6 +5,12 @@ import dash_bootstrap_components as dbc
 from dash import Dash, get_asset_url
 
 from polpo.dash.components import ImageExplorer, Slider
+from polpo.dash.layout import (
+    SwappedTwoColumnLayout,
+    SwappedTwoRowLayout,
+    TwoColumnLayout,
+    TwoRowLayout,
+)
 from polpo.dash.style import update_style
 from polpo.dash.variables import VarDef
 from polpo.models import ListLookup
@@ -28,7 +34,7 @@ def _load_images(assets_folder):
     return [get_asset_url(image[n_path_assets + 1 :]) for image in images]
 
 
-def _create_layout(assets_folder):
+def _create_layout(assets_folder, column=True, swapped=False):
     images = _load_images(assets_folder)
 
     # TODO: do version with DictLookup
@@ -37,11 +43,22 @@ def _create_layout(assets_folder):
     digits = VarDef(id_="digitsID", name="Digits", min_value=0, max_value=9)
     inputs = Slider(digits)
 
-    image_seq_explorer = ImageExplorer(model, inputs)
+    if column:
+        if swapped:
+            layout = SwappedTwoColumnLayout()
+        else:
+            layout = TwoColumnLayout()
+    else:
+        if swapped:
+            layout = SwappedTwoRowLayout()
+        else:
+            layout = TwoRowLayout()
+
+    image_seq_explorer = ImageExplorer(model, inputs, layout=layout)
     return dbc.Container(image_seq_explorer.to_dash())
 
 
-def my_app():
+def my_app(column=True, swapped=False):
     style = {
         "margin_side": "20px",
         "text_fontsize": "24px",
@@ -61,7 +78,7 @@ def my_app():
         assets_folder=assets_folder,
     )
 
-    layout = _create_layout(assets_folder)
+    layout = _create_layout(assets_folder, column, swapped)
 
     app.layout = layout
 

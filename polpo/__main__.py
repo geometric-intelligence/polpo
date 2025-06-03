@@ -59,6 +59,8 @@ def mri_explorer(
 
 @app.command()
 def image_explorer(
+    column: bool = True,
+    swapped: bool = False,
     logging_level: int = 20,
 ):
     """Launch image sequence explorer app."""
@@ -66,7 +68,7 @@ def image_explorer(
 
     logging.basicConfig(level=logging_level)
 
-    my_app()
+    my_app(column, swapped)
 
 
 if __name__ == "__main__":
