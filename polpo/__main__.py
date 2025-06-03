@@ -71,5 +71,18 @@ def image_explorer(
     my_app(column, swapped)
 
 
+@app.command()
+def multi_image_explorer(
+    swapped: bool = False,
+    logging_level: int = 20,
+):
+    """Launch image sequence explorer app."""
+    from polpo.dash.app.multi_image_explorer import my_app
+
+    logging.basicConfig(level=logging_level)
+
+    my_app()
+
+
 if __name__ == "__main__":
     app()
