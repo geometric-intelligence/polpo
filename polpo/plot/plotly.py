@@ -106,27 +106,26 @@ class BaseMeshPlotter(GoPlotter, abc.ABC):
 class StaticMeshPlotter(BaseMeshPlotter):
     # NB: only visibility changes
 
-    def __init__(self, mesh):
+    def __init__(self, mesh, visible=False):
         super().__init__()
+        self._visible = visible
         self._data = self._create_data(mesh)
 
     def _create_data(self, mesh):
         vertices = mesh.vertices
         faces = mesh.faces
-        vertex_colors = np.broadcast_to([0.678, 0.847, 0.902], (vertices.shape[0], 3))
 
         return go.Mesh3d(
             x=vertices[:, 0],
             y=vertices[:, 1],
             z=vertices[:, 2],
             colorbar_title="z",
-            # vertexcolor=vertex_colors,
             color="black",
             i=faces[:, 0],
             j=faces[:, 1],
             k=faces[:, 2],
             opacity=0.2,
-            visible=False,  # Initially set the overlay to be invisible
+            visible=self._visible,
             flatshading=False,
             lighting=dict(ambient=0.5, diffuse=0.8, specular=0.3, roughness=0.5),
         )
