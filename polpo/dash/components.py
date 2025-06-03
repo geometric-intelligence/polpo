@@ -17,7 +17,7 @@ from .callbacks import (
     create_button_toggler_for_view_model_update,
     create_view_model_update,
 )
-from .layout import TwoColumnLayout
+from .layout import GraphInputTwoColumnLayout, TwoColumnLayout
 from .style import STYLE as S
 
 
@@ -35,6 +35,19 @@ class Component(abc.ABC):
 
     def prefix(self, name):
         return f"{self.id_prefix}{name}"
+
+
+class AdaptedDashComponent(Component):
+    def __init__(self, comp):
+        super().__init__()
+        self.comp = comp
+
+    @property
+    def id(self):
+        return self.comp.id
+
+    def to_dash(self):
+        return [self.comp]
 
 
 class VarDefComponent(Component, abc.ABC):
@@ -635,12 +648,16 @@ class MultiModelsMeshExplorer(BaseComponentGroup):
         button_label="Switch model",
         checkbox_labels=None,
         postproc_pred=None,
+        layout=None,
     ):
         # ignores button if only one model
 
         # TODO: add verifications?
         if graph is None:
             graph = Graph(id_="mesh-plot", plotter=MeshPlotter(), id_prefix=id_prefix)
+
+        if layout is None:
+            layout = GraphInputTwoColumnLayout()
 
         self.graph = graph
         self.models = models
@@ -649,26 +666,27 @@ class MultiModelsMeshExplorer(BaseComponentGroup):
         # NB: controls visibility of plots
         self.checkbox_labels = checkbox_labels
         self.postproc_pred = postproc_pred
+        self.layout = layout
 
         super().__init__([self.graph].extend(self.inputs), id_prefix=id_prefix)
 
     def to_dash(self):
-        graph = self.graph.to_dash()
-
-        inputs_cards = [
-            HideableComponent(
-                id_=f"{index}_slider_container",
-                dash_component=dbc.Card(
-                    dbc.Stack(
-                        component.to_dash(),
-                        gap=3,
+        inputs_cards = ComponentGroup(
+            [
+                HideableComponent(
+                    id_=f"{index}_slider_container",
+                    dash_component=dbc.Card(
+                        dbc.Stack(
+                            component.to_dash(),
+                            gap=3,
+                        ),
+                        body=True,
                     ),
-                    body=True,
-                ),
-                id_prefix=self.id_prefix,
-            )
-            for index, component in enumerate(self.inputs)
-        ]
+                    id_prefix=self.id_prefix,
+                )
+                for index, component in enumerate(self.inputs)
+            ]
+        )
 
         toggle_id = self.prefix("switch-model-button") if len(self.models) > 1 else None
         checkbox_id = self.prefix("show-model-checkbox")
@@ -692,56 +710,21 @@ class MultiModelsMeshExplorer(BaseComponentGroup):
         else:
             checklist = DummyComponent()
 
-        inputs_column = (
-            (
-                [
-                    html.Button(
-                        self.button_label,
-                        id=toggle_id,
-                        n_clicks=0,
-                    ),
-                ]
-                if toggle_id
-                else []
+        button = (
+            AdaptedDashComponent(
+                html.Button(
+                    self.button_label,
+                    id=toggle_id,
+                    n_clicks=0,
+                )
             )
-            + checklist.to_dash()
-            + unnest_list([component_card.to_dash() for component_card in inputs_cards])
+            if toggle_id
+            else DummyComponent()
         )
 
-        out = [
-            dbc.Row(
-                [
-                    dbc.Col(
-                        html.Div(
-                            graph,
-                            style={
-                                "paddingTop": "0px",
-                                "width": "100%",  # full width of this col
-                                "maxWidth": "100%",  # prevent overflow
-                            },
-                        ),
-                        xs=12,
-                        sm=12,
-                        md=6,  # full width on small screens, half on medium+
-                        style={"padding": "10px"},
-                    ),
-                    dbc.Col(
-                        html.Div(inputs_column),
-                        xs=12,
-                        sm=12,
-                        md=6,  # full width on small screens, half on medium+
-                        style={"padding": "10px"},
-                    ),
-                ],
-                align="start",
-                style={
-                    "margin": "0 auto",
-                    "width": "100%",
-                    "maxWidth": "1200px",  # max total width of row
-                    "flexWrap": "wrap",  # important for responsive stacking
-                },
-            )
-        ]
+        inputs = ComponentGroup([button, checklist, inputs_cards])
+
+        out = self.layout.to_dash([inputs, self.graph])
 
         create_button_toggler_for_view_model_update(
             output_view=self.graph,

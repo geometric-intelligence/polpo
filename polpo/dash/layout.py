@@ -154,3 +154,46 @@ class SwappedTwoRowLayout(Layout):
                 style=row_style,
             ),
         ]
+
+
+class GraphInputTwoColumnLayout(Layout):
+    def to_dash(self, comps):
+        inputs, graph = comps
+
+        graph_comp = graph.to_dash()
+        inputs_comp = inputs.to_dash()
+
+        return [
+            dbc.Row(
+                [
+                    dbc.Col(
+                        html.Div(
+                            graph_comp,
+                            style={
+                                "paddingTop": "0px",
+                                "width": "100%",  # full width of this col
+                                "maxWidth": "100%",  # prevent overflow
+                            },
+                        ),
+                        xs=12,
+                        sm=12,
+                        md=6,  # full width on small screens, half on medium+
+                        style={"padding": "10px"},
+                    ),
+                    dbc.Col(
+                        html.Div(inputs_comp),
+                        xs=12,
+                        sm=12,
+                        md=6,  # full width on small screens, half on medium+
+                        style={"padding": "10px"},
+                    ),
+                ],
+                align="start",
+                style={
+                    "margin": "0 auto",
+                    "width": "100%",
+                    "maxWidth": "1200px",  # max total width of row
+                    "flexWrap": "wrap",  # important for responsive stacking
+                },
+            )
+        ]
