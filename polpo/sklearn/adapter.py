@@ -2,7 +2,7 @@
 
 from collections.abc import Iterable
 
-from sklearn.base import BaseEstimator, TransformerMixin
+from sklearn.base import BaseEstimator, TransformerMixin, clone
 from sklearn.pipeline import Pipeline
 
 
@@ -76,7 +76,7 @@ class AdapterPipeline(Pipeline):
                 step_name = f"step_{index}"
                 step = (step_name, step)
 
-            if not isinstance(step[1], TransformerMixin):
+            if not hasattr(step[1], "fit_transform"):
                 step = (step[0], TransformerAdapter(step[1]))
 
             adapted_steps.append(step)
@@ -85,3 +85,35 @@ class AdapterPipeline(Pipeline):
 
     def __sklearn_clone__(self):
         return AdapterPipeline(steps=self._unadapted_steps)
+
+
+class EvaluatedModel:
+    """Model with evaluation.
+
+    Wraps a model to log info.
+
+    Parameters
+    ----------
+    model : sklearn.BaseEstimator
+        Estimator being evaluated.
+    evaluator : polpo.ModelEvaluator
+        Model evaluator.
+    """
+
+    def __init__(self, model, evaluator):
+        self.model = model
+        self.evaluator = evaluator
+        self.eval_result_ = None
+
+    def __getattr__(self, name):
+        """Delegate attribute access to the wrapped model."""
+        return getattr(self.model, name)
+
+    def __sklearn_clone__(self):
+        return EvaluatedModel(model=clone(self.model), evaluator=self.evaluator)
+
+    def fit(self, X, y=None):
+        self.model = self.model.fit(X, y)
+
+        self.eval_result_ = self.evaluator(self.model, X, y)
+        return self
