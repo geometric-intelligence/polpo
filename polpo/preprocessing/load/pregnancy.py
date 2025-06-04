@@ -52,7 +52,6 @@ PREGNANCY_PILOT_REFLECTED_KEYS = {
     26,
 }
 
-
 FIRST_STRUCTS = {
     "Thal",
     "Caud",
@@ -63,6 +62,24 @@ FIRST_STRUCTS = {
     "Amyg",
     "Accu",
 }
+
+ENIGMA_STRUCT2ID = {
+    "L_Thal": 10,
+    "L_Caud": 11,
+    "L_Puta": 12,
+    "L_Pall": 13,
+    "L_Hipp": 17,
+    "L_Amyg": 18,
+    "L_Accu": 26,
+    "R_Thal": 49,
+    "R_Caud": 50,
+    "R_Puta": 51,
+    "R_Pall": 52,
+    "R_Hipp": 53,
+    "R_Amyg": 54,
+    "R_Accu": 58,
+}
+
 
 MATERNAL_IDS = {"01", "1001", "1004"}
 
@@ -589,6 +606,7 @@ def DenseMaternalMeshLoader(
     subset=None,
     left=True,
     as_dict=False,
+    derivative="fsl",
 ):
     """Create pipeline to load maternal mesh filenames.
 
@@ -610,6 +628,8 @@ def DenseMaternalMeshLoader(
         Subset of sessions to load. If `None`, loads all.
     as_dict : bool
         Whether to create a dictionary with session as key.
+    derivative : str
+        Derivative folder starting (e.g. "fsl_first", "fastsurfer-long").
 
     Returns
     -------
@@ -628,17 +648,26 @@ def DenseMaternalMeshLoader(
         suffixed_side = "L_" if left else "R_"
 
     folders_selector = DenseMaternalFoldersSelector(
-        data_dir=data_dir, subject_id=subject_id, subset=subset, as_dict=True
+        data_dir=data_dir,
+        subject_id=subject_id,
+        subset=subset,
+        as_dict=True,
+        derivative=derivative,
     )
 
-    file_finder = folders_selector + DictMap(
-        FileFinder(
-            rules=[
-                IsFileType("vtk"),
-                lambda filename: f"{suffixed_side}{struct}" in filename,
-            ]
-        )
-    )
+    suffixed_struct = f"{suffixed_side}{struct}"
+    if derivative.startswith("enigma"):
+        enigma_index = f"_{ENIGMA_STRUCT2ID[suffixed_struct]}"
+        rules = [
+            lambda file: file.endswith(enigma_index),
+        ]
+    else:
+        rules = [
+            IsFileType("vtk"),
+            lambda filename: suffixed_struct in filename,
+        ]
+
+    file_finder = folders_selector + DictMap(FileFinder(rules=rules))
 
     if as_dict:
         return file_finder
