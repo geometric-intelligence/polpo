@@ -12,3 +12,8 @@ try:
     from ._pyvista import PvReader, PvWriter  # noqa:F401
 except ImportError:
     pass
+
+try:
+    from ._nibabel import FreeSurferReader  # noqa:F401
+except ImportError:
+    pass
