@@ -253,7 +253,20 @@ class ObjectRegressor(GetParamsMixin, SklearnPipeline):
 
     @property
     def objs2y(self):
+        # TODO: check clone, because it seems to be fit after fit
         return self["model"].transformer
+
+    @property
+    def objs2y_(self):
+        return self["model"].transformer_
+
+    @property
+    def regressor(self):
+        return self["model"].regressor
+
+    @property
+    def regressor_(self):
+        return self["model"].regressor_
 
 
 class MeshColorizer:
