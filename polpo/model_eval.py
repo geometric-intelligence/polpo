@@ -7,6 +7,7 @@ from statsmodels.stats.multitest import multipletests
 
 from polpo.preprocessing import Map
 from polpo.preprocessing.mesh.conversion import ToVertices
+from polpo.sklearn.adapter import EvaluatedModel
 from polpo.sklearn.np import FlattenButFirst
 
 # NB: this applies to sklearn models
@@ -279,3 +280,22 @@ class ResultsExtender:
             )
 
         return results
+
+
+def collect_obj_regr_eval_results(obj_regr):
+    results = {}
+    if isinstance(obj_regr, EvaluatedModel):
+        results["obj_regr"] = obj_regr.eval_result_
+
+    if isinstance(obj_regr.regressor, EvaluatedModel):
+        results["regr"] = obj_regr.regressor_.eval_result_
+
+    # TODO: do it recursively?
+    for step_name, step in obj_regr.objs2y_.steps:
+        if isinstance(step, EvaluatedModel):
+            results[step_name] = step.eval_result_
+
+    return results
+
+
+# TODO: add post evaluator (check EvaluatedModel)
