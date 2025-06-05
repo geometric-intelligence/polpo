@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import sklearn
 from matplotlib.colors import TwoSlopeNorm
+from sklearn.base import BaseEstimator, RegressorMixin, clone
 from sklearn.decomposition import PCA
 from sklearn.linear_model import LinearRegression
 from sklearn.pipeline import Pipeline as SklearnPipeline
@@ -382,6 +383,31 @@ class DictMeshColorizer(MeshColorizer):
 
     def _magnitude2color(self, value, key):
         return self.cmap(self.color_norm_[key](value * self.scaling_factor), bytes=True)
+
+
+class SupervisedEmbeddingRegressor(BaseEstimator, RegressorMixin):
+    # TODO: how shaky is this?
+
+    def __init__(self, encoder, regressor):
+        self.encoder = encoder
+        self.regressor = regressor
+
+        self.encoder_ = None
+        self.regressor_ = None
+
+    def fit(self, X, y):
+        self.encoder_ = clone(self.encoder)
+        self.regressor_ = clone(self.regressor)
+
+        self.encoder_.fit(y, X)
+
+        z = self.encoder_.transform(y)
+        self.regressor_.fit(X, z)
+        return self
+
+    def predict(self, X):
+        z_pred = self.regressor_.predict(X)
+        return self.encoder_.inverse_transform(z_pred)
 
 
 class SklearnLikeModelFactory(ModelFactory):

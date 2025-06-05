@@ -287,8 +287,18 @@ def collect_obj_regr_eval_results(obj_regr):
     if isinstance(obj_regr, EvaluatedModel):
         results["obj_regr"] = obj_regr.eval_result_
 
-    if isinstance(obj_regr.regressor, EvaluatedModel):
+    if isinstance(obj_regr.regressor_, EvaluatedModel):
         results["regr"] = obj_regr.regressor_.eval_result_
+
+    # handles SupervisedEmbeddingRegressor
+    if hasattr(obj_regr.regressor_, "regressor_") and isinstance(
+        obj_regr.regressor_.regressor_, EvaluatedModel
+    ):
+        results["regr-regr"] = obj_regr.regressor_.regressor_.eval_result_
+    if hasattr(obj_regr.regressor_, "encoder_") and isinstance(
+        obj_regr.regressor_.encoder_, EvaluatedModel
+    ):
+        results["regr-encoder"] = obj_regr.regressor_.encoder_.eval_result_
 
     # TODO: do it recursively?
     for step_name, step in obj_regr.objs2y_.steps:
