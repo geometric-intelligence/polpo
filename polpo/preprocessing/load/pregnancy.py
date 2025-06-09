@@ -13,10 +13,12 @@ from polpo.preprocessing import (
     PartiallyInitializedStep,
     Sorter,
     StepWithLogging,
+    TupleWith,
 )
 from polpo.preprocessing.dict import (
     DictMap,
     DictToValuesList,
+    Hash,
     HashWithIncoming,
     SelectKeySubset,
 )
@@ -732,3 +734,109 @@ def DenseMaternalSegmentationsLoader(
         return file_finder
 
     return file_finder + DictToValuesList()
+
+
+def NeuroMaternalFoldersSelector(
+    data_dir="~/.herbrain/data/maternal/neuromaternal_madrid_2021",
+    subset=None,
+    derivative="enigma",
+):
+    # TODO: homogenize data_dir with Pregnancy one; use derivatives folder above
+    # TODO: bring as_dict in?
+    # TODO: as dict in session is particularly interesting
+    # TODO: subset applyes to subject id
+
+    # per subject, per session
+
+    path_to_sub = PathShortener() + (lambda x: x.split("_")[0].split("-")[-1])
+
+    # BranchingPipeline(
+    #     [DigitFinder(index=0), DigitFinder(index=-1)], merger=lambda x: x
+    # )
+
+    folder_name = os.path.join(data_dir, "derivatives")
+    folders_selector = (
+        Constant(folder_name)
+        + ExpandUser()
+        + FileFinder(rules=StartsWith(derivative))
+        + FileFinder(rules=ContainsAll(["sub", "ses"]), as_list=True)
+    )
+
+    if subset is not None:
+        folders_selector += Filter(
+            func=lambda folder_name: path_to_sub(folder_name) in subset
+        )
+
+    pipe = (
+        folders_selector
+        + TupleWith(Map(path_to_sub), incoming_first=False)
+        + Sorter(key=lambda x: x[0])
+        + (
+            lambda sub_sessions: [
+                (x[0], (x[1], y[1]))
+                for x, y in zip(sub_sessions[::2], sub_sessions[1::2])
+                if x[0] == y[0]
+            ]
+        )
+        + Hash()
+        + DictMap(step=Sorter(key=lambda x: x.split()[-1]))
+    )
+
+    return pipe
+
+
+def NeuroMaternalMeshLoader(
+    data_dir="~/.herbrain/data/maternal/neuromaternal_madrid_2021",
+    subject_id=None,
+    struct="Hipp",
+    subset=None,
+    left=True,
+    as_dict=False,
+    derivative="enigma",
+):
+    # NB: as_dict controls session
+
+    if struct not in FIRST_STRUCTS:
+        raise ValueError(
+            f"Ups, `{struct}` is not available. Please, choose from: {','.join(FIRST_STRUCTS)}"
+        )
+
+    if struct == "BrStem":
+        suffixed_side = ""
+    else:
+        suffixed_side = "L_" if left else "R_"
+
+    folders_selector = NeuroMaternalFoldersSelector(
+        data_dir=data_dir,
+        subset=subset,
+        derivative=derivative,
+    )
+
+    suffixed_struct = f"{suffixed_side}{struct}"
+    if derivative.startswith("enigma"):
+        enigma_index = f"_{ENIGMA_STRUCT2ID[suffixed_struct]}"
+        rules = [
+            lambda file: file.endswith(enigma_index),
+        ]
+    else:
+        rules = [
+            IsFileType("vtk"),
+            lambda filename: suffixed_struct in filename,
+        ]
+
+    path_to_session = PathShortener() + DigitFinder(index=-1)
+
+    # NB: sessions are already sorted
+    if as_dict:
+        file_finder = DictMap(
+            HashWithIncoming(
+                Map(FileFinder(rules=rules)),
+                key_step=Map(path_to_session),
+            )
+        )
+    else:
+        file_finder = DictMap(Map(FileFinder(rules=rules)))
+
+    pipe = folders_selector + file_finder
+
+    return pipe
