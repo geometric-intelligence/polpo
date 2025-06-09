@@ -840,3 +840,46 @@ def NeuroMaternalMeshLoader(
     pipe = folders_selector + file_finder
 
     return pipe
+
+
+def NeuroMaternalTabularDataLoader(
+    data_dir="~/.herbrain/data/maternal/neuromaternal_madrid_2021",
+    keep_mothers=True,
+    keep_control=True,
+):
+    """Load neuro maternal tabular data.
+
+    Parameters
+    ----------
+    data_dir : str
+        Project directory.
+    keep_mothers : bool
+        Wether to keep mothers.
+    keep_control : bool
+        Whether to keep control.
+
+    Returns
+    -------
+    pipe : Pipeline
+    """
+    filename = os.path.join(data_dir, "rawdata", "participants_long_czi.tsv")
+
+    load_pipe = ppd.CsvReader(filename, delimiter="\t")
+
+    prep_pipe = (
+        ppd.UpdateColumnValues(
+            column_name="participant_id", func=lambda entry: entry.split("-")[1]
+        )
+        + ppd.UpdateColumnValues(
+            column_name="ses", func=lambda entry: entry.split("-")[1]
+        )
+        + ppd.Drop(labels=["participant_id_ses"], axis=1)
+    )
+
+    if not keep_mothers:
+        prep_pipe += ppd.DfFilter(lambda df: df["group"] == "mother", negate=True)
+
+    if not keep_control:
+        prep_pipe += ppd.DfFilter(lambda df: df["group"] == "control", negate=True)
+
+    return load_pipe + prep_pipe

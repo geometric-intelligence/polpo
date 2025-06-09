@@ -281,6 +281,20 @@ class DfIsInFilter(PreprocessingStep):
         return df[indices]
 
 
+class DfFilter(PreprocessingStep):
+    def __init__(self, filter_, negate=False):
+        super().__init__()
+        self.filter = filter_
+        self.negate = negate
+
+    def __call__(self, df):
+        indices = self.filter(df)
+        if self.negate:
+            indices = ~indices
+
+        return df[indices]
+
+
 class ColumnToDict(Pipeline):
     """Extract a column from a dataframe and convert it to a dict.
 
