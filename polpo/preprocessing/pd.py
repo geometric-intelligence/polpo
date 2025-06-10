@@ -267,18 +267,25 @@ class IndexSetter(PreprocessingStep):
 
 
 class DfIsInFilter(PreprocessingStep):
-    def __init__(self, column_name, values, negate=False):
+    def __init__(self, column_name, values, negate=False, readonly=True):
+        # NB: readonly to avoid pd.errors.SettingWithCopyWarning
         super().__init__()
         self.column_name = column_name
         self.values = values
         self.negate = negate
+        self.readonly = readonly
 
     def __call__(self, df):
         indices = df[self.column_name].isin(self.values)
         if self.negate:
             indices = ~indices
 
-        return df[indices]
+        out = df[indices]
+
+        if self.readonly:
+            return out
+
+        return out.copy()
 
 
 class DfFilter(PreprocessingStep):
