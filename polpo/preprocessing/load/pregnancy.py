@@ -750,10 +750,6 @@ def NeuroMaternalFoldersSelector(
 
     path_to_sub = PathShortener() + (lambda x: x.split("_")[0].split("-")[-1])
 
-    # BranchingPipeline(
-    #     [DigitFinder(index=0), DigitFinder(index=-1)], merger=lambda x: x
-    # )
-
     folder_name = os.path.join(data_dir, "derivatives")
     folders_selector = (
         Constant(folder_name)
@@ -785,6 +781,10 @@ def NeuroMaternalFoldersSelector(
     return pipe
 
 
+def _neuromaternal_session_id_map(value):
+    return value - 3
+
+
 def NeuroMaternalMeshLoader(
     data_dir="~/.herbrain/data/maternal/neuromaternal_madrid_2021",
     subject_id=None,
@@ -795,6 +795,7 @@ def NeuroMaternalMeshLoader(
     derivative="enigma",
 ):
     # NB: as_dict controls session
+    # NB: sessions names are remapped to start at zero
 
     if struct not in FIRST_STRUCTS:
         raise ValueError(
@@ -824,7 +825,11 @@ def NeuroMaternalMeshLoader(
             lambda filename: suffixed_struct in filename,
         ]
 
-    path_to_session = PathShortener() + DigitFinder(index=-1)
+    path_to_session = (
+        PathShortener()
+        + DigitFinder(index=-1)
+        + (lambda x: _neuromaternal_session_id_map(x))
+    )
 
     # NB: sessions are already sorted
     if as_dict:
@@ -846,6 +851,7 @@ def NeuroMaternalTabularDataLoader(
     data_dir="~/.herbrain/data/maternal/neuromaternal_madrid_2021",
     keep_mothers=True,
     keep_control=True,
+    sessions_to_keep=(0, 1),
 ):
     """Load neuro maternal tabular data.
 
@@ -868,12 +874,15 @@ def NeuroMaternalTabularDataLoader(
 
     prep_pipe = (
         ppd.UpdateColumnValues(
-            column_name="participant_id", func=lambda entry: entry.split("-")[1]
+            column_name="participant_id",
+            func=lambda entry: entry.split("-")[1],
         )
         + ppd.UpdateColumnValues(
-            column_name="ses", func=lambda entry: entry.split("-")[1]
+            column_name="ses",
+            func=lambda entry: _neuromaternal_session_id_map(int(entry.split("-")[1])),
         )
-        + ppd.Drop(labels=["participant_id_ses"], axis=1)
+        + ppd.DfIsInFilter("ses", sessions_to_keep, readonly=False)
+        + ppd.Drop(labels=["participant_id_ses"], axis=1, inplace=True)
     )
 
     if not keep_mothers:
