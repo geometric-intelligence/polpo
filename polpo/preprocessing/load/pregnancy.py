@@ -16,9 +16,9 @@ from polpo.preprocessing import (
     TupleWith,
 )
 from polpo.preprocessing.dict import (
+    DictFilter,
     DictMap,
     DictToValuesList,
-    Hash,
     HashWithIncoming,
     SelectKeySubset,
 )
@@ -740,13 +740,24 @@ def NeuroMaternalFoldersSelector(
     data_dir="~/.herbrain/data/maternal/neuromaternal_madrid_2021",
     subset=None,
     derivative="enigma",
+    remove_missing_sessions=True,
 ):
-    # TODO: homogenize data_dir with Pregnancy one; use derivatives folder above
-    # TODO: bring as_dict in?
-    # TODO: as dict in session is particularly interesting
-    # TODO: subset applyes to subject id
+    """Create pipeline to load neuromaternal mesh folders.
 
-    # per subject, per session
+    Parameters
+    ----------
+    subset : array-like
+        Subset of participants to load. If `None`, loads all.
+    remove_missing_sessions : bool
+        Whether to keep only subjects for which there's two sessions
+
+    Returns
+    -------
+    pipe : Pipeline
+        Pipeline whose output is dict[int, list[string]].
+        Key represents participant id and value the corresponding filenames.
+    """
+    # TODO: homogenize data_dir with Pregnancy one; use derivatives folder above
 
     path_to_sub = PathShortener() + (lambda x: x.split("_")[0].split("-")[-1])
 
@@ -763,18 +774,27 @@ def NeuroMaternalFoldersSelector(
             func=lambda folder_name: path_to_sub(folder_name) in subset
         )
 
+    def _group_sessions(sub_sessions):
+        out = {}
+        for sub_session in sub_sessions:
+            key = sub_session[0]
+            sub_out = out.get(key, [])
+            sub_out.append(sub_session[1])
+            out[key] = sub_out
+
+        return out
+
+    filter_ = (
+        DictFilter(func=lambda x: len(x) == 2)
+        if remove_missing_sessions
+        else (lambda x: x)
+    )
+
     pipe = (
         folders_selector
         + TupleWith(Map(path_to_sub), incoming_first=False)
-        + Sorter(key=lambda x: x[0])
-        + (
-            lambda sub_sessions: [
-                (x[0], (x[1], y[1]))
-                for x, y in zip(sub_sessions[::2], sub_sessions[1::2])
-                if x[0] == y[0]
-            ]
-        )
-        + Hash()
+        + _group_sessions
+        + filter_
         + DictMap(step=Sorter(key=lambda x: x.split()[-1]))
     )
 
