@@ -410,6 +410,31 @@ class SupervisedEmbeddingRegressor(BaseEstimator, RegressorMixin):
         return self.encoder_.inverse_transform(z_pred)
 
 
+class SupervisedXEmbeddingRegressor(BaseEstimator, RegressorMixin):
+    # TODO: cross decomposition?
+
+    def __init__(self, encoder, regressor):
+        self.encoder = encoder
+        self.regressor = regressor
+
+        self.encoder_ = None
+        self.regressor_ = None
+
+    def fit(self, X, y):
+        self.encoder_ = clone(self.encoder)
+        self.regressor_ = clone(self.regressor)
+
+        self.encoder_.fit(X, y)
+
+        z = self.encoder_.transform(X)
+        self.regressor_.fit(z, y)
+        return self
+
+    def predict(self, X):
+        z = self.encoder_.transform(X)
+        return self.regressor_.predict(z)
+
+
 class SklearnLikeModelFactory(ModelFactory):
     # TODO: inherit from some pipeline based factory?
 
