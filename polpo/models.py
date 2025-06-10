@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import sklearn
 from matplotlib.colors import TwoSlopeNorm
-from sklearn.base import BaseEstimator, RegressorMixin, clone
+from sklearn.base import BaseEstimator, RegressorMixin, TransformerMixin, clone
 from sklearn.decomposition import PCA
 from sklearn.linear_model import LinearRegression
 from sklearn.pipeline import Pipeline as SklearnPipeline
@@ -433,6 +433,54 @@ class SupervisedXEmbeddingRegressor(BaseEstimator, RegressorMixin):
     def predict(self, X):
         z = self.encoder_.transform(X)
         return self.regressor_.predict(z)
+
+
+class MultiTransform(BaseEstimator, TransformerMixin):
+    def __init__(self, transforms, dim=None):
+        # TODO: expand for different dims
+        self.transforms = transforms
+        self.dim = dim
+
+        self.transforms_ = None
+        self.n_transforms = len(self.transforms)
+
+    def _dispatch_data(self, X, y=None):
+        # only dispatches X
+        dim = self.dim if self.dim is not None else X.shape[-1] // self.n_transforms
+
+        if isinstance(dim, int):
+            X = X.reshape(X.shape[0], -1, dim)
+            X = np.moveaxis(X, 0, 1)
+
+            return X, y
+
+        start_index = 0
+        X_ = []
+        for dim_ in dim:
+            end_index = start_index + dim_
+            X_.append(X[:, start_index:end_index])
+            start_index = end_index
+
+        return X_, y
+
+    def fit(self, X, y=None):
+        X_, y = self._dispatch_data(X, y)
+
+        self.transforms_ = [clone(transform) for transform in self.transforms]
+
+        for transform, X_transform in zip(self.transforms_, X_):
+            transform.fit(X_transform, y)
+
+        return self
+
+    def transform(self, X):
+        X_, _ = self._dispatch_data(X)
+        out = [
+            transform.predict(X_transform)
+            for transform, X_transform in zip(self.transforms_, X_)
+        ]
+
+        return np.concatenate(out, axis=-1)
 
 
 class SklearnLikeModelFactory(ModelFactory):
