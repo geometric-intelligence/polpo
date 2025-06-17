@@ -308,4 +308,47 @@ def collect_obj_regr_eval_results(obj_regr):
     return results
 
 
-# TODO: add post evaluator (check EvaluatedModel)
+def collect_eval_results(estimator, unnest=True, outer_key=""):
+    # TODO: extend based on collect_obj_regr_eval_results
+
+    # outer_key only applicable if unnest is True
+    results = {}
+
+    if isinstance(estimator, EvaluatedModel):
+        results["res"] = estimator.eval_result_
+
+    # Pipeline
+    if hasattr(estimator, "named_steps"):
+        for name, step in estimator.named_steps.items():
+            res = collect_eval_results(step, unnest=False)
+            if len(res):
+                results[name] = res
+
+    # FeatureUnion
+    if hasattr(estimator, "named_transformers"):
+        for name, transformer in estimator.named_transformers.items():
+            res = collect_eval_results(transformer, unnest=False)
+            if len(res):
+                results[name] = res
+
+    if unnest:
+        results = _unnest_results(results, current_key=outer_key)
+
+    return results
+
+
+def _unnest_results(results, current_key="", res_dict=None):
+    sep = "/" if current_key else ""
+    if res_dict is None:
+        res_dict = {}
+
+    for key, value in results.items():
+        if key == "res":
+            res_dict[current_key] = value
+            continue
+
+        res_dict = _unnest_results(
+            value, current_key=f"{current_key}{sep}{key}", res_dict=res_dict
+        )
+
+    return res_dict
