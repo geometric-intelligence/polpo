@@ -3,7 +3,7 @@
 from collections.abc import Iterable
 
 from sklearn.base import BaseEstimator, TransformerMixin, clone
-from sklearn.pipeline import Pipeline
+from sklearn.pipeline import FeatureUnion, Pipeline
 
 
 class TransformerAdapter(TransformerMixin, BaseEstimator):
@@ -76,7 +76,7 @@ class AdapterPipeline(Pipeline):
                 step_name = f"step_{index}"
                 step = (step_name, step)
 
-            if not hasattr(step[1], "fit_transform"):
+            if not hasattr(step[1], "fit"):
                 step = (step[0], TransformerAdapter(step[1]))
 
             adapted_steps.append(step)
@@ -87,7 +87,48 @@ class AdapterPipeline(Pipeline):
         return AdapterPipeline(steps=self._unadapted_steps)
 
 
-class EvaluatedModel:
+class AdapterFeatureUnion(FeatureUnion):
+    def __init__(
+        self,
+        transformer_list,
+        *,
+        n_jobs=None,
+        transformer_weights=None,
+        verbose=False,
+        verbose_feature_names_out=True,
+    ):
+        self._unadapted_transformer_list = transformer_list
+
+        adapted_transformer_list = []
+        for index, transformer in enumerate(transformer_list):
+            if not isinstance(transformer, Iterable):
+                transformer_name = f"step_{index}"
+                transformer = (transformer_name, transformer)
+
+            if not hasattr(transformer[1], "fit"):
+                transformer = (transformer[0], TransformerAdapter(transformer[1]))
+
+            adapted_transformer_list.append(transformer)
+
+        super().__init__(
+            adapted_transformer_list,
+            n_jobs=n_jobs,
+            transformer_weights=transformer_weights,
+            verbose=verbose,
+            verbose_feature_names_out=verbose_feature_names_out,
+        )
+
+    def __sklearn_clone__(self):
+        return AdapterFeatureUnion(
+            self._unadapted_transformer_list,
+            n_jobs=self.n_jobs,
+            transformer_weights=self.transformer_weights,
+            verbose=self.verbose,
+            verbose_feature_names_out=self.verbose_feature_names_out,
+        )
+
+
+class EvaluatedModel(BaseEstimator, TransformerMixin):
     """Model with evaluation.
 
     Wraps a model to log info.
@@ -100,7 +141,10 @@ class EvaluatedModel:
         Model evaluator.
     """
 
+    # TODO: need to think about inheritance
+
     def __init__(self, model, evaluator):
+        super().__init__()
         self.model = model
         self.evaluator = evaluator
         self.eval_result_ = None
