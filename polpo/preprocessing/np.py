@@ -76,3 +76,20 @@ class RealsRepr2Complex(PreprocessingStep):
     def __call__(self, rnumber):
         half_index = rnumber.shape[-1] // 2
         return rnumber[..., :half_index] + 1j * rnumber[..., half_index:]
+
+
+class ConcatenationIndices(PreprocessingStep):
+    def __init__(self, axis=-1):
+        super().__init__()
+        self.axis = axis
+
+    def __call__(self, arrays):
+        start_index = 0
+        indices = []
+        for array in arrays:
+            dim = array.shape[self.axis]
+            end_index = start_index + dim
+            indices.append((start_index, end_index))
+            start_index = end_index
+
+        return indices
