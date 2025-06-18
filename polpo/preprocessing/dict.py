@@ -318,3 +318,26 @@ class ListDictSwapper(PreprocessingStep):
                 out[key].append(elem[key])
 
         return out
+
+
+class ZipWithKeys(StepWrappingPreprocessingStep):
+    """Apply step to the values of a dict.
+
+    Then, get a list back, zip with original keys, and return a dict.
+    """
+
+    def __init__(self, step, check_length=True):
+        super().__init__(step)
+        self.check_length = check_length
+
+    def __call__(self, dict_):
+        keys = list(dict_.keys())
+        values = list(dict_.values())
+        new_values = self.step(values)
+
+        if self.check_length and len(new_values) != len(keys):
+            raise ValueError(
+                f"Length mismatch: {len(keys)} keys but {len(new_values)} outputs"
+            )
+
+        return dict(zip(keys, new_values))
