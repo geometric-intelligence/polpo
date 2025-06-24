@@ -65,7 +65,7 @@ class PValuesAdjuster:
         self.method = method
 
     def __call__(self, pvals):
-        return multipletests(pvals.flatten(), method="bonferroni")[1].reshape(
+        return multipletests(pvals.flatten(), method=self.method)[1].reshape(
             pvals.shape
         )
 
