@@ -7,7 +7,6 @@ from matplotlib.colors import TwoSlopeNorm
 from sklearn.base import BaseEstimator, RegressorMixin, clone
 from sklearn.decomposition import PCA
 from sklearn.linear_model import LinearRegression
-from sklearn.pipeline import Pipeline as SklearnPipeline
 from sklearn.preprocessing import FunctionTransformer, StandardScaler
 
 from polpo.plot.mri import MriSlicer
@@ -228,7 +227,7 @@ def DictMeshes2Comps(
     return DictMeshes2y(pipes, as_pipe=as_pipe)
 
 
-class ObjectRegressor(GetParamsMixin, SklearnPipeline):
+class ObjectRegressor(GetParamsMixin, AdapterPipeline):
     # just syntax sugar for sklearn.Pipeline
 
     def __init__(self, model, objs2y, x2x=None):
