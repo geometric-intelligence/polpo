@@ -269,6 +269,7 @@ class ShapeCollector(ModelEvaluator):
         return {
             f"{var_name}-shape": var.shape
             for var_name, var in [("X", X), ("y", y), ("y_pred", y_pred)]
+            if var is not None
         }
 
 
