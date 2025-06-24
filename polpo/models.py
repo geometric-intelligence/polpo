@@ -8,6 +8,7 @@ from sklearn.base import BaseEstimator, RegressorMixin, clone
 from sklearn.decomposition import PCA
 from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import FunctionTransformer, StandardScaler
+from sklearn.utils.validation import check_is_fitted
 
 from polpo.plot.mri import MriSlicer
 from polpo.preprocessing import IdentityStep
@@ -405,7 +406,24 @@ class SupervisedEmbeddingRegressor(BaseEstimator, RegressorMixin):
         return self
 
     def predict(self, X):
+        check_is_fitted(self)
+
         z_pred = self.regressor_.predict(X)
+        return self.encoder_.inverse_transform(z_pred)
+
+    def predict_eval(self, X, y):
+        check_is_fitted(self)
+
+        if hasattr(self.encoder_, "transform_eval"):
+            yt = self.encoder_.transform_eval(y)
+        else:
+            yt = self.encoder_.transform(y)
+
+        if hasattr(self.regressor_, "predict_eval"):
+            z_pred = self.regressor_.predict_eval(X, yt)
+        else:
+            z_pred = self.regressor_.predict(X)
+
         return self.encoder_.inverse_transform(z_pred)
 
 
