@@ -147,6 +147,28 @@ class AdapterFeatureUnion(FeatureUnion):
             verbose_feature_names_out=self.verbose_feature_names_out,
         )
 
+    def transform_eval(self, X, y=None):
+        Xs = []
+
+        # TODO: make parallel
+        for _, transform, _ in self._iter():
+            # TODO: take weight into account
+            if hasattr(transform, "transform_eval"):
+                X_ = transform.transform_eval(X, y)
+            else:
+                X_ = transform.transform(X)
+
+            if isinstance(X_, tuple):
+                X_, _ = X_
+
+            Xs.append(X_)
+
+        Xt = self._hstack(Xs)
+        if y is None:
+            return Xt
+
+        return Xt, y
+
 
 class EvaluatedModel(BaseEstimator, TransformerMixin):
     """Model with evaluation.
