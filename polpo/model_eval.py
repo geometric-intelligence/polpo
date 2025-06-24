@@ -282,39 +282,45 @@ class ResultsExtender:
         return results
 
 
-def collect_eval_results(estimator, unnest=True, outer_key=""):
+def collect_eval_results(estimator, unnest=True, outer_key="", train=True):
     # outer_key only applicable if unnest is True
     results = {}
 
     if isinstance(estimator, EvaluatedModel):
-        results["res"] = estimator.eval_result_
+        results["res"] = (
+            estimator.eval_result_ if train else estimator.eval_result_pred_
+        )
 
     # Pipeline
     if hasattr(estimator, "named_steps"):
         for name, step in estimator.named_steps.items():
-            res = collect_eval_results(step, unnest=False)
+            res = collect_eval_results(step, unnest=False, train=train)
             if len(res):
                 results[name] = res
 
     # FeatureUnion
     if hasattr(estimator, "named_transformers"):
         for name, transformer in estimator.named_transformers.items():
-            res = collect_eval_results(transformer, unnest=False)
+            res = collect_eval_results(transformer, unnest=False, train=train)
             if len(res):
                 results[name] = res
 
     # TransformedTargetRegressor, SupervisedEmbeddingRegressor, not pipeline
     if hasattr(estimator, "regressor_") and not hasattr(estimator, "named_steps"):
-        results["regr"] = collect_eval_results(estimator.regressor_, unnest=False)
+        results["regr"] = collect_eval_results(
+            estimator.regressor_, unnest=False, train=train
+        )
 
     if hasattr(estimator, "transformer_") and not hasattr(estimator, "named_steps"):
         results["transformer"] = collect_eval_results(
-            estimator.transformer_, unnest=False
+            estimator.transformer_, unnest=False, train=train
         )
 
     # SupervisedEmbeddingRegressor, not pipeline
     if hasattr(estimator, "encoder_") and not hasattr(estimator, "named_steps"):
-        results["encoder"] = collect_eval_results(estimator.encoder_, unnest=False)
+        results["encoder"] = collect_eval_results(
+            estimator.encoder_, unnest=False, train=train
+        )
 
     if unnest:
         results = _unnest_results(results, current_key=outer_key)

@@ -4,6 +4,7 @@ from collections.abc import Iterable
 
 from sklearn.base import BaseEstimator, TransformerMixin, clone
 from sklearn.pipeline import FeatureUnion, Pipeline
+from sklearn.utils.validation import check_is_fitted
 
 
 class TransformerAdapter(TransformerMixin, BaseEstimator):
@@ -86,6 +87,26 @@ class AdapterPipeline(Pipeline):
     def __sklearn_clone__(self):
         return AdapterPipeline(steps=self._unadapted_steps)
 
+    def predict_eval(self, X, y=None):
+        check_is_fitted(self)
+
+        Xt = X
+        yt = y
+        for _, name, transform in self._iter(with_final=False):
+            if hasattr(transform, "transform_eval"):
+                Xt = transform.transform_eval(Xt, yt)
+            else:
+                Xt = transform.transform(Xt, yt)
+
+            if isinstance(Xt, tuple):
+                Xt, yt = Xt
+
+        last_step = self.steps[-1][1]
+        if hasattr(last_step, "predict_eval"):
+            return last_step.predict_eval(Xt, yt)
+
+        return last_step.predict(Xt)
+
 
 class AdapterFeatureUnion(FeatureUnion):
     def __init__(
@@ -142,12 +163,14 @@ class EvaluatedModel(BaseEstimator, TransformerMixin):
     """
 
     # TODO: need to think about inheritance
+    # TODO: split in two?
 
     def __init__(self, model, evaluator):
         super().__init__()
         self.model = model
         self.evaluator = evaluator
         self.eval_result_ = None
+        self.eval_result_pred_ = None
 
     def __getattr__(self, name):
         """Delegate attribute access to the wrapped model."""
@@ -161,3 +184,31 @@ class EvaluatedModel(BaseEstimator, TransformerMixin):
 
         self.eval_result_ = self.evaluator(self.model, X, y)
         return self
+
+    def predict_eval(self, X, y=None):
+        check_is_fitted(self)
+
+        if hasattr(self.model, "predict_eval"):
+            y_pred = self.model.predict_eval(X, y)
+        else:
+            y_pred = self.model.predict(X)
+
+        self.eval_result_pred_ = self.evaluator(self.model, X, y, y_pred=y_pred)
+        return y_pred
+
+    def transform_eval(self, X, y=None):
+        check_is_fitted(self)
+
+        Xt = self.model.transform(X, y)
+        yt = y
+        # e.g. PLS
+        if is_tuple := isinstance(Xt, tuple):
+            Xt, yt = Xt
+
+        # TODO: potentially pass Xt?
+        self.eval_result_pred_ = self.evaluator(self.model, X, y)
+
+        if is_tuple:
+            return Xt, yt
+
+        return Xt
