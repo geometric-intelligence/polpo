@@ -91,19 +91,18 @@ class AdapterPipeline(Pipeline):
         check_is_fitted(self)
 
         Xt = X
-        yt = y
         for _, name, transform in self._iter(with_final=False):
             if hasattr(transform, "transform_eval"):
-                Xt = transform.transform_eval(Xt, yt)
+                Xt = transform.transform_eval(Xt, y)
             else:
-                Xt = transform.transform(Xt, yt)
+                Xt = transform.transform(Xt)
 
             if isinstance(Xt, tuple):
-                Xt, yt = Xt
+                Xt, _ = Xt
 
         last_step = self.steps[-1][1]
         if hasattr(last_step, "predict_eval"):
-            return last_step.predict_eval(Xt, yt)
+            return last_step.predict_eval(Xt, y)
 
         return last_step.predict(Xt)
 
