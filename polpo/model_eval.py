@@ -262,6 +262,16 @@ class VertexReconstructionError(ModelEvaluator):
         )
 
 
+class ShapeCollector(ModelEvaluator):
+    # NB: for debug purposes
+
+    def __call__(self, model, X, y=None, y_pred=None):
+        return {
+            f"{var_name}-shape": var.shape
+            for var_name, var in [("X", X), ("y", y), ("y_pred", y_pred)]
+        }
+
+
 class ResultsExtender:
     def __init__(self, metrics=None):
         self.metrics = metrics
