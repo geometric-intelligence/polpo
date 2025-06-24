@@ -91,7 +91,7 @@ class AdapterPipeline(Pipeline):
         check_is_fitted(self)
 
         Xt = X
-        for _, name, transform in self._iter(with_final=False):
+        for _, _, transform in self._iter(with_final=False):
             if hasattr(transform, "transform_eval"):
                 Xt = transform.transform_eval(Xt, y)
             else:
@@ -105,6 +105,19 @@ class AdapterPipeline(Pipeline):
             return last_step.predict_eval(Xt, y)
 
         return last_step.predict(Xt)
+
+    def transform_eval(self, X, y=None):
+        check_is_fitted(self)
+
+        Xt = X
+        for _, _, transform in self._iter():
+            # TODO: need to check if last has transform?
+            if hasattr(transform, "transform_eval"):
+                Xt = transform.transform_eval(Xt, y)
+            else:
+                Xt = transform.transform(Xt)
+
+        return Xt
 
 
 class AdapterFeatureUnion(FeatureUnion):
