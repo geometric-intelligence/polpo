@@ -83,6 +83,26 @@ class ObjectBasedTransformedTargetRegressor(TransformedTargetRegressor):
 
         return pred_trans
 
+    def predict_eval(self, X, y):
+        check_is_fitted(self)
+
+        if hasattr(self.transformer_, "transform_eval"):
+            yt = self.transformer_.transform_eval(y)
+        else:
+            yt = self.transformer_.transform(y)
+
+        if hasattr(self.regressor_, "predict_eval"):
+            pred = self.regressor_.predict_eval(X, yt)
+        else:
+            pred = self.regressor_.predict(X)
+
+        if pred.ndim == 1:
+            pred_trans = self.transformer_.inverse_transform(pred.reshape(-1, 1))
+        else:
+            pred_trans = self.transformer_.inverse_transform(pred)
+
+        return pred_trans
+
 
 class PostTransformingEstimator:
     """Estimator wrapper that learns a post-processing transform after model fitting.
