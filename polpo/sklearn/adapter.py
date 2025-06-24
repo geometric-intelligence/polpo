@@ -220,16 +220,8 @@ class EvaluatedModel(BaseEstimator, TransformerMixin):
     def transform_eval(self, X, y=None):
         check_is_fitted(self)
 
-        Xt = self.model.transform(X, y)
-        yt = y
-        # e.g. PLS
-        if is_tuple := isinstance(Xt, tuple):
-            Xt, yt = Xt
+        Xt = self.model.transform(X)
 
-        # TODO: potentially pass Xt?
         self.eval_result_pred_ = self.evaluator(self.model, X, y)
-
-        if is_tuple:
-            return Xt, yt
 
         return Xt
