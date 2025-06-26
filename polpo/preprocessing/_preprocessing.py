@@ -543,3 +543,49 @@ class StepWithLogging(StepWrappingPreprocessingStep):
     def __call__(self, data=None):
         logging.info(self.msg)
         return self.step(data)
+
+
+class CachablePipeline(PreprocessingStep):
+    # assumes existence of cache_dir means cache has been done
+    # cache_pipe takes cache_dir
+    # no_cache_pipe takes data
+    # to_cache_pipe takes (cache_dir, data)
+
+    # overwrite: cache folder is overwritten if existing, otherwise raises error
+
+    def __init__(
+        self,
+        cache_dir,
+        no_cache_pipe,
+        cache_pipe,
+        to_cache_pipe,
+        use_cache=True,
+        cache=True,
+        overwrite=False,
+    ):
+        super().__init__()
+        self.no_cache_pipe = no_cache_pipe
+        self.cache_pipe = cache_pipe
+        self.to_cache_pipe = to_cache_pipe
+        self.cache_dir = cache_dir
+        self.use_cache = use_cache
+        # weird, but for debug purposes
+        self.cache = cache
+        self.overwrite = overwrite
+
+    def __call__(self, data=None):
+        if self.use_cache and os.path.exists(self.cache_dir):
+            return self.cache_pipe(self.cache_dir)
+
+        out = self.no_cache_pipe(data)
+
+        if not self.cache:
+            return out
+
+        if self.overwrite and os.path.exists(self.cache_dir):
+            shutil.rmtree(self.cache_dir)
+
+        os.mkdir(self.cache_dir)
+        self.to_cache_pipe((self.cache_dir, out))
+
+        return out
