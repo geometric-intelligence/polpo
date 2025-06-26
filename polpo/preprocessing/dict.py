@@ -133,6 +133,14 @@ class DictExtractKey(PreprocessingStep):
         return data[self.key]
 
 
+class ExtractUniqueKey(PreprocessingStep):
+    def __call__(self, dict_):
+        if (n_keys := len(dict_)) != 1:
+            raise ValueError(f"Expected one key, but there's {n_keys}")
+
+        return dict_[list(dict_.keys())[0]]
+
+
 class DictToValuesList(PreprocessingStep):
     def __call__(self, data):
         return list(data.values())
