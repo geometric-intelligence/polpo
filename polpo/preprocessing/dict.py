@@ -296,6 +296,29 @@ class DictMap:
         )
 
 
+class NestedDictMap:
+    """Nested dict map.
+
+    Parameters
+    ----------
+    depth : int
+        Depth at which step is applied.
+    inner_is_dict : bool
+        Whether inner is a dict. If not, must be an iterable.
+    """
+
+    def __new__(self, step, *args, depth=1, inner_is_dict=True, **kwargs):
+        step = (
+            DictMap(step, *args, **kwargs)
+            if inner_is_dict
+            else Map(step, *args, **kwargs)
+        )
+        for _ in range(depth):
+            step = DictMap(step)
+
+        return step
+
+
 class NestedDictSwapper(PreprocessingStep):
     def __call__(self, nested_dict):
         return {
