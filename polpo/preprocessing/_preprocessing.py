@@ -591,10 +591,14 @@ class CachablePipeline(PreprocessingStep):
         if not self.cache:
             return out
 
-        if self.overwrite and os.path.exists(self.cache_dir):
-            shutil.rmtree(self.cache_dir)
+        if self.overwrite:
+            self.reset_cache()
 
         os.mkdir(self.cache_dir)
         self.to_cache_pipe((self.cache_dir, out))
 
         return out
+
+    def reset_cache(self):
+        if os.path.exists(self.cache_dir):
+            shutil.rmtree(self.cache_dir)
