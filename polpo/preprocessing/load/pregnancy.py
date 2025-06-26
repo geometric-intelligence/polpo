@@ -570,7 +570,7 @@ def DenseMaternalFoldersSelector(
 
     if subject_id not in MATERNAL_IDS:
         raise ValueError(
-            f"Ups, `{subject_id}` is not available. Please, choose from: {','.join(MATERNAL_IDS)}"
+            f"Oops, `{subject_id}` is not available. Please, choose from: {','.join(MATERNAL_IDS)}"
         )
 
     pilot = True if subject_id == "01" else False
@@ -652,7 +652,7 @@ def DenseMaternalMeshLoader(
     """
     if struct not in FIRST_STRUCTS:
         raise ValueError(
-            f"Ups, `{struct}` is not available. Please, choose from: {','.join(FIRST_STRUCTS)}"
+            f"Oops, `{struct}` is not available. Please, choose from: {','.join(FIRST_STRUCTS)}"
         )
 
     if struct == "BrStem":
