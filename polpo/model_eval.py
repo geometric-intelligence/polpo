@@ -340,6 +340,7 @@ def collect_eval_results(estimator, unnest=True, outer_key="", train=True):
 
 
 def _unnest_results(results, current_key="", res_dict=None):
+    # TODO: adapt to use unnest_dict?
     sep = "/" if current_key else ""
     if res_dict is None:
         res_dict = {}
@@ -347,10 +348,10 @@ def _unnest_results(results, current_key="", res_dict=None):
     for key, value in results.items():
         if key == "res":
             res_dict[current_key] = value
-            continue
 
-        res_dict = _unnest_results(
-            value, current_key=f"{current_key}{sep}{key}", res_dict=res_dict
-        )
+        else:
+            res_dict = _unnest_results(
+                value, current_key=f"{current_key}{sep}{key}", res_dict=res_dict
+            )
 
     return res_dict
