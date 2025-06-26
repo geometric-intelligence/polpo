@@ -3,25 +3,26 @@ import os
 import re
 from pathlib import Path
 
+import polpo.preprocessing.dict as ppdict
 import polpo.preprocessing.pd as ppd
 from polpo.preprocessing import (
+    BranchingPipeline,
+    CachablePipeline,
     Constant,
     Contains,
     ContainsAll,
+    EnsureIterable,
     Filter,
+    IdentityStep,
+    IndexMap,
     Map,
     PartiallyInitializedStep,
     Sorter,
     StepWithLogging,
     TupleWith,
 )
-from polpo.preprocessing.dict import (
-    DictFilter,
-    DictMap,
-    DictToValuesList,
-    HashWithIncoming,
-    SelectKeySubset,
-)
+from polpo.preprocessing.mesh.conversion import PvFromData
+from polpo.preprocessing.mesh.io import FreeSurferReader, PvReader, PvWriter
 from polpo.preprocessing.path import (
     ExpandUser,
     FileFinder,
@@ -84,6 +85,14 @@ ENIGMA_STRUCT2ID = {
 
 
 MATERNAL_IDS = {"01", "1001", "1004"}
+
+
+def _tool_to_mesh_reader(tool):
+    # update for other tools
+    if tool.startswith("enigma"):
+        return FreeSurferReader() + PvFromData()
+    else:
+        raise ValueError(f"Oops, don't know how to handle: {tool}")
 
 
 class FigsharePregnancyDataLoader:
@@ -274,7 +283,9 @@ def _FigsharePregnancyFolderLoader(
             )
 
     return (
-        files_loader + HashWithIncoming(key_step=paths_to_ids) + SelectKeySubset(subset)
+        files_loader
+        + ppdict.HashWithIncoming(key_step=paths_to_ids)
+        + ppdict.SelectKeySubset(subset)
     )
 
 
@@ -307,7 +318,7 @@ def PregnancyPilotMriLoader(
         none_to_subset=lambda: list(range(1, 27)),
     )
 
-    files_selector = DictMap(
+    files_selector = ppdict.DictMap(
         step=FileFinder(
             rules=[
                 StartsWith(value="BrainNormalized"),
@@ -321,7 +332,7 @@ def PregnancyPilotMriLoader(
     if as_dict:
         return pipe
 
-    return pipe + DictToValuesList()
+    return pipe + ppdict.DictToValuesList()
 
 
 def PregnancyPilotSegmentationsLoader(
@@ -366,7 +377,7 @@ def PregnancyPilotSegmentationsLoader(
         ]
     )
 
-    files_selector = DictMap(
+    files_selector = ppdict.DictMap(
         step=left_file_selector,
         special_step=right_file_selector,
         special_keys=PREGNANCY_PILOT_REFLECTED_KEYS,
@@ -377,7 +388,7 @@ def PregnancyPilotSegmentationsLoader(
     if as_dict:
         return pipe
 
-    return pipe + DictToValuesList()
+    return pipe + ppdict.DictToValuesList()
 
 
 def PregnancyPilotRegisteredMeshesLoader(
@@ -437,14 +448,14 @@ def PregnancyPilotRegisteredMeshesLoader(
             ],
         )
         + Sorter()
-        + HashWithIncoming(key_step=paths_to_ids)
-        + SelectKeySubset(subset)
+        + ppdict.HashWithIncoming(key_step=paths_to_ids)
+        + ppdict.SelectKeySubset(subset)
     )
 
     if as_dict:
         return pipe
 
-    return pipe + DictToValuesList()
+    return pipe + ppdict.DictToValuesList()
 
 
 def DenseMaternalCsvDataLoader(
@@ -596,7 +607,7 @@ def DenseMaternalFoldersSelector(
 
     pipe = folders_selector + sorter
     if as_dict:
-        pipe = pipe + HashWithIncoming(key_step=Map(path_to_session))
+        pipe = pipe + ppdict.HashWithIncoming(key_step=Map(path_to_session))
 
     return pipe
 
@@ -669,12 +680,12 @@ def DenseMaternalMeshLoader(
             lambda filename: suffixed_struct in filename,
         ]
 
-    file_finder = folders_selector + DictMap(FileFinder(rules=rules))
+    file_finder = folders_selector + ppdict.DictMap(FileFinder(rules=rules))
 
     if as_dict:
         return file_finder
 
-    return file_finder + DictToValuesList()
+    return file_finder + ppdict.DictToValuesList()
 
 
 def DenseMaternalSegmentationsLoader(
@@ -726,14 +737,14 @@ def DenseMaternalSegmentationsLoader(
             rules=lambda x: x == "aseg.auto.mgz"
         )
     else:
-        raise ValueError(f"Ups, don't know how to handle: {tool}")
+        raise ValueError(f"Oops, don't know how to handle: {tool}")
 
-    file_finder = folders_selector + DictMap(image_selector)
+    file_finder = folders_selector + ppdict.DictMap(image_selector)
 
     if as_dict:
         return file_finder
 
-    return file_finder + DictToValuesList()
+    return file_finder + ppdict.DictToValuesList()
 
 
 def NeuroMaternalFoldersSelector(
@@ -749,12 +760,12 @@ def NeuroMaternalFoldersSelector(
     subset : array-like
         Subset of participants to load. If `None`, loads all.
     remove_missing_sessions : bool
-        Whether to keep only subjects for which there's two sessions
+        Whether to keep only subjects for which there's two sessions.
 
     Returns
     -------
     pipe : Pipeline
-        Pipeline whose output is dict[int, list[string]].
+        Pipeline whose output is dict[str, list[str]].
         Key represents participant id and value the corresponding filenames.
     """
     # TODO: homogenize data_dir with Pregnancy one; use derivatives folder above
@@ -785,7 +796,8 @@ def NeuroMaternalFoldersSelector(
         return out
 
     filter_ = (
-        DictFilter(func=lambda x: len(x) == 2)
+        # TODO: this get rid of 3's; bring them in again
+        ppdict.DictFilter(func=lambda x: len(x) == 2)
         if remove_missing_sessions
         else (lambda x: x)
     )
@@ -795,7 +807,7 @@ def NeuroMaternalFoldersSelector(
         + TupleWith(Map(path_to_sub), incoming_first=False)
         + _group_sessions
         + filter_
-        + DictMap(step=Sorter(key=lambda x: x.split()[-1]))
+        + ppdict.DictMap(step=Sorter(key=lambda x: x.split()[-1]))
     )
 
     return pipe
@@ -807,19 +819,22 @@ def _neuromaternal_session_id_map(value):
 
 def NeuroMaternalMeshLoader(
     data_dir="~/.herbrain/data/maternal/neuromaternal_madrid_2021",
-    subject_id=None,
     struct="Hipp",
     subset=None,
     left=True,
     as_dict=False,
     derivative="enigma",
+    as_mesh=False,
 ):
     # NB: as_dict controls session
     # NB: sessions names are remapped to start at zero
 
+    # TODO: update uses of left and right?
+    # TODO: update behavior of other mesh loaders
+
     if struct not in FIRST_STRUCTS:
         raise ValueError(
-            f"Ups, `{struct}` is not available. Please, choose from: {','.join(FIRST_STRUCTS)}"
+            f"Oops, `{struct}` is not available. Please, choose from: {','.join(FIRST_STRUCTS)}"
         )
 
     if struct == "BrStem":
@@ -853,18 +868,49 @@ def NeuroMaternalMeshLoader(
 
     # NB: sessions are already sorted
     if as_dict:
-        file_finder = DictMap(
-            HashWithIncoming(
+        file_finder = ppdict.DictMap(
+            ppdict.HashWithIncoming(
                 Map(FileFinder(rules=rules)),
                 key_step=Map(path_to_session),
             )
         )
     else:
-        file_finder = DictMap(Map(FileFinder(rules=rules)))
+        file_finder = ppdict.DictMap(Map(FileFinder(rules=rules)))
 
     pipe = folders_selector + file_finder
 
-    return pipe
+    if not as_mesh:
+        return pipe
+
+    return pipe + ppdict.NestedDictMap(
+        _tool_to_mesh_reader(derivative), inner_is_dict=as_dict, depth=1
+    )
+
+
+def NeuroMaternalMultiMeshLoader(
+    data_dir="~/.herbrain/data/maternal/neuromaternal_madrid_2021",
+    subset=None,
+    as_inner_dict=False,
+    derivative="enigma",
+    as_mesh=False,
+):
+    # TODO: update name? make other private
+
+    return EnsureIterable(
+        ppdict.HashWithIncoming(
+            Map(
+                PartiallyInitializedStep(
+                    Step=NeuroMaternalMeshLoader,
+                    as_dict=as_inner_dict,
+                    pass_data=False,
+                    _struct=lambda name: name.split("_")[-1],
+                    _left=lambda name: name.split("_")[0] == "L",
+                    derivative=derivative,
+                    as_mesh=as_mesh,
+                )
+            )
+        )
+    )
 
 
 def NeuroMaternalTabularDataLoader(
@@ -912,3 +958,51 @@ def NeuroMaternalTabularDataLoader(
         prep_pipe += ppd.DfFilter(lambda df: df["group"] == "control", negate=True)
 
     return load_pipe + prep_pipe
+
+
+def CacheableMeshLoader(
+    cache_dir,
+    pipe,
+    use_cache=True,
+    cache=True,
+    overwrite=True,
+):
+    # TODO: move place?
+    # TODO: make reader and writer package agnostic?
+
+    # TODO: check DictToValuesList and depth
+    cache_pipe = (
+        FileFinder(IsFileType(ext="vtk"))
+        + Sorter()
+        + ppdict.HashWithIncoming(Map(PvReader()))
+        + ppdict.DictMap(key_step=lambda x: x.rsplit("/", maxsplit=1)[1].split(".")[0])
+        + ppdict.NestDict(sep="-")
+        + ppdict.NestedDictMap(ppdict.DictToValuesList(), depth=1)
+    )
+
+    # TODO: update depth
+    # <struct>-<participant>-<mesh-index>
+    to_cache_pipe = IndexMap(
+        index=1,
+        step=(
+            ppdict.NestedDictMap(
+                BranchingPipeline([lambda x: range(len(x)), IdentityStep()]) + dict,
+                depth=1,
+            )
+            + ppdict.UnnestDict(sep="-")
+        ),
+    ) + (
+        (lambda data: {f"{data[0]}/{key}": value for key, value in data[1].items()})
+        + ppdict.DictToTuplesList()
+        + Map(PvWriter(ext="vtk"))
+    )
+
+    return CachablePipeline(
+        cache_dir,
+        pipe,
+        cache_pipe,
+        to_cache_pipe,
+        use_cache=use_cache,
+        cache=cache,
+        overwrite=overwrite,
+    )
