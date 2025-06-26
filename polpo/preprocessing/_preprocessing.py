@@ -518,6 +518,22 @@ class MethodApplier(PreprocessingStep):
         return getattr(obj, self.method)(*self.args, **self.kwargs)
 
 
+class FunctionCaller(PreprocessingStep):
+    """Calls a function with preset kwargs.
+
+    Parameters
+    ----------
+    func : callable
+        Function.
+    """
+
+    def __init__(self, func, **kwargs):
+        self.func = lambda x: func(x, **kwargs)
+
+    def __call__(self, data=None):
+        return self.func(data)
+
+
 class StepWithLogging(StepWrappingPreprocessingStep):
     # TODO: control logging level
     def __init__(self, step, msg):
