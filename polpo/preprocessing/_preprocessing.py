@@ -1,6 +1,8 @@
 import abc
 import importlib
 import logging
+import os
+import shutil
 import warnings
 
 from joblib import Parallel, delayed
@@ -215,16 +217,19 @@ class ParMap(StepWrappingPreprocessingStep):
         return list(res)
 
 
-class DecorateToIterable(StepWrappingPreprocessingStep):
+class EnsureIterable(StepWrappingPreprocessingStep):
     def __call__(self, data):
         decorated = False
-        if not isinstance(data, list):
+        if not is_non_string_iterable(data):
             decorated = True
             data = [data]
 
         new_data = self.step(data)
 
         if decorated:
+            if isinstance(new_data, dict):
+                return new_data[list(new_data.keys())[0]]
+
             return new_data[0]
 
         return new_data
@@ -239,18 +244,22 @@ class Map:
             map_ = SerialMap(step, pbar=verbose > 0)
 
         if force_iter:
-            return DecorateToIterable(map_)
+            return EnsureIterable(map_)
 
         return map_
 
 
 class IndexMap(StepWrappingPreprocessingStep):
+    # TODO: rename to `MapAtIndex`?
     # TODO: name is confusing
     def __init__(self, step, index=0):
         super().__init__(step)
         self.index = index
 
     def __call__(self, data):
+        if isinstance(data, tuple):
+            data = list(data)
+
         data[self.index] = self.step(data[self.index])
 
         return data
