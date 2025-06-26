@@ -11,7 +11,6 @@ class DataLoader(abc.ABC):
     @abc.abstractmethod
     def load(self):
         """Load data."""
-        pass
 
 
 class CacheableDataLoader(DataLoader, abc.ABC):
@@ -39,7 +38,20 @@ class PreprocessingStep(abc.ABC):
     def __add__(self, other):
         if isinstance(other, list):
             other = Pipeline(other)
+
+        if isinstance(other, Pipeline):
+            return other.__radd__(self)
+
         return Pipeline([self, other])
+
+    def __radd__(self, other):
+        if isinstance(other, list):
+            other = Pipeline(other)
+
+        if isinstance(other, Pipeline):
+            return other + self
+
+        return Pipeline([other, self])
 
 
 class Pipeline(PreprocessingStep, DataLoader):
@@ -69,5 +81,16 @@ class Pipeline(PreprocessingStep, DataLoader):
             steps.extend(other)
         else:
             steps.append(other)
+
+        return Pipeline(steps)
+
+    def __radd__(self, other):
+        steps = self.steps.copy()
+        if hasattr(other, "steps"):
+            steps = other.steps + steps
+        elif isinstance(other, list):
+            steps = other + steps
+        else:
+            steps = [other] + steps
 
         return Pipeline(steps)
