@@ -3,9 +3,13 @@ import warnings
 from joblib import Parallel, delayed
 from tqdm import tqdm
 
+from polpo.utils import nest_dict, unnest_dict
+
 from ._preprocessing import (
     Filter,
+    FunctionCaller,
     IdentityStep,
+    Map,
     StepWrappingPreprocessingStep,
     _wrap_step,
 )
@@ -341,3 +345,13 @@ class ZipWithKeys(StepWrappingPreprocessingStep):
             )
 
         return dict(zip(keys, new_values))
+
+
+class UnnestDict(FunctionCaller):
+    def __init__(self, sep="/"):
+        super().__init__(unnest_dict, sep=sep)
+
+
+class NestDict(FunctionCaller):
+    def __init__(self, sep="/"):
+        super().__init__(nest_dict, sep=sep)
