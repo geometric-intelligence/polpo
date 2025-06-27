@@ -158,9 +158,7 @@ class MeshR2Score(ModelEvaluator):
         if y_pred is None:
             y_pred = model.predict(X)
 
-        meshes2vertices = (
-            Map(ToVertices()) + (lambda x: np.stack(x)) + FlattenButFirst()
-        )
+        meshes2vertices = Map(ToVertices()) + np.stack + FlattenButFirst()
 
         vertices = meshes2vertices(y)
         vertices_pred = meshes2vertices(y_pred)
@@ -182,7 +180,7 @@ class MeshEuclideanR2Score(ModelEvaluator):
         if y_pred is None:
             y_pred = model.predict(X)
 
-        meshes2vertices = Map(ToVertices()) + (lambda x: np.stack(x))
+        meshes2vertices = Map(ToVertices()) + np.stack
 
         vertices = meshes2vertices(y)
         vertices_pred = meshes2vertices(y_pred)
