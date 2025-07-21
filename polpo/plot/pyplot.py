@@ -5,9 +5,10 @@ from .base import Plotter
 
 
 class SlicesPlotter(Plotter):
-    def __init__(self, cmap="gray"):
+    def __init__(self, cmap="gray", vertical=False):
         super().__init__()
         self.cmap = cmap
+        self.vertical = vertical
 
     def plot(self, slices):
         if isinstance(slices, np.ndarray):
@@ -16,7 +17,11 @@ class SlicesPlotter(Plotter):
         else:
             n_slices = len(slices)
 
-        fig, axes = plt.subplots(1, n_slices, constrained_layout=True)
+        n_rows, n_cols = 1, n_slices
+        if self.vertical:
+            n_rows, n_cols = n_cols, n_rows
+
+        fig, axes = plt.subplots(n_rows, n_cols, constrained_layout=True)
         if n_slices == 1:
             axes = [axes]
 
