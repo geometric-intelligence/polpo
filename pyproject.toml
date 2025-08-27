@@ -51,6 +51,7 @@ lddmm = [
     "matplotlib",
     "pyvista",
     "deformetrica @ git+https://github.com/nguigs/deformetrica@spline-regression",
+    "PyQt5"
 ]
 varifold = ["geomstats", "kneebow", "trimesh"]
 dataframe = ["pandas"]
