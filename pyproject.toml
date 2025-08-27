@@ -46,13 +46,19 @@ mesh = [
     "pyvista",
     "meshio",
 ]
+lddmm = [
+    "torch",
+    "matplotlib",
+    "pyvista",
+    "deformetrica @ git+https://github.com/nguigs/deformetrica@spline-regression",
+]
 varifold = ["geomstats", "kneebow", "trimesh"]
 dataframe = ["pandas"]
 ssh = ["paramiko", "scp"]
 preprocessing = ["polpo[mri,mesh,dataframe,ssh,point_cloud]"]
 hydra = ["hydra-core", "omegaconf"]
 dev = ["polpo[doc,lint,test]"]
-all = ["polpo[dash,app,plot,preprocessing,hydra,varifold]"]
+all = ["polpo[dash,app,plot,preprocessing,hydra,varifold,lddmm]"]
 
 [project.urls]
 repository = "http://github.com/luisfpereira/polpo"
