@@ -173,7 +173,34 @@ def estimate_parallel_transport(
         transport_args, 
         shoot_args, 
         main_reg_dir=None):
-    # estimation of time deformation
+    """
+    Estimate the parallel transport of the "time deformation" along the "subject-to-patient" deformation.
+
+    
+    Parameters
+    ----------
+    source: str or pathlib.Path
+        Path to the vtk file that contains the source mesh for the geodesic that will be transported. Inintial time step.
+    target: str or pathlib.Path
+        Path to the vtk file that contains the target mesh of the geodesic that will be transported. Final time step.
+    atlas: str or pathlib.Path
+        Path to the vtk file that contains the atlas mesh. The geodesic of atlas towards source is geodesic along which the time deformation will be transported.
+    name: str
+        Name of the deformation.
+    output_dir: str or pathlib.Path
+        Path to the directory where the results will be saved.
+    registration_args: dict
+        Arguments for the registration function.
+    transport_args: dict
+        Arguments for the transport function.
+    shoot_args: dict
+        Arguments for the shoot function.
+    main_reg_dir: str or pathlib.Path
+        Path to the directory where the results of the main registration will be saved.
+        The main registration is the subject-to-patient deformation that is the geodesic along which the time deformation will be transported.
+        If None, the results will be saved in the output_dir directory.
+    """
+    # estimation of time deformation: this is the deformation that will be transported
     time_reg_dir = output_dir / name / f'time_reg_{name}'
     time_reg_dir.mkdir(parents=True, exist_ok=True)
 
@@ -181,7 +208,7 @@ def estimate_parallel_transport(
         source, target, time_reg_dir, **registration_args)
 
     if main_reg_dir is None:
-        # estimation of subject-to-patient deformation
+        # estimation of subject-to-patient deformation: this is the geodesic along which the time deformation will be transported
         main_reg_dir = output_dir / name / f'main_reg_{name}'
         main_reg_dir.mkdir(parents=True, exist_ok=True)
 
