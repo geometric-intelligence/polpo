@@ -1,4 +1,4 @@
-import subprocess
+import shutil
 import time
 
 from api.deformetrica import Deformetrica
@@ -22,11 +22,22 @@ def transport(
     kernel_device="cuda",
     n_rungs=10,
 ):
-    """Compute parallel transport with the pole ladder.
+    """Compute parallel transport of a tangent vector along a geodesic with the pole ladder.
 
     Transports a tangent vector along a geodesic (called main geodesic). Both must have been
     estimated by using the `registration` function. The main geodesic must be estimated using RK4
     steps. Kernel parameters should match the ones used in the registration function.
+
+    This function performs the actual parallel transport computation using pre-computed control points and momenta.
+    It takes as input the control points and momenta that define both:
+    1. The main geodesic along which to transport
+    2. The tangent vector to be transported (which also corresponds to a geodesic).
+
+    Related
+    -------
+    The estimate_parallel_transport() function provides a higher-level interface that handles the full parallel transport 
+    pipeline including the registration steps needed to obtain the control points and momenta. It computes geodesics 
+    between three shapes (atlas, source, target) and uses this transport() function as the final step.
 
     Parameters
     ----------
@@ -176,6 +187,17 @@ def estimate_parallel_transport(
     """
     Estimate the parallel transport of the "time deformation" along the "subject-to-patient" deformation.
 
+    This function computes parallel transport using as inputs three points on the manifold:
+    1. Computes a geodesic from the atlas to the source shape (the "main geodesic")
+    2. Computes a geodesic from the source to the target shape (the "time deformation")
+    3. Parallel transports the tangent vector of the time deformation along the main geodesic
+
+    Related
+    -------
+    The transport() function performs the actual parallel transport computation using only control points and momenta. 
+    While estiamte_parallel_transport() function estimates the full parallel transport pipeline including registrations, 
+    transport() is the lower-level function that takes pre-computed control points and momenta as inputs to execute just the transport step.
+
     
     Parameters
     ----------
@@ -236,5 +258,5 @@ def estimate_parallel_transport(
         output_dir=transport_dir, **shoot_args)
 
     shoot_name = transport_dir / strings.shoot_str.format(transport_args['n_rungs'])
-    subprocess.call(['cp', shoot_name, transport_dir / f'transported_shoot_{name}.vtk'])
+    shutil.copy(shoot_name, transport_dir / f'transported_shoot_{name}.vtk')
     return cp, mom
