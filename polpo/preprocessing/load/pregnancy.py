@@ -458,9 +458,7 @@ def PregnancyPilotRegisteredMeshesLoader(
     return pipe + ppdict.DictToValuesList()
 
 
-def DenseMaternalCsvDataLoader(
-    data_dir="~/.herbrain/data/maternal", subject_id=None, pilot=False
-):
+def DenseMaternalCsvDataLoader(data_dir="~/.herbrain/data/maternal", subject_id=None):
     """Create pipeline to load maternal csv data.
 
     Parameters
@@ -469,7 +467,7 @@ def DenseMaternalCsvDataLoader(
         Data root dir.
     subject_id : str
         Identification of the subject. If None, loads full dataframe.
-        One of the following: "01", "1001", "1004".
+        One of the following: "01", "1001B", "1004B".
     pilot : bool
         Whether to load pilot data.
 
@@ -478,12 +476,18 @@ def DenseMaternalCsvDataLoader(
     pipe : Pipeline
         Pipeline to load maternal csv data.
     """
+    project_folder = "maternal_brain_project"
+    data_dir = Path(data_dir).expanduser()
+    pilot = subject_id is None or subject_id == "01"
+
     if pilot:
+        project_folder = f"{project_folder}_pilot"
+
         if subject_id is not None and subject_id != "01":
             logging.warning("`subject_id` is ignored, as there's only one subject")
 
         loader = FigsharePregnancyDataLoader(
-            data_dir=f"{data_dir}/raw",
+            data_dir=data_dir / project_folder / "rawdata",
             remote_path="28Baby_Hormones.csv",
             use_cache=True,
         )
@@ -492,11 +496,7 @@ def DenseMaternalCsvDataLoader(
         ) + ppd.IndexSetter(key="sessionID", drop=True)
 
     else:
-        project_folder = "maternal_brain_project"
-
-        loader = Constant(
-            Path(data_dir) / project_folder / "rawdata" / "SubjectData.csv"
-        )
+        loader = Constant(data_dir / project_folder / "rawdata" / "SubjectData.csv")
 
         session_updater = ppd.UpdateColumnValues(
             column_name="sessionID", func=lambda entry: entry.split("-")[1]

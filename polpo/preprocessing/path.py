@@ -114,8 +114,10 @@ class PathShortener(PreprocessingStep):
 
 class ExpandUser(PreprocessingStep):
     def __call__(self, filename):
-        # TODO: check use of path
-        if isinstance(filename, str) and "~" in filename:
-            return os.path.expanduser(filename)
+        if isinstance(filename, str):
+            if "~" in filename:
+                return os.path.expanduser(filename)
+        else:
+            return filename.expanduser()
 
         return filename

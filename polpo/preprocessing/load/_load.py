@@ -9,6 +9,7 @@ import requests
 
 from polpo.defaults import DATA_DIR
 from polpo.preprocessing.base import CacheableDataLoader, PreprocessingStep
+from polpo.preprocessing.path import ExpandUser
 
 
 def _get_basename(path):
@@ -58,12 +59,9 @@ class FigshareDataLoader(PreprocessingStep, CacheableDataLoader):
         if data_dir is None:
             data_dir = DATA_DIR
 
-        if "~" in data_dir:
-            data_dir = os.path.expanduser(data_dir)
-
         self.figshare_id = figshare_id
         self.remote_path = remote_path
-        self.data_dir = data_dir
+        self.data_dir = ExpandUser()(data_dir)
         self.local_basename = local_basename
         self.version = version
         self.remove_id = remove_id
