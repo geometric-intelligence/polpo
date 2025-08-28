@@ -182,7 +182,6 @@ def parallel_transport_from_meshes(
         output_dir, 
         registration_args,
         transport_args, 
-        shoot_args, 
         main_reg_dir=None):
     """
     Estimate the parallel transport of the "time deformation" along the "subject-to-patient" deformation.
@@ -215,8 +214,6 @@ def parallel_transport_from_meshes(
         Arguments for the registration function.
     transport_args: dict
         Arguments for the transport function.
-    shoot_args: dict
-        Arguments for the shoot function.
     main_reg_dir: str or pathlib.Path
         Path to the directory where the results of the main registration will be saved.
         The main registration is the subject-to-patient deformation that is the geodesic along which the time deformation will be transported.
@@ -249,14 +246,4 @@ def parallel_transport_from_meshes(
         control_points, momenta, control_points_to_transport, momenta_to_transport,
         transport_dir, **transport_args)
 
-    # Shoot transported momenta from atlas
-    transported_cp = transport_dir / 'final_cp.txt'
-    transported_mom = transport_dir / 'transported_momenta.txt'
-    shoot(
-        control_points=transported_cp.as_posix(),
-        momenta=transported_mom.as_posix(),
-        output_dir=transport_dir, **shoot_args)
-
-    shoot_name = transport_dir / strings.shoot_str.format(transport_args['n_rungs'])
-    shutil.copy(shoot_name, transport_dir / f'transported_shoot_{name}.vtk')
     return cp, mom
