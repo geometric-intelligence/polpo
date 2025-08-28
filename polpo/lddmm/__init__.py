@@ -1,2 +1,3 @@
 from .learning import estimate_deterministic_atlas, estimate_spline_regression
 from .registration import estimate_registration
+from .parallel_transport import transport, shoot, estimate_parallel_transport
