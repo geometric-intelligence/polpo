@@ -174,7 +174,7 @@ def shoot(
 
     return time.gmtime()
 
-def estimate_parallel_transport(
+def parallel_transport_from_meshes(
         source, 
         target, 
         atlas, 
