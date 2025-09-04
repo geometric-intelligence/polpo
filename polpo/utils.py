@@ -130,12 +130,15 @@ def custom_order(reference):
     return _custom_order
 
 
-def plot_shape_from_n_plots(n_plots, n_cols_max=2):
+def plot_shape_from_n_plots(n_plots, n_axis=2, axis=1):
     # TODO: compute space filler?
-    n_cols = min(n_cols_max, n_plots)
-    n_rows = (n_plots + n_cols - 1) // n_cols
+    n_axis_0 = min(n_axis, n_plots)
+    n_axis_1 = (n_plots + n_axis_0 - 1) // n_axis_0
 
-    return n_rows, n_cols
+    if axis == 1:
+        return n_axis_1, n_axis_0
+
+    return n_axis_0, n_axis_1
 
 
 def plot_index_to_shape(index, n_axis, rowise=False):

@@ -13,6 +13,7 @@ class RegisteredMeshesGifPlotter:
         off_screen=True,
         notebook=False,
         subtitle=None,
+        rowise=False,
         **kwargs,
     ):
         if subtitle is True:
@@ -21,6 +22,7 @@ class RegisteredMeshesGifPlotter:
         self.fps = fps
         self.gif_name = gif_name
         self.subtitle = subtitle
+        self.rowise = rowise
 
         self.pl = pv.Plotter(
             shape=shape,
@@ -39,7 +41,7 @@ class RegisteredMeshesGifPlotter:
 
         return self
 
-    def _iter_inner(self, meshes):
+    def _iter_meshes(self, meshes):
         if isinstance(meshes, dict):
             return meshes.items()
 
@@ -61,10 +63,15 @@ class RegisteredMeshesGifPlotter:
         if pl.shape[0] * pl.shape[1] == 1:
             meshes = [[mesh] for mesh in meshes]
 
+        subplot_axis = 0 if self.rowise else 1
         rendered_meshes = {}
-        for time_index, meshes_ in enumerate(meshes):
-            for subplot_index, (comp_id, mesh) in enumerate(self._iter_inner(meshes_)):
-                pl.subplot(*putils.plot_index_to_shape(subplot_index, pl.shape[1]))
+        for time_index, (time_id, meshes_) in enumerate(self._iter_meshes(meshes)):
+            for subplot_index, (comp_id, mesh) in enumerate(self._iter_meshes(meshes_)):
+                pl.subplot(
+                    *putils.plot_index_to_shape(
+                        subplot_index, pl.shape[subplot_axis], rowise=self.rowise
+                    )
+                )
 
                 if time_index:
                     rendered_meshes[subplot_index].points = mesh.points
@@ -72,11 +79,11 @@ class RegisteredMeshesGifPlotter:
                     rendered_meshes[subplot_index] = mesh_ = mesh.copy()
                     pl.add_mesh(mesh_, show_edges=show_edges, **kwargs)
 
-                    if callable(self.subtitle):
-                        pl.add_title(
-                            self.subtitle(time_index, comp_id),
-                            **self._subtitle_kwargs,
-                        )
+                if callable(self.subtitle):
+                    pl.add_title(
+                        self.subtitle(time_id, comp_id),
+                        **self._subtitle_kwargs,
+                    )
 
             pl.write_frame()
 
