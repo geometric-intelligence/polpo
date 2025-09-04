@@ -175,7 +175,7 @@ def estimate_registration(
     data_set = {
         "visit_ages": [[]],
         "dataset_filenames": [[{"shape": target}]],
-        "subject_ids": ["ventricle"],
+        "subject_ids": ["target"],
     }
 
     deformetrica.estimate_registration(

@@ -6,7 +6,6 @@ from api.deformetrica import Deformetrica
 def estimate_deterministic_atlas(
     source,
     targets,
-    subject_id,
     output_dir,
     t0=0,
     max_iter=200,
@@ -53,10 +52,8 @@ def estimate_deterministic_atlas(
     ----------
     source: str or pathlib.Path
         Path to the vtk file that contains the source mesh.
-    targets: list of dict
-        Path to the vtk files that contain the target meshes. Must be formatted as a list of
-        dictionaries, where each dict represents a time points and has a key 'shape' with the
-        path to the shape as value.
+    targets: list
+        Path to the vtk files that contain the target meshes.
     output_dir: str or pathlib.Path
         Path a directory where results will be saved.
     kernel_width: float
@@ -127,10 +124,12 @@ def estimate_deterministic_atlas(
         }
     }
 
+    targets_ = [{"shape": target} for target in targets]
     data_set = {
-        "dataset_filenames": [[k] for k in targets],
-        "visit_ages": None,  # [[1.]] * len(targets),
-        "subject_ids": [subject_id] * len(targets),
+        "dataset_filenames": [[k] for k in targets_],
+        "visit_ages": None,
+        # TODO: allow targets to be dict?
+        "subject_ids": [str(index) for index in range(len(targets_))],
     }
 
     model = {
