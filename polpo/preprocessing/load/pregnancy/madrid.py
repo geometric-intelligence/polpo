@@ -2,28 +2,11 @@ import os
 
 import polpo.preprocessing.dict as ppdict
 import polpo.preprocessing.pd as pppd
-from polpo.preprocessing import (
-    Constant,
-    ContainsAll,
-    EnsureIterable,
-    Filter,
-    Map,
-    PartiallyInitializedStep,
-    Sorter,
-    TupleWith,
-)
-from polpo.preprocessing.load.fsl import (
-    first_struct_to_enigma_id,
-    tool_to_mesh_reader,
-    validate_first_struct,
-)
-from polpo.preprocessing.path import (
-    ExpandUser,
-    FileFinder,
-    IsFileType,
-    PathShortener,
-)
-from polpo.preprocessing.str import DigitFinder, StartsWith
+from polpo.preprocessing import Constant
+from polpo.preprocessing.load.bids import DerivativeFoldersSelector
+from polpo.preprocessing.load.fsl import MeshLoader as FslMeshLoader
+from polpo.preprocessing.path import ExpandUser, FileFinder
+from polpo.preprocessing.str import StartsWith
 
 
 def _neuromaternal_session_id_map(value):
@@ -31,8 +14,8 @@ def _neuromaternal_session_id_map(value):
 
 
 def FoldersSelector(
-    data_dir="~/.herbrain/data/maternal/neuromaternal_madrid_2021",
-    subset=None,
+    subject_subset=None,
+    session_subset=None,
     derivative="enigma",
     remove_missing_sessions=True,
 ):
@@ -51,141 +34,43 @@ def FoldersSelector(
         Pipeline whose output is dict[str, list[str]].
         Key represents participant id and value the corresponding filenames.
     """
-    # TODO: homogenize data_dir with Pregnancy one; use derivatives folder above
+    # TODO: remap session_id?
 
-    path_to_sub = PathShortener() + (lambda x: x.split("_")[0].split("-")[-1])
-
-    folder_name = os.path.join(data_dir, "derivatives")
-    folders_selector = (
-        Constant(folder_name)
+    # this is mostly the same as jacobs
+    pipe = (
+        (lambda x: os.path.join(x, "derivatives"))
         + ExpandUser()
         + FileFinder(rules=StartsWith(derivative))
-        + FileFinder(rules=ContainsAll(["sub", "ses"]), as_list=True)
-    )
-
-    if subset is not None:
-        folders_selector += Filter(
-            func=lambda folder_name: path_to_sub(folder_name) in subset
+        + DerivativeFoldersSelector(
+            subject_subset, session_subset=session_subset, session_sorter=True
         )
-
-    def _group_sessions(sub_sessions):
-        out = {}
-        for sub_session in sub_sessions:
-            key = sub_session[0]
-            sub_out = out.get(key, [])
-            sub_out.append(sub_session[1])
-            out[key] = sub_out
-
-        return out
-
-    filter_ = (
-        # TODO: this get rid of 3's; bring them in again
-        ppdict.DictFilter(func=lambda x: len(x) == 2)
-        if remove_missing_sessions
-        else (lambda x: x)
     )
 
-    pipe = (
-        folders_selector
-        + TupleWith(Map(path_to_sub), incoming_first=False)
-        + _group_sessions
-        + filter_
-        + ppdict.DictMap(step=Sorter(key=lambda x: x.split()[-1]))
-    )
+    if remove_missing_sessions:
+        pipe += ppdict.DictFilter(func=lambda x: len(x) == 2)
 
     return pipe
 
 
 def MeshLoader(
     data_dir="~/.herbrain/data/maternal/neuromaternal_madrid_2021",
-    struct="Hipp",
-    subset=None,
-    left=True,
-    as_dict=False,
+    subject_subset=None,
+    session_subset=None,
+    struct_subset=None,
     derivative="enigma",
+    remove_missing_sessions=True,
     as_mesh=False,
 ):
-    # NB: as_dict controls session
-    # NB: sessions names are remapped to start at zero
-
-    # TODO: update uses of left and right?
-    # TODO: update behavior of other mesh loaders
-    folders_selector = FoldersSelector(
-        data_dir=data_dir,
-        subset=subset,
+    folders_selector = Constant(data_dir) + FoldersSelector(
+        subject_subset=subject_subset,
+        session_subset=session_subset,
         derivative=derivative,
+        remove_missing_sessions=remove_missing_sessions,
     )
 
-    validate_first_struct(struct)
+    mesh_finder = FslMeshLoader(struct_subset, derivative, as_mesh)
 
-    if struct == "BrStem":
-        suffixed_side = ""
-    else:
-        suffixed_side = "L_" if left else "R_"
-
-    suffixed_struct = f"{suffixed_side}{struct}"
-    if derivative.startswith("enigma"):
-        enigma_index = f"_{first_struct_to_enigma_id(suffixed_struct)}"
-        rules = [
-            lambda file: file.endswith(enigma_index),
-        ]
-    else:
-        rules = [
-            IsFileType("vtk"),
-            lambda filename: suffixed_struct in filename,
-        ]
-
-    path_to_session = (
-        PathShortener()
-        + DigitFinder(index=-1)
-        + (lambda x: _neuromaternal_session_id_map(x))
-    )
-
-    # NB: sessions are already sorted
-    if as_dict:
-        file_finder = ppdict.DictMap(
-            ppdict.HashWithIncoming(
-                Map(FileFinder(rules=rules)),
-                key_step=Map(path_to_session),
-            )
-        )
-    else:
-        file_finder = ppdict.DictMap(Map(FileFinder(rules=rules)))
-
-    pipe = folders_selector + file_finder
-
-    if not as_mesh:
-        return pipe
-
-    return pipe + ppdict.NestedDictMap(
-        tool_to_mesh_reader(derivative), inner_is_dict=as_dict, depth=1
-    )
-
-
-def MultiMeshLoader(
-    data_dir="~/.herbrain/data/maternal/neuromaternal_madrid_2021",
-    subset=None,
-    as_inner_dict=False,
-    derivative="enigma",
-    as_mesh=False,
-):
-    # TODO: update name? make other private
-
-    return EnsureIterable(
-        ppdict.HashWithIncoming(
-            Map(
-                PartiallyInitializedStep(
-                    Step=MeshLoader,
-                    as_dict=as_inner_dict,
-                    pass_data=False,
-                    _struct=lambda name: name.split("_")[-1],
-                    _left=lambda name: name.split("_")[0] == "L",
-                    derivative=derivative,
-                    as_mesh=as_mesh,
-                )
-            )
-        )
-    )
+    return folders_selector + ppdict.NestedDictMap(mesh_finder)
 
 
 def TabularDataLoader(

@@ -18,7 +18,7 @@ from polpo.preprocessing import (
     Sorter,
     StepWithLogging,
 )
-from polpo.preprocessing.load._load import FigshareDataLoader, _get_basename
+from polpo.preprocessing.load.figshare import FigshareDataLoader, _get_basename
 from polpo.preprocessing.path import (
     ExpandUser,
     FileFinder,

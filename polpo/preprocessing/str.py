@@ -5,6 +5,7 @@ import re
 from ._preprocessing import (  # noqa:F401
     Contains,
     ContainsAll,
+    ContainsAny,
     ExceptionToWarning,
     MethodApplier,
 )
@@ -55,6 +56,28 @@ class RegexGroupFinder(PreprocessingStep):
 class StartsWith(MethodApplier):
     def __init__(self, value):
         super().__init__(value, method="startswith")
+
+
+class EndsWithAny(PreprocessingStep):
+    # TODO: generalize based on ContainsAny?
+    def __init__(self, items, negate=False):
+        super().__init__()
+        self.items = items
+        self.negate = negate
+
+    def __call__(self, data):
+        """Apply step.
+
+        Returns
+        -------
+        membership : bool
+            Membership or lack of it (depending on negate) for all items.
+        """
+        out = any(data.endswith(item) for item in self.items)
+        if self.negate:
+            return not out
+
+        return out
 
 
 class TryToInt(ExceptionToWarning):

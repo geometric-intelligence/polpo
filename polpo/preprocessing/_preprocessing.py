@@ -501,7 +501,31 @@ class ContainsAll(PreprocessingStep):
         membership : bool
             Membership or lack of it (depending on negate) for all items.
         """
-        out = all([item in collection for item in self.items])
+        out = all(item in collection for item in self.items)
+        if self.negate:
+            return not out
+
+        return out
+
+
+class ContainsAny(PreprocessingStep):
+    # TODO: update docstrings
+    """Check if subset of items in a collection."""
+
+    def __init__(self, items, negate=False):
+        super().__init__()
+        self.items = items
+        self.negate = negate
+
+    def __call__(self, collection):
+        """Apply step.
+
+        Returns
+        -------
+        membership : bool
+            Membership or lack of it (depending on negate) for all items.
+        """
+        out = any(item in collection for item in self.items)
         if self.negate:
             return not out
 
@@ -615,6 +639,13 @@ class CachablePipeline(PreprocessingStep):
 
 
 class GroupBy(PreprocessingStep):
+    """Group data.
+
+    Parameters
+    ----------
+    datum2group : callable
+    """
+
     def __init__(self, datum2group):
         super().__init__()
         self.datum2group = datum2group
@@ -626,5 +657,39 @@ class GroupBy(PreprocessingStep):
             key_ls = out.get(key, [])
             key_ls.append(datum)
             out[key] = key_ls
+
+        return out
+
+
+class FilteredGroupBy(PreprocessingStep):
+    """Group data.
+
+    Parameters
+    ----------
+    datum2group : callable
+    subset : set
+        Keys not belonging to ``subset`` are filtered out.
+    """
+
+    def __init__(self, datum2group, subset):
+        super().__init__()
+        self.datum2group = datum2group
+        self.subset = subset
+
+    def __new__(cls, datum2group, subset=None):
+        if subset is None:
+            return GroupBy(datum2group)
+
+        return super().__new__(cls)
+
+    def __call__(self, data):
+        out = {key: [] for key in self.subset}
+        for datum in data:
+            key = self.datum2group(datum)
+
+            if key not in out:
+                continue
+
+            out[key].append(datum)
 
         return out

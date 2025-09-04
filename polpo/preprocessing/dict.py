@@ -65,15 +65,31 @@ class DictMerger(PreprocessingStep):
 
 
 class HashWithIncoming(StepWrappingPreprocessingStep):
-    def __init__(self, step=None, key_step=None):
+    # TODO: find better name; Hash?
+    def __init__(self, step=None, key_step=None, key_subset=None, key_sorter=None):
+        if key_subset is not None:
+            key_subset = set(key_subset)
+
         super().__init__(step)
         self.key_step = _wrap_step(key_step)
+        self.key_subset = key_subset
+        self.key_sorter = key_sorter
 
     def __call__(self, keys_data):
         values_data = self.step(keys_data)
         keys_data = self.key_step(keys_data)
 
-        return {key: value for key, value in zip(keys_data, values_data)}
+        zipped_data = zip(keys_data, values_data)
+
+        if self.key_subset is not None:
+            zipped_data = (
+                (key, value) for key, value in zipped_data if key in self.key_subset
+            )
+
+        if callable(self.key_sorter):
+            zipped_data = sorted(zipped_data, key=lambda x: self.key_sorter(x[0]))
+
+        return {key: value for key, value in zipped_data}
 
 
 class DictFilter(Filter):

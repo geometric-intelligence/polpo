@@ -5,26 +5,23 @@ from pathlib import Path
 
 import polpo.preprocessing.dict as ppdict
 import polpo.preprocessing.pd as ppd
-from polpo.load.first import first_struct_to_enigma_id, validate_first_struct
-from polpo.preprocessing import (
-    Constant,
-    Contains,
-    ContainsAll,
-    Filter,
-    Map,
-    Sorter,
-)
-from polpo.preprocessing.path import (
-    ExpandUser,
-    FileFinder,
-    IsFileType,
-    PathShortener,
-)
+from polpo.preprocessing import BranchingPipeline, Constant, Contains
+from polpo.preprocessing.load.bids import DerivativeFoldersSelector
+from polpo.preprocessing.load.fsl import MeshLoader as FslMeshLoader
+from polpo.preprocessing.path import ExpandUser, FileFinder, IsFileType
 from polpo.preprocessing.str import DigitFinder, StartsWith
 
 from .pilot import TabularDataLoader as PilotTabularDataLoader
 
-MATERNAL_IDS = {"01", "1001", "1004"}
+MATERNAL_IDS = {"01", "1001B", "1004B"}
+
+
+def _session_sorter(session_id):
+    # for session_id other than in pilot
+    return (
+        re.sub(r"\d+$", "", session_id),
+        DigitFinder(index=-1)(session_id),
+    )
 
 
 def TabularDataLoader(data_dir="~/.herbrain/data/maternal", subject_id=None):
@@ -45,7 +42,6 @@ def TabularDataLoader(data_dir="~/.herbrain/data/maternal", subject_id=None):
     pipe : Pipeline
         Pipeline to load maternal csv data.
     """
-    # TODO: homogenize B
     project_folder = "maternal_brain_project"
     data_dir = Path(data_dir).expanduser()
     pilot = subject_id is None or subject_id == "01"
@@ -85,10 +81,8 @@ def TabularDataLoader(data_dir="~/.herbrain/data/maternal", subject_id=None):
 
 
 def FoldersSelector(
-    data_dir="~/.herbrain/data/maternal",
-    subject_id=None,
-    subset=None,
-    as_dict=False,
+    subject_subset=None,
+    session_subset=None,
     derivative="fsl",
 ):
     """Create pipeline to load maternal sessions folder names.
@@ -111,15 +105,11 @@ def FoldersSelector(
 
     Parameters
     ----------
-    data_dir : str
-        Directory where data is stored.
-    subject_id : str
-        Identification of the subject. If None, assumes pilot.
-        One of the following: "01", "1001", "1004".
-    subset : array-like
+    subject_subset : array-like
+        Id of the subjects. If None, assumes all.
+        One of the following: "01", "1001B", "1004B".
+    session_subset : array-like
         Subset of sessions to load. If `None`, loads all.
-    as_dict : bool
-        Whether to create a dictionary with session as key.
     derivative : str
         Derivative folder starting (e.g. "fsl_first", "fastsurfer-long").
 
@@ -128,64 +118,73 @@ def FoldersSelector(
     pipe : Pipeline
         Pipeline to load maternal sessions folder names.
     """
-    # TODO: can make a generic one for BIDS: https://bids.neuroimaging.io/index.html
     project_folder = "maternal_brain_project"
 
-    if subject_id is None:
-        subject_id = "01"
+    if subject_subset is None:
+        subject_subset = MATERNAL_IDS
 
-    if subject_id not in MATERNAL_IDS:
-        raise ValueError(
-            f"Oops, `{subject_id}` is not available. Please, choose from: {','.join(MATERNAL_IDS)}"
-        )
+    if (
+        session_subset is not None
+        and len(subject_subset) > 1
+        and "01" in subject_subset
+    ):
+        raise ValueError("Can't filter sessions if pilot included")
 
-    pilot = True if subject_id == "01" else False
+    for subject_id in subject_subset:
+        if subject_id not in MATERNAL_IDS:
+            raise ValueError(
+                f"Oops, `{subject_id}` is not available. Please, choose from: {','.join(MATERNAL_IDS)}"
+            )
 
-    if pilot:
-        project_folder += "_pilot"
+    if "01" in subject_subset and len(subject_subset) > 1:
+        subject_subset = list(subject_subset)
+        subject_subset.remove("01")
 
-        if subject_id != "01":
-            logging.warning("`subject_id` is ignored, as there's only one subject")
+        subject_subsets = [["01"], subject_subset]
 
-        path_to_session = PathShortener() + DigitFinder(index=-1)
-        sorter = Sorter()
     else:
-        path_to_session = PathShortener() + [lambda path: path.split("-")[-1]]
-        sorter = Sorter(
-            lambda x: (
-                re.sub(r"\d+$", "", path_to_session(x)),
-                DigitFinder(index=-1)(x),
+        subject_subsets = [subject_subset]
+
+    def _prepend_data_dir(project_folder):
+        return lambda x: os.path.join(x, project_folder, "derivatives")
+
+    pipes = []
+    for subject_subset in subject_subsets:
+        pilot = True if "01" in subject_subset else False
+
+        project_folder_ = project_folder
+        if pilot:
+            project_folder_ += "_pilot"
+            sorter = True
+        else:
+            sorter = _session_sorter
+
+        pipe = (
+            _prepend_data_dir(project_folder_)
+            + ExpandUser()
+            + FileFinder(rules=StartsWith(derivative))
+            + DerivativeFoldersSelector(
+                subject_subset, session_subset=session_subset, session_sorter=sorter
             )
         )
 
-    folder_name = os.path.join(data_dir, project_folder, "derivatives")
-    folders_selector = (
-        Constant(folder_name)
-        + ExpandUser()
-        + FileFinder(rules=StartsWith(derivative))
-        + FileFinder(rules=ContainsAll([subject_id, "ses"]), as_list=True)
-    )
+        pipes.append(pipe)
 
-    if subset is not None:
-        folders_selector += Filter(
-            func=lambda folder_name: path_to_session(folder_name) in subset
-        )
+    if len(pipes) == 1:
+        return pipes[0]
 
-    pipe = folders_selector + sorter
-    if as_dict:
-        pipe = pipe + ppdict.HashWithIncoming(key_step=Map(path_to_session))
+    pipe = BranchingPipeline(pipes, merger=lambda x: x[0] | x[1])
 
     return pipe
 
 
 def MeshLoader(
     data_dir="~/.herbrain/data/maternal",
-    subject_id=None,
-    struct="Hipp",
-    subset=None,
-    left=True,
-    as_dict=False,
+    subject_subset=None,
+    session_subset=None,
+    struct_subset=None,
     derivative="fsl",
+    as_mesh=False,
 ):
     """Create pipeline to load maternal mesh filenames.
 
@@ -197,58 +196,34 @@ def MeshLoader(
         Directory where data is stored.
     subject_id : str
         Identification of the subject. If None, assumes pilot.
-        One of the following: "01", "1001", "1004".
-    struct : str
+        One of the following: "01", "1001B", "1004B".
+    struct_subset : str
         One of the following: 'Thal', 'Caud', 'Puta', 'Pall',
         'BrStem', 'Hipp', 'Amyg', 'Accu'.
+        Suffixed with 'L_' or 'R_' (except 'BrStem').
     left : bool
         Whether to load left side. Not applicable to 'BrStem'.
     subset : array-like
         Subset of sessions to load. If `None`, loads all.
-    as_dict : bool
-        Whether to create a dictionary with session as key.
     derivative : str
         Derivative folder starting (e.g. "fsl_first", "fastsurfer-long").
 
     Returns
     -------
     pipe : Pipeline
-        Pipeline whose output is list[str] or dict[int, str].
-        String represents filename. Sorting is always temporal.
+        Pipeline whose output is a nested dict whose keys are
+        subject_id, session_id, struct_id.
+        Values are filename or mesh.
     """
-    folders_selector = FoldersSelector(
-        data_dir=data_dir,
-        subject_id=subject_id,
-        subset=subset,
-        as_dict=True,
+    folders_selector = Constant(data_dir) + FoldersSelector(
+        subject_subset=subject_subset,
+        session_subset=session_subset,
         derivative=derivative,
     )
 
-    validate_first_struct(struct)
+    mesh_finder = FslMeshLoader(struct_subset, derivative, as_mesh=as_mesh)
 
-    if struct == "BrStem":
-        suffixed_side = ""
-    else:
-        suffixed_side = "L_" if left else "R_"
-
-    suffixed_struct = f"{suffixed_side}{struct}"
-    if derivative.startswith("enigma"):
-        enigma_index = f"_{first_struct_to_enigma_id(suffixed_struct)}"
-        rules = [
-            lambda file: file.endswith(enigma_index),
-        ]
-    else:
-        rules = [
-            IsFileType("vtk"),
-            lambda filename: suffixed_struct in filename,
-        ]
-
-    file_finder = folders_selector + ppdict.DictMap(FileFinder(rules=rules))
-
-    if as_dict:
-        return file_finder
-
-    return file_finder + ppdict.DictToValuesList()
+    return folders_selector + ppdict.NestedDictMap(mesh_finder)
 
 
 def SegmentationsLoader(
