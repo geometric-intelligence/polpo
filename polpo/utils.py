@@ -117,3 +117,32 @@ def nest_dict(flat_dict, sep="/"):
             break
 
     return flat_dict
+
+
+def custom_order(reference):
+    # behavior is random if element is not in reference
+    order_ = {val: index for index, val in enumerate(reference)}
+    n_reference = len(order_)
+
+    def _custom_order(x):
+        return order_.get(x, n_reference)
+
+    return _custom_order
+
+
+def plot_shape_from_n_plots(n_plots, n_cols_max=2):
+    # TODO: compute space filler?
+    n_cols = min(n_cols_max, n_plots)
+    n_rows = (n_plots + n_cols - 1) // n_cols
+
+    return n_rows, n_cols
+
+
+def plot_index_to_shape(index, n_axis, rowise=False):
+    # TODO: find better name
+    a, b = index // n_axis, index % n_axis
+
+    if rowise:
+        return b, a
+
+    return a, b

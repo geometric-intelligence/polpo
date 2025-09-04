@@ -12,6 +12,8 @@ from polpo.utils import is_non_string_iterable, unnest
 
 from .base import Pipeline, PreprocessingStep
 
+# TODO: create polpo.preprocessing.iter
+
 
 def _wrap_step(step=None):
     if step is None:
@@ -42,7 +44,7 @@ class ExceptionToWarning(StepWrappingPreprocessingStep):
             if self.warn:
                 warnings.warn(str(e))
 
-        return None
+        return data
 
 
 class BranchingPipeline(PreprocessingStep):
@@ -218,9 +220,12 @@ class ParMap(StepWrappingPreprocessingStep):
 
 
 class EnsureIterable(StepWrappingPreprocessingStep):
+    def _is_iter(self, data):
+        return is_non_string_iterable(data)
+
     def __call__(self, data):
         decorated = False
-        if not is_non_string_iterable(data):
+        if not self._is_iter(data):
             decorated = True
             data = [data]
 
@@ -233,6 +238,11 @@ class EnsureIterable(StepWrappingPreprocessingStep):
             return new_data[0]
 
         return new_data
+
+
+class EnsureListIterable(EnsureIterable):
+    def _is_iter(self, data):
+        return isinstance(data, list)
 
 
 class Map:
@@ -602,3 +612,19 @@ class CachablePipeline(PreprocessingStep):
     def reset_cache(self):
         if os.path.exists(self.cache_dir):
             shutil.rmtree(self.cache_dir)
+
+
+class GroupBy(PreprocessingStep):
+    def __init__(self, datum2group):
+        super().__init__()
+        self.datum2group = datum2group
+
+    def __call__(self, data):
+        out = {}
+        for datum in data:
+            key = self.datum2group(datum)
+            key_ls = out.get(key, [])
+            key_ls.append(datum)
+            out[key] = key_ls
+
+        return out

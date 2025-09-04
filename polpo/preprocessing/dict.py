@@ -46,6 +46,7 @@ class Hash(PreprocessingStep):
 
 class DictMerger(PreprocessingStep):
     # NB: not shared keys are ignored
+    # TODO: allow to raise or provide more behaviors?
 
     def _collect_shared_keys(self, data):
         keys = set(data[0].keys())
@@ -351,6 +352,24 @@ class ListDictSwapper(PreprocessingStep):
         for elem in ls:
             for key in keys:
                 out[key].append(elem[key])
+
+        return out
+
+
+class DictListSwapper(PreprocessingStep):
+    # swap a dict of list
+    # assumes lists have the same size
+
+    def __call__(self, data):
+        out = [{} for _ in range(len(data[list(data.keys())[0]]))]
+        n_out = len(out)
+
+        for key, value_ls in data.items():
+            if len(value_ls) != n_out:
+                raise ValueError("Trying to swap lists with different sizes.")
+
+            for index, value in enumerate(value_ls):
+                out[index][key] = value
 
         return out
 

@@ -2,7 +2,12 @@
 
 import re
 
-from ._preprocessing import Contains, ContainsAll, MethodApplier  # noqa:F401
+from ._preprocessing import (  # noqa:F401
+    Contains,
+    ContainsAll,
+    ExceptionToWarning,
+    MethodApplier,
+)
 from .base import PreprocessingStep
 
 
@@ -17,7 +22,10 @@ class DigitFinder(PreprocessingStep):
     """
 
     def __init__(self, index=-1):
+        super().__init__()
         self.index = index
+
+        self._pattern = re.compile(r"\d+")
 
     def __call__(self, string):
         """Apply step.
@@ -30,10 +38,25 @@ class DigitFinder(PreprocessingStep):
         -------
         int
         """
-        digits = re.findall(r"\d+", string)
+        digits = self._pattern.findall(string)
         return int(digits[self.index])
+
+
+class RegexGroupFinder(PreprocessingStep):
+    def __init__(self, pattern):
+        # pattern must contain a group
+        super().__init__()
+        self._pattern = re.compile(pattern)
+
+    def __call__(self, data):
+        return self._pattern.search(data).group(1)
 
 
 class StartsWith(MethodApplier):
     def __init__(self, value):
         super().__init__(value, method="startswith")
+
+
+class TryToInt(ExceptionToWarning):
+    def __init__(self, warn=False):
+        super().__init__(int, warn=warn)
