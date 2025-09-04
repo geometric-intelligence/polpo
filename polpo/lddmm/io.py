@@ -3,13 +3,7 @@ from in_out.deformable_object_reader import DeformableObjectReader
 
 import polpo.lddmm.strings as lddmm_strings
 import polpo.preprocessing.dict as ppdict
-from polpo.preprocessing import (
-    Filter,
-    GroupBy,
-    IdentityStep,
-    Map,
-    Sorter,
-)
+from polpo.preprocessing import FilteredGroupBy, IdentityStep, Map, Sorter
 from polpo.preprocessing.mesh.conversion import PvFromData
 from polpo.preprocessing.path import FileFinder, IsFileType
 from polpo.preprocessing.str import Contains, DigitFinder, RegexGroupFinder, TryToInt
@@ -41,19 +35,13 @@ def get_deterministic_atlas_reconstruction_names(path, subset=None):
 
     path_to_id = RegexGroupFinder(r"__subject_([A-Za-z0-9]+)") + TryToInt()
 
+    sorter = None
     if subset is not None:
-        file_finder += Filter(
-            func=lambda folder_name: path_to_id(folder_name) in subset
-        )
+        sorter = custom_order(subset)
 
-    if subset is None:
-        sorter = Sorter(lambda x: path_to_id(x))
-
-    else:
-        _custom_order = custom_order(subset)
-        sorter = Sorter(lambda x: _custom_order(path_to_id(x)))
-
-    file_finder += sorter + ppdict.HashWithIncoming(key_step=Map(path_to_id))
+    file_finder += ppdict.HashWithIncoming(
+        key_step=Map(path_to_id), key_sorter=sorter, key_subset=subset
+    )
 
     # dict[str or int: str]
     return file_finder(path)
@@ -70,15 +58,14 @@ def get_deterministic_atlas_flow_names(path, subset=None):
     path_to_id = RegexGroupFinder(r"__subject_([A-Za-z0-9]+)") + TryToInt()
     path_to_tp = DigitFinder(index=-1)
 
-    if subset is None:
-        sorter = Sorter(lambda x: (path_to_id(x), path_to_tp(x)))
-        filter_ = IdentityStep()
-    else:
-        _custom_order = custom_order(subset)
-        sorter = Sorter(lambda x: (_custom_order(path_to_id(x)), path_to_tp(x)))
-        filter_ = ppdict.SelectKeySubset(subset)
+    # TODO: try to call path_to_id only once if no subset
+    sorter = Sorter(path_to_id) if subset is None else IdentityStep()
 
-    file_finder += sorter + GroupBy(path_to_id) + filter_
+    file_finder += (
+        sorter
+        + FilteredGroupBy(path_to_id, subset=subset)
+        + ppdict.DictMap(Sorter(path_to_tp))
+    )
 
     # dict[str or int: list[str]]
     return file_finder(path)
