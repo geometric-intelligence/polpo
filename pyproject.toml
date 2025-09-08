@@ -46,6 +46,13 @@ mesh = [
     "pyvista",
     "meshio",
 ]
+lddmm = [
+    "torch",
+    "matplotlib",
+    "pyvista",
+    "deformetrica @ git+https://github.com/nguigs/deformetrica@spline-regression",
+    "PyQt5"
+]
 varifold = ["geomstats", "kneebow", "trimesh"]
 dataframe = ["pandas"]
 ssh = ["paramiko", "scp"]
