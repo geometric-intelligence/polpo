@@ -89,7 +89,7 @@ def get_all_first_structs(prefixed=True, include_brstem=True, order=False):
             out.append(f"{prefix}_{struct}")
 
     if include_brstem:
-        out.append(struct)
+        out.append("BrStem")
 
     if order:
         return out

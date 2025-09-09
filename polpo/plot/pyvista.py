@@ -61,7 +61,10 @@ class RegisteredMeshesGifPlotter:
             self._gif = pl.open_gif(self.gif_name, fps=self.fps)
 
         if pl.shape[0] * pl.shape[1] == 1:
-            meshes = [[mesh] for mesh in meshes]
+            if isinstance(meshes, dict):
+                meshes = {key: [mesh] for key, mesh in meshes.items()}
+            else:
+                meshes = [[mesh] for mesh in meshes]
 
         subplot_axis = 0 if self.rowise else 1
         rendered_meshes = {}

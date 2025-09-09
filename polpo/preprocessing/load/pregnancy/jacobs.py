@@ -32,10 +32,8 @@ def TabularDataLoader(data_dir="~/.herbrain/data/maternal", subject_id=None):
     data_dir : str
         Data root dir.
     subject_id : str
-        Identification of the subject. If None, loads full dataframe.
+        Identification of the subject. If None, loads full dataframe (except "01").
         One of the following: "01", "1001B", "1004B".
-    pilot : bool
-        Whether to load pilot data.
 
     Returns
     -------
@@ -44,9 +42,8 @@ def TabularDataLoader(data_dir="~/.herbrain/data/maternal", subject_id=None):
     """
     project_folder = "maternal_brain_project"
     data_dir = Path(data_dir).expanduser()
-    pilot = subject_id is None or subject_id == "01"
 
-    if pilot:
+    if subject_id == "01":
         project_folder = f"{project_folder}_pilot"
 
         if subject_id is not None and subject_id != "01":

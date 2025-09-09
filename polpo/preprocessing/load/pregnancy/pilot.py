@@ -19,6 +19,7 @@ from polpo.preprocessing import (
     StepWithLogging,
 )
 from polpo.preprocessing.load.figshare import FigshareDataLoader, _get_basename
+from polpo.preprocessing.mri import MriImageLoader
 from polpo.preprocessing.path import (
     ExpandUser,
     FileFinder,
@@ -48,6 +49,10 @@ PREGNANCY_PILOT_REFLECTED_KEYS = {
     25,
     26,
 }
+
+
+# TODO: add the possibility to download and reorganize data
+# then use loaders available in maternal
 
 
 class FigsharePregnancyDataLoader:
@@ -262,7 +267,11 @@ def TabularDataLoader(data_dir="~/.herbrain/data/pregnancy", use_cache=True):
     return loader + ppd.CsvReader() + prep_pipe
 
 
-def MriLoader(subset=None, data_dir="~/.herbrain/data/pregnancy", as_dict=False):
+def MriLoader(
+    subset=None,
+    data_dir="~/.herbrain/data/pregnancy",
+    as_image=False,
+):
     """Create pipeline to load mri filenames.
 
     Parameters
@@ -271,13 +280,13 @@ def MriLoader(subset=None, data_dir="~/.herbrain/data/pregnancy", as_dict=False)
         Subset of sessions to load. If `None`, loads all.
     data_dir : str
         Directory where to store data.
-    as_dict : bool
-        Whether to create a dictionary with session as key.
+    as_image : bool
+        Whether to load file as image.
 
     Returns
     -------
     pipe : Pipeline
-        Pipeline whose output is list[str] or dict[int, str].
+        Pipeline whose output is dict[int, str or np.array].
         String represents filename. Sorting is by session id.
     """
     folders_selector = _FigsharePregnancyFolderLoader(
@@ -299,15 +308,16 @@ def MriLoader(subset=None, data_dir="~/.herbrain/data/pregnancy", as_dict=False)
     )
 
     pipe = folders_selector + files_selector
+    if as_image:
+        return pipe + ppdict.DictMap(MriImageLoader())
 
-    if as_dict:
-        return pipe
-
-    return pipe + ppdict.DictToValuesList()
+    return pipe
 
 
 def HippocampalSubfieldsSegmentationsLoader(
-    subset=None, data_dir="~/.herbrain/data/pregnancy", as_dict=False
+    subset=None,
+    data_dir="~/.herbrain/data/pregnancy",
+    as_image=False,
 ):
     """Create pipeline to load segmented mri filenames.
 
@@ -317,12 +327,12 @@ def HippocampalSubfieldsSegmentationsLoader(
         Subset of sessions to load. If `None`, loads all.
     data_dir : str
         Directory where to store data.
-    as_dict : bool
-        Whether to create a dictionary with session as key.
+    as_image : bool
+        Whether to load file as image.
 
     Returns
     -------
-    filenames : list[str] or dict[int, str]
+    filenames : dict[int, str]
         String represents filename. Sorting is by session id.
     """
     folders_selector = _FigsharePregnancyFolderLoader(
@@ -356,16 +366,15 @@ def HippocampalSubfieldsSegmentationsLoader(
 
     pipe = folders_selector + files_selector
 
-    if as_dict:
-        return pipe
+    if as_image:
+        return pipe + ppdict.DictMap(MriImageLoader())
 
-    return pipe + ppdict.DictToValuesList()
+    return pipe
 
 
 def RegisteredMeshesLoader(
     subset=None,
     data_dir="~/.herbrain/data/pregnancy",
-    as_dict=False,
     method="deformetrica",
     version=0,
 ):
@@ -379,8 +388,6 @@ def RegisteredMeshesLoader(
         Subset of sessions to load. If `None`, loads all.
     data_dir : str
         Directory where to store data.
-    as_dict : bool
-        Whether to create a dictionary with session as key.
     method : str
         Which meshes to load based on registration methodology.
         Available options are 'deformetrica' and 'elastic'.
@@ -390,7 +397,7 @@ def RegisteredMeshesLoader(
     Returns
     -------
     pipe : Pipeline
-        Pipeline whose output is list[str] or dict[int, str].
+        Pipeline whose output is dict[int, str].
         String represents filename. Sorting is by session id.
     """
     method_to_path = {
@@ -423,7 +430,4 @@ def RegisteredMeshesLoader(
         + ppdict.SelectKeySubset(subset)
     )
 
-    if as_dict:
-        return pipe
-
-    return pipe + ppdict.DictToValuesList()
+    return pipe
