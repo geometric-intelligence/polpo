@@ -3,7 +3,7 @@ import warnings
 from joblib import Parallel, delayed
 from tqdm import tqdm
 
-from polpo.utils import nest_dict, unnest_dict
+import polpo.utils as putils
 
 from ._preprocessing import (
     Filter,
@@ -150,12 +150,20 @@ class DictExtractKey(PreprocessingStep):
         return data[self.key]
 
 
-class ExtractUniqueKey(PreprocessingStep):
+class _ExtractUniqueOuterKey(PreprocessingStep):
     def __call__(self, dict_):
         if (n_keys := len(dict_)) != 1:
             raise ValueError(f"Expected one key, but there's {n_keys}")
 
-        return dict_[list(dict_.keys())[0]]
+        return next(iter(dict_.values()))
+
+
+class ExtractUniqueKey:
+    def __new__(cls, nested=False):
+        if nested:
+            return putils.extract_unique_key_nested
+
+        return _ExtractUniqueOuterKey()
 
 
 class DictToValuesList(PreprocessingStep):
@@ -415,9 +423,9 @@ class ZipWithKeys(StepWrappingPreprocessingStep):
 
 class UnnestDict(FunctionCaller):
     def __init__(self, sep="/"):
-        super().__init__(unnest_dict, sep=sep)
+        super().__init__(putils.unnest_dict, sep=sep)
 
 
 class NestDict(FunctionCaller):
     def __init__(self, sep="/"):
-        super().__init__(nest_dict, sep=sep)
+        super().__init__(putils.nest_dict, sep=sep)

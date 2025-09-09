@@ -84,18 +84,6 @@ def unnest_dict(nested_dict, sep="/", current_key="", flat_dict=None):
     return flat_dict
 
 
-def nest_dict_outer_level(flat_dict, sep="/"):
-    nested_dict = {}
-
-    for key, value in flat_dict.items():
-        outer_key, inner_key = key.split(sep, maxsplit=1)
-
-        inner_dict = nested_dict[outer_key] = nested_dict.get(outer_key, {})
-        inner_dict[inner_key] = value
-
-    return nested_dict
-
-
 def nest_dict_inner_level(flat_dict, sep="/"):
     nested_dict = {}
 
@@ -110,6 +98,8 @@ def nest_dict_inner_level(flat_dict, sep="/"):
 
 def nest_dict(flat_dict, sep="/"):
     while True:
+        # TODO: make a nicer recursion
+
         try:
             flat_dict = nest_dict_inner_level(flat_dict, sep=sep)
         except ValueError:
@@ -117,6 +107,16 @@ def nest_dict(flat_dict, sep="/"):
             break
 
     return flat_dict
+
+
+def extract_unique_key_nested(data):
+    if not isinstance(data, dict):
+        return data
+
+    if len(data.keys()) == 1:
+        return extract_unique_key_nested(data[next(iter(data))])
+
+    return {key: extract_unique_key_nested(value) for key, value in data.items()}
 
 
 def custom_order(reference):
