@@ -27,18 +27,21 @@ class IdentityMeshAligner(PreprocessingStep):
 
 
 class RigidAlignment(PartiallyInitializedStep):
-    def __init__(self, target=None, is_dict=True, **kwargs):
-        # TODO: create a more robust iterator/template selector?
+    def __init__(self, target=None, **kwargs):
+        is_dict = lambda x: isinstance(x, dict)
 
         if target is None:
+
+            def target(data):
+                if is_dict(data):
+                    return next(iter(data.values()))
+
+                return data[0]
+
+        def _Step(is_dict, **kwargs):
             if is_dict:
-                target = lambda x: next(iter(x.values()))
-            else:
-                target = lambda x: x[0]
+                return ppdict.DictMap(PvAlign(**kwargs))
 
-        if is_dict:
-            Step = lambda **_kwargs: ppdict.DictMap(PvAlign(**_kwargs))
-        else:
-            Step = lambda **_kwargs: Map(PvAlign(**_kwargs))
+            return Map(PvAlign(**kwargs))
 
-        super().__init__(Step=Step, _target=target, **kwargs)
+        super().__init__(Step=_Step, _target=target, _is_dict=is_dict, **kwargs)
