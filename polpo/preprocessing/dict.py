@@ -86,8 +86,13 @@ class HashWithIncoming(StepWrappingPreprocessingStep):
                 (key, value) for key, value in zipped_data if key in self.key_subset
             )
 
-        if callable(self.key_sorter):
-            zipped_data = sorted(zipped_data, key=lambda x: self.key_sorter(x[0]))
+        if self.key_sorter is not None:
+            key_sorter = (
+                self.key_sorter
+                if callable(self.key_sorter)
+                else putils.custom_order(self.key_sorter)
+            )
+            zipped_data = sorted(zipped_data, key=lambda x: key_sorter(x[0]))
 
         return {key: value for key, value in zipped_data}
 
