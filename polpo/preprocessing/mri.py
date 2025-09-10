@@ -2,11 +2,12 @@ import nibabel as nib
 import numpy as np
 import skimage
 
+from polpo.preprocessing.mesh.filter import PvSelectColor
 from polpo.utils import params_to_kwargs
 
 from .base import PreprocessingStep
 
-HippStructs = {
+ASHS_STRUCTS = {
     "CA1",
     "CA2+3",
     "DG",
@@ -190,7 +191,7 @@ def segmtool2encoding(tool=None, struct=None, raise_=True):
     # struct is ignored if tool is not None
 
     if tool is None and isinstance(struct, str):
-        if struct in HippStructs:
+        if struct in ASHS_STRUCTS:
             return AshsPrincetonYoungAdult3TEncoding()
 
         return FreeSurferStructEncoding()
@@ -316,6 +317,10 @@ class MeshExtractorFromSegmentedImage(PreprocessingStep):
     struct_id : int or str
         Structure to select. Depends on segmentation tool.
         If -1 considers full structure. If integer, ignores encoding.
+    image : array-like, shape = [n_x, n_y, n_z]
+        Voxels which are colored according to substructure assignment.
+        For example, color of voxel (0, 0, 0) is an integer value that can be
+        anywhere from 0-9.
     marching_cubes : callable
         Marching cubes algorithm.
     return_colors : bool
@@ -331,57 +336,65 @@ class MeshExtractorFromSegmentedImage(PreprocessingStep):
     def __init__(
         self,
         struct_id=-1,
+        image=None,
         marching_cubes=None,
         return_colors=True,
         encoding=None,
     ):
-        if encoding is None or isinstance(encoding, str):
-            encoding = segmtool2encoding(encoding, struct_id, raise_=False)
-
-        if encoding is None and isinstance(struct_id, str):
-            raise ValueError(f"Need encoding to handle str id: `{struct_id}`")
-
         if marching_cubes is None:
             marching_cubes = SkimageMarchingCubes(
                 level=0, method="lewiner", return_values=return_colors
             )
 
         super().__init__()
-        self.structure_id = struct_id
+        self.struct_id = struct_id
+        self.image = image
         self.marching_cubes = marching_cubes
         self.encoding = encoding
 
-    def __call__(self, img_fdata):
-        """Extract one surface mesh from the fdata of a segmented image.
+    def _get_encoding(self, struct_id):
+        encoding = self.encoding
 
-        Parameters
-        ----------
-        img_fdata: array-like, shape = [n_x, n_y, n_z]. Voxels which are colored
-            according to substructure assignment. For example, color of voxel
-            (0, 0, 0) is an integer value that can be anywhere from 0-9.
-        """
-        structure_id = (
-            self.structure_id
-            if isinstance(self.structure_id, int)
-            else self.encoding.structs2ids.get(self.structure_id)
-        )
+        if encoding is None or isinstance(encoding, str):
+            encoding = segmtool2encoding(encoding, struct_id, raise_=False)
 
-        if structure_id == -1:
-            img_mask = img_fdata != 0
+        if encoding is None and isinstance(struct_id, str):
+            raise ValueError(f"Need encoding to handle str id: `{struct_id}`")
+
+        return encoding
+
+    def __call__(self, data):
+        """Extract one surface mesh from the fdata of a segmented image."""
+
+        if isinstance(data, (list, tuple)):
+            image, struct_id = data
+        elif isinstance(data, (int, str)):
+            image = self.image
+            struct_id = data
         else:
-            img_mask = img_fdata == structure_id
+            image = data
+            struct_id = self.struct_id
 
-        masked_img_fdata = np.where(img_mask, img_fdata, 0)
+        encoding = self._get_encoding(struct_id)
+        if encoding is not None and struct_id != -1:
+            struct_id = encoding.structs2ids.get(struct_id)
+
+        if struct_id == -1:
+            img_mask = image != 0
+        else:
+            img_mask = image == struct_id
+
+        masked_image = np.where(img_mask, image, 0)
         # (vertices, faces) or (vertices, faces, values)
-        out = self.marching_cubes(masked_img_fdata)
+        out = self.marching_cubes(masked_image)
 
         if len(out) == 2:
             return out
 
-        if self.encoding is None:
+        if encoding is None:
             return out[:2]
 
-        colors2dict = self.encoding.ids2colors
+        colors2dict = encoding.ids2colors
         colors = np.array([np.array(colors2dict[value]) for value in out[-1]])
         return out[:2] + (colors,)
 
@@ -409,7 +422,7 @@ class SkimageMarchingCubes(PreprocessingStep):
         self.return_values = return_values
 
     def __call__(self, data):
-        if isinstance(data, tuple):
+        if isinstance(data, (list, tuple)):
             img_fdata, mask = data
         else:
             img_fdata = data
@@ -435,3 +448,48 @@ class SkimageMarchingCubes(PreprocessingStep):
             out = out + (values,)
 
         return out
+
+
+class MeshExtractorFromSegmentedMesh(PreprocessingStep):
+    def __init__(
+        self,
+        struct_id=None,
+        mesh=None,
+        encoding=None,
+        color_selector=None,
+    ):
+        super().__init__()
+
+        if color_selector is None:
+            color_selector = PvSelectColor()
+
+        self.struct_id = struct_id
+        self.mesh = mesh
+        self.encoding = encoding
+        self.color_selector = color_selector
+
+    def _get_encoding(self, struct_id):
+        encoding = self.encoding
+
+        if encoding is None or isinstance(encoding, str):
+            encoding = segmtool2encoding(encoding, struct_id, raise_=False)
+
+        if encoding is None and isinstance(struct_id, str):
+            raise ValueError(f"Need encoding to handle str id: `{struct_id}`")
+
+        return encoding
+
+    def __call__(self, data):
+        if isinstance(data, (list, tuple)):
+            mesh, struct_id = data
+        elif isinstance(data, (int, str)):
+            mesh = self.mesh
+            struct_id = data
+        else:
+            mesh = data
+            struct_id = self.struct_id
+
+        encoding = self._get_encoding(struct_id)
+        color = encoding.structs2colors.get(struct_id)
+
+        return self.color_selector((mesh, color))
