@@ -5,10 +5,16 @@ from pathlib import Path
 
 import polpo.preprocessing.dict as ppdict
 import polpo.preprocessing.pd as ppd
-from polpo.preprocessing import BranchingPipeline, Constant, Contains
+from polpo.preprocessing import BranchingPipeline, Constant
 from polpo.preprocessing.load.bids import DerivativeFoldersSelector
-from polpo.preprocessing.load.fsl import MeshLoader as FslMeshLoader
-from polpo.preprocessing.path import ExpandUser, FileFinder, IsFileType
+from polpo.preprocessing.load.fsl import (
+    MeshLoader as FslMeshLoader,
+)
+from polpo.preprocessing.load.fsl import (
+    SegmentationsLoader as FslSegmentationsLoader,
+)
+from polpo.preprocessing.mri import MriImageLoader
+from polpo.preprocessing.path import ExpandUser, FileFinder
 from polpo.preprocessing.str import DigitFinder, StartsWith
 
 from .pilot import TabularDataLoader as PilotTabularDataLoader
@@ -225,9 +231,9 @@ def MeshLoader(
 
 def SegmentationsLoader(
     data_dir="~/.herbrain/data/maternal",
-    subset=None,
-    subject_id=None,
-    as_dict=False,
+    subject_subset=None,
+    session_subset=None,
+    as_image=False,
     tool="fsl_first",
 ):
     """Create pipeline to load segmented mri filenames.
@@ -240,9 +246,9 @@ def SegmentationsLoader(
         Subset of sessions to load. If `None`, loads all.
     subject_id : str
         Identification of the subject. If None, assumes pilot.
-        One of the following: "01", "1001", "1004".
-    as_dict : bool
-        Whether to create a dictionary with session as key.
+        One of the following: "01", "1001B", "1004B".
+    as_image : bool
+        Whether to load file as image.
     tool : str
         Tool used to generate derivatives.
         One of the following: "fsl*", "fast*".
@@ -252,31 +258,16 @@ def SegmentationsLoader(
     pipe : Pipeline
         Pipeline to load segmented mri filenames.
     """
-    folders_selector = FoldersSelector(
-        data_dir=data_dir,
-        subject_id=subject_id,
-        subset=subset,
-        as_dict=True,
+    # TODO: as_mesh?
+    folders_selector = Constant(data_dir) + FoldersSelector(
+        subject_subset=subject_subset,
+        session_subset=session_subset,
         derivative=tool,
     )
 
-    if tool.startswith("fsl"):
-        image_selector = FileFinder(
-            rules=[
-                IsFileType("nii.gz"),
-                Contains("all_fast_firstseg"),
-            ]
-        )
-    elif tool.startswith("fast") or tool.startswith("free"):
-        image_selector = FileFinder(rules=lambda x: x == "mri") + FileFinder(
-            rules=lambda x: x == "aseg.auto.mgz"
-        )
-    else:
-        raise ValueError(f"Oops, don't know how to handle: {tool}")
+    image_selector = FslSegmentationsLoader(tool)
 
-    file_finder = folders_selector + ppdict.DictMap(image_selector)
+    if as_image:
+        image_selector += MriImageLoader()
 
-    if as_dict:
-        return file_finder
-
-    return file_finder + ppdict.DictToValuesList()
+    return folders_selector + ppdict.NestedDictMap(image_selector)

@@ -1,6 +1,6 @@
 import polpo.preprocessing.dict as ppdict
 import polpo.utils as putils
-from polpo.preprocessing import IdentityStep, Map
+from polpo.preprocessing import Contains, IdentityStep, Map
 from polpo.preprocessing.mesh.conversion import PvFromData
 from polpo.preprocessing.mesh.io import FreeSurferReader, PvReader
 from polpo.preprocessing.path import (
@@ -132,3 +132,22 @@ def MeshLoader(struct_subset=None, derivative="fsl", as_mesh=False):
         step=Map(mesh_reader),
         key_sorter=putils.custom_order(struct_subset),
     )
+
+
+def SegmentationsLoader(tool="fsl_first"):
+    # TODO: move?
+    if tool.startswith("fsl"):
+        image_selector = FileFinder(
+            rules=[
+                IsFileType("nii.gz"),
+                Contains("all_fast_firstseg"),
+            ]
+        )
+    elif tool.startswith("fast") or tool.startswith("free"):
+        image_selector = FileFinder(rules=lambda x: x == "mri") + FileFinder(
+            rules=lambda x: x == "aseg.auto.mgz"
+        )
+    else:
+        raise ValueError(f"Oops, don't know how to handle: {tool}")
+
+    return image_selector
