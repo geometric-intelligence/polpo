@@ -330,7 +330,11 @@ class PartiallyInitializedStep(PreprocessingStep):
         kwargs = self.kwargs.copy()
         dependent_keys = list(filter(lambda x: x.startswith("_"), kwargs.keys()))
         for key in dependent_keys:
-            kwargs[key[1:]] = kwargs.pop(key)(data)
+            value = kwargs.pop(key)
+            if callable(value):
+                value = value(data)
+
+            kwargs[key[1:]] = value
 
         step = self.Step(**kwargs)
 
