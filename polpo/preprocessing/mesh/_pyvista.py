@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 
 import numpy as np
 import pyvista as pv
@@ -279,10 +280,12 @@ class PvWriter(PreprocessingStep):
         ext=None,
         binary=True,
         recompute_normals=False,
+        exists_ok=True,
     ):
         super().__init__()
         self.dirname = dirname
         self.ext = ext
+        self.exists_ok = exists_ok
 
         self.binary = binary
         self.recompute_normals = recompute_normals
@@ -308,7 +311,8 @@ class PvWriter(PreprocessingStep):
 
         ext = filename.split(".")[1]
 
-        path = os.path.join(self.dirname, filename)
+        path = Path(os.path.join(self.dirname, filename))
+        path.parent.mkdir(parents=True, exist_ok=self.exists_ok)
 
         texture = (
             poly_data["colors"]
