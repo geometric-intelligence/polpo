@@ -2,6 +2,8 @@ import os
 
 from api.deformetrica import Deformetrica
 
+from polpo.lddmm.io import get_template_name
+
 
 def estimate_deterministic_atlas(
     source,
@@ -124,12 +126,17 @@ def estimate_deterministic_atlas(
         }
     }
 
-    targets_ = [{"shape": target} for target in targets]
+    if isinstance(targets, dict):
+        targets_ = [{"shape": target} for target in targets.values()]
+        subject_ids = [str(key) for key in targets.keys()]
+    else:
+        targets_ = [{"shape": target} for target in targets]
+        subject_ids = [str(index) for index in range(len(targets_))]
+
     data_set = {
         "dataset_filenames": [[k] for k in targets_],
         "visit_ages": None,
-        # TODO: allow targets to be dict?
-        "subject_ids": [str(index) for index in range(len(targets_))],
+        "subject_ids": subject_ids,
     }
 
     model = {
@@ -189,6 +196,8 @@ def estimate_deterministic_atlas(
         estimator_options=optimization_parameters,
     )
 
+    return get_template_name(output_dir)
+
 
 def estimate_spline_regression(
     source,
@@ -214,8 +223,6 @@ def estimate_spline_regression(
     target_weights=None,
     geodesic_weight=0.1,
     metric="landmark",
-    # filter_cp=False,
-    # threshold=1.0,
     attachment_kernel_width=15.0,
     print_every=20,
 ):
