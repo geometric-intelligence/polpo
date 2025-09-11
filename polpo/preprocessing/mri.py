@@ -2,7 +2,6 @@ import nibabel as nib
 import numpy as np
 import skimage
 
-from polpo.preprocessing.mesh.filter import PvSelectColor
 from polpo.utils import params_to_kwargs
 
 from .base import PreprocessingStep
@@ -461,6 +460,8 @@ class MeshExtractorFromSegmentedMesh(PreprocessingStep):
         super().__init__()
 
         if color_selector is None:
+            from polpo.preprocessing.mesh.filter import PvSelectColor
+
             color_selector = PvSelectColor()
 
         self.struct_id = struct_id
