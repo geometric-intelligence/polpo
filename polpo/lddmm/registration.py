@@ -22,9 +22,9 @@ def estimate_registration(
     use_rk4_for_shoot=False,
     preserve_volume=False,
     print_every=20,
+    attachment_kernel_width=4.0,
     # filter_cp=False,
     # threshold=1.0,
-    # attachment_kernel_width=4.0, # NB: never used
 ):
     r"""Registration.
 
@@ -162,7 +162,7 @@ def estimate_registration(
         "shape": {
             "deformable_object_type": "SurfaceMesh",
             "kernel_type": kernel_type,
-            "kernel_width": kernel_width,
+            "kernel_width": attachment_kernel_width,
             "kernel_device": kernel_device,
             "noise_std": regularisation,
             "filename": source,
