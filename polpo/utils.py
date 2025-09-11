@@ -149,3 +149,10 @@ def plot_index_to_shape(index, n_axis, rowise=False):
         return b, a
 
     return a, b
+
+
+def get_first(data):
+    if isinstance(data, dict):
+        return next(iter(data.values()))
+
+    return data[0]
