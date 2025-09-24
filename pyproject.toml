@@ -46,12 +46,20 @@ mesh = [
     "pyvista",
     "meshio",
 ]
-lddmm = [
+deformetrica = [
+    "deformetrica@git+https://github.com/nguigs/deformetrica@spline-regression",
+    "scipy",
+    "nibabel",
+    "PyQt5",
+    "scikit-learn",
+    "psutil",
+    "Pillow",
+    "vtk",
     "torch",
-    "matplotlib",
-    "pyvista",
-    "deformetrica @ git+https://github.com/nguigs/deformetrica@spline-regression",
-    "PyQt5"
+    # above are minimum to run deformetrica's alien example from cli
+    "ipykernel",
+    "pyvista[jupyter]", # try conda if kernel dies
+    "imageio",
 ]
 varifold = ["geomstats", "kneebow", "trimesh"]
 dataframe = ["pandas"]
@@ -62,7 +70,7 @@ dev = ["polpo[doc,lint,test]"]
 all = ["polpo[dash,app,plot,preprocessing,hydra,varifold]"]
 
 [project.urls]
-repository = "http://github.com/luisfpereira/polpo"
+repository = "http://github.com/geometric-intelligence/polpo"
 
 [tool.setuptools]
 include-package-data = true

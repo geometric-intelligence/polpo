@@ -2,7 +2,7 @@ import os
 
 from api.deformetrica import Deformetrica
 
-from polpo.lddmm.io import get_template_name
+from polpo.lddmm.io import load_template
 
 
 def estimate_deterministic_atlas(
@@ -196,7 +196,7 @@ def estimate_deterministic_atlas(
         estimator_options=optimization_parameters,
     )
 
-    return get_template_name(output_dir)
+    return load_template(output_dir, as_path=True)
 
 
 def estimate_spline_regression(

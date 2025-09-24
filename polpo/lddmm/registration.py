@@ -23,8 +23,6 @@ def estimate_registration(
     preserve_volume=False,
     print_every=20,
     attachment_kernel_width=4.0,
-    # filter_cp=False,
-    # threshold=1.0,
 ):
     r"""Registration.
 

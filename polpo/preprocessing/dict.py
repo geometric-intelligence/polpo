@@ -48,6 +48,11 @@ class DictMerger(PreprocessingStep):
     # NB: not shared keys are ignored
     # TODO: allow to raise or provide more behaviors?
 
+    def __init__(self, as_dict=False):
+        # TODO: make as_dict=True the only behavior
+        super().__init__()
+        self.as_dict = as_dict
+
     def _collect_shared_keys(self, data):
         keys = set(data[0].keys())
         for datum in data[1:]:
@@ -57,11 +62,12 @@ class DictMerger(PreprocessingStep):
 
     def __call__(self, data):
         shared_keys = self._collect_shared_keys(data)
-        out = []
-        for key in shared_keys:
-            out.append([datum[key] for datum in data])
+        out = {key: [datum[key] for datum in data] for key in shared_keys}
 
-        return out
+        if self.as_dict:
+            return out
+
+        return list(out.values())
 
 
 class HashWithIncoming(StepWrappingPreprocessingStep):
@@ -434,3 +440,18 @@ class UnnestDict(FunctionCaller):
 class NestDict(FunctionCaller):
     def __init__(self, sep="/"):
         super().__init__(putils.nest_dict, sep=sep)
+
+
+class TruncateDict(PreprocessingStep):
+    def __init__(self, n_keys=None):
+        super().__init__()
+        self.n_keys = n_keys
+
+    def __call__(self, data):
+        if self.n_keys is None:
+            return data
+
+        keys = list(data.keys())
+        keys_to_keep = keys[: min(len(keys), self.n_keys)]
+
+        return {key: data[key] for key in keys_to_keep}

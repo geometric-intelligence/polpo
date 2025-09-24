@@ -22,6 +22,16 @@ def is_non_string_iterable(obj):
     return isinstance(obj, collections.abc.Iterable) and not isinstance(obj, str)
 
 
+def as_list(data):
+    if isinstance(data, list):
+        return data
+
+    if is_non_string_iterable(data):
+        return list(data)
+
+    return [data]
+
+
 def params_to_kwargs(obj, ignore=(), renamings=None, ignore_private=False, func=None):
     """Get dict with selected object attributes.
 

@@ -10,21 +10,12 @@ from polpo.preprocessing.str import Contains, DigitFinder, RegexGroupFinder, Try
 from polpo.utils import custom_order
 
 # TODO: remove strings?
-
-
-def get_template_name(path):
-    return path / lddmm_strings.template_str
-
-
-def get_cp_name(path):
-    return path / lddmm_strings.cp_str
-
-
-def get_momenta_name(path):
-    return path / lddmm_strings.momenta_str
+# TODO: functions need to be renamed
 
 
 def get_deterministic_atlas_reconstruction_names(path, subset=None):
+    # TODO: move
+
     # in DeterministicAtlas._write_model_predictions
     # name = self.name + '__Reconstruction__' + object_name + '__subject_' + subject_id + object_extension
 
@@ -48,6 +39,8 @@ def get_deterministic_atlas_reconstruction_names(path, subset=None):
 
 
 def get_deterministic_atlas_flow_names(path, subset=None):
+    # TODO: move
+
     # in DeterministicAtlas._write_model_predictions
     # name = self.name + '__flow__' + object_name + '__subject_' + subject_id + "__tp_" + str(j) + object_extension
 
@@ -86,16 +79,32 @@ def _file2mesh(as_pv=False):
     return file2mesh
 
 
-def load_template(path, as_pv=False):
-    # just to reduce dependencies, could have used pyvista instead
-    return _file2mesh(as_pv)(get_template_name(path))
+def load_template(path, as_path=False, as_pv=False):
+    # as_path as precedence to as_pv
+    filename = path / lddmm_strings.template_str
+
+    if as_path:
+        return filename
+
+    return _file2mesh(as_pv)(filename)
 
 
-def load_cp_and_momenta(path):
-    cp = read_3D_array(get_cp_name(path))
-    momenta = read_3D_array(get_momenta_name(path))
+def load_cp(path, as_path=False):
+    cp_name = path / lddmm_strings.cp_str
 
-    return cp, momenta
+    if as_path:
+        return cp_name
+
+    return read_3D_array(cp_name)
+
+
+def load_momenta(path, as_path=False):
+    mom_name = path / lddmm_strings.momenta_str
+
+    if as_path:
+        return mom_name
+
+    return read_3D_array(mom_name)
 
 
 def load_deterministic_atlas_reconstructions(path, subset=None, as_pv=False):
