@@ -60,6 +60,8 @@ deformetrica = [
     "ipykernel",
     "pyvista[jupyter]", # try conda if kernel dies
     "imageio",
+    "pandas",
+    "scikit-image",
 ]
 varifold = ["geomstats", "kneebow", "trimesh"]
 dataframe = ["pandas"]
