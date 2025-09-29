@@ -11,6 +11,7 @@ from launch.compute_parallel_transport import (
 from launch.compute_shooting import compute_shooting
 from support import utilities
 
+import polpo.lddmm.io as io
 import polpo.lddmm.registration as registration
 import polpo.lddmm.strings as strings
 from polpo.lddmm.utils import move_data_device
@@ -214,87 +215,73 @@ def parallel_transport(
     )
 
 
-def parallel_transport_from_meshes(
-    source,
-    target,
-    atlas,
-    name,
+def parallel_transport_ABC(
+    dataset,
+    a_name,
+    b_name,
+    c_name,
     output_dir,
-    registration_args,
-    transport_args,
-    main_reg_dir=None,
+    kernel_width=20.0,
+    kernel_type="torch",
+    kernel_device="cuda",
+    **registration_kwargs,
 ):
-    """
-    Estimate the parallel transport of the "time deformation" along the "subject-to-patient" deformation.
+    """Parallel transport BC along B -> A.
 
-    This function computes parallel transport using as inputs three points on the manifold:
-    1. Computes a geodesic from the atlas to the source shape (the "main geodesic")
-    2. Computes a geodesic from the source to the target shape (the "time deformation")
-    3. Parallel transports the tangent vector of the time deformation along the main geodesic
+    Given three meshes A, B, C, this function will:
 
-    Related
-    -------
-    The transport() function performs the actual parallel transport computation using only control points and momenta.
-    While estimate_parallel_transport() function estimates the full parallel transport pipeline including registrations,
-    transport() is the lower-level function that takes pre-computed control points and momenta as inputs to execute just the transport step.
-
+    * register A to B (fixed), and C to B (fixed)
+    * parallel transport BC along BA
 
     Parameters
     ----------
-    source: str or pathlib.Path
-        Path to the vtk file that contains the source mesh for the geodesic that will be transported. Inintial time step.
-    target: str or pathlib.Path
-        Path to the vtk file that contains the target mesh of the geodesic that will be transported. Final time step.
-    atlas: str or pathlib.Path
-        Path to the vtk file that contains the atlas mesh. The geodesic of atlas towards source is geodesic along which the time deformation will be transported.
-    name: str
-        Name of the deformation.
-    output_dir: str or pathlib.Path
-        Path to the directory where the results will be saved.
-    registration_args: dict
-        Arguments for the registration function.
-    transport_args: dict
-        Arguments for the transport function.
-    main_reg_dir: str or pathlib.Path
-        Path to the directory where the results of the main registration will be saved.
-        The main registration is the subject-to-patient deformation that is the geodesic along which the time deformation will be transported.
-        If None, the results will be saved in the output_dir directory.
+    dataset : dict
+        mesh_name : path
     """
-    # estimation of time deformation: this is the deformation that will be transported
-    time_reg_dir = output_dir / name / f"time_reg_{name}"
-    time_reg_dir.mkdir(parents=True, exist_ok=True)
+    # TODO: do more with registration kwargs?
 
-    registration.estimate_registration(
-        source, target, time_reg_dir, **registration_args
-    )
+    def _register_dir_from_pair(source, target):
+        return output_dir / f"{source}->{target}"
 
-    if main_reg_dir is None:
-        # estimation of subject-to-patient deformation: this is the geodesic along which the time deformation will be transported
-        main_reg_dir = output_dir / name / f"main_reg_{name}"
-        main_reg_dir.mkdir(parents=True, exist_ok=True)
+    pairs = ((b_name, a_name), (b_name, c_name))
+
+    for source, target in pairs:
+        # only register if nonexisting
+        if _register_dir_from_pair(source, target).exists():
+            continue
 
         registration.estimate_registration(
-            atlas, source, main_reg_dir, **registration_args
+            source=dataset[source],
+            target=dataset[target],
+            output_dir=_register_dir_from_pair(source, target),
+            **registration_kwargs,
         )
 
-    # parallel transport of time deformation along subject-to-patient deformation
-    momenta_to_transport = (time_reg_dir / strings.momenta_str).as_posix()
-    control_points_to_transport = (time_reg_dir / strings.cp_str).as_posix()
-    control_points = (main_reg_dir / strings.cp_str).as_posix()
-    momenta = (main_reg_dir / strings.cp_str).as_posix()
-
-    transport_dir = output_dir / name / "transport"
-    transport_dir.mkdir(parents=True, exist_ok=True)
-    cp, mom = pole_ladder(
-        control_points,
-        momenta,
-        control_points_to_transport,
-        momenta_to_transport,
-        transport_dir,
-        **transport_args,
+    source = b_name
+    geod_target = a_name
+    transp_target = c_name
+    transport_output_dir = (
+        output_dir / f"{source}{transp_target}--{source}{geod_target}>{geod_target}"
     )
 
-    return cp, mom
+    # TODO: create generic parallel_transport?
+    return parallel_transport(
+        source=dataset[source],
+        control_points=io.load_cp(
+            _register_dir_from_pair(source, geod_target), as_path=True
+        ),
+        momenta=io.load_momenta(
+            _register_dir_from_pair(source, geod_target), as_path=True
+        ),
+        control_points_to_transport=io.load_cp(
+            _register_dir_from_pair(source, transp_target), as_path=True
+        ),
+        momenta_to_transport=io.load_momenta(
+            _register_dir_from_pair(source, transp_target), as_path=True
+        ),
+        kernel_width=kernel_width,
+        output_dir=transport_output_dir,
+    )
 
 
 def velocity_at_x(
