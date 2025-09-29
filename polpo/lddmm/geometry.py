@@ -172,6 +172,8 @@ def parallel_transport(
     control_points_to_transport=None,
     kernel_type="torch",
     kernel_device="cuda",
+    tmin=0.0,
+    tmax=1.0,
     **model_options,
 ):
     _warn_usunused_kwargs(
@@ -199,6 +201,8 @@ def parallel_transport(
         initial_momenta_to_transport=momenta_to_transport,
         initial_control_points_to_transport=control_points_to_transport,
         deformation_kernel_type=kernel_type,
+        tmin=tmin,
+        tmax=tmax,
         **model_options,
     )
 

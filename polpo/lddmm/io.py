@@ -90,7 +90,17 @@ def load_template(path, as_path=False, as_pv=False):
 
 
 def load_cp(path, as_path=False):
-    cp_name = path / lddmm_strings.cp_str
+    possible_filenames = (
+        "DeterministicAtlas__EstimatedParameters__ControlPoints.txt",
+        "final_cp.txt",
+    )
+
+    for name in possible_filenames:
+        cp_name = path / name
+        if cp_name.exists():
+            break
+    else:
+        raise FileNotFoundError("Can't find any control points.")
 
     if as_path:
         return cp_name
@@ -99,7 +109,17 @@ def load_cp(path, as_path=False):
 
 
 def load_momenta(path, as_path=False):
-    mom_name = path / lddmm_strings.momenta_str
+    possible_filenames = [
+        "DeterministicAtlas__EstimatedParameters__Momenta.txt",
+        "transported_momenta.txt",
+    ]
+
+    for name in possible_filenames:
+        mom_name = path / name
+        if mom_name.exists():
+            break
+    else:
+        raise FileNotFoundError("Can't find any momenta")
 
     if as_path:
         return mom_name
