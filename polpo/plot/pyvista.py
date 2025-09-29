@@ -1,3 +1,6 @@
+import tempfile
+from pathlib import Path
+
 import pyvista as pv
 
 import polpo.utils as putils
@@ -6,7 +9,7 @@ import polpo.utils as putils
 class RegisteredMeshesGifPlotter:
     def __init__(
         self,
-        gif_name,
+        gif_name=None,
         shape=(1, 1),
         fps=10,
         border=False,
@@ -16,6 +19,9 @@ class RegisteredMeshesGifPlotter:
         rowise=False,
         **kwargs,
     ):
+        if gif_name is None:
+            gif_name = Path(tempfile.mkdtemp()) / "gif.gif"
+
         if subtitle is True:
             subtitle = lambda x, y: str(y)
 
@@ -24,7 +30,7 @@ class RegisteredMeshesGifPlotter:
         self.subtitle = subtitle
         self.rowise = rowise
 
-        self.pl = pv.Plotter(
+        self._pl = pv.Plotter(
             shape=shape,
             border=border,
             off_screen=off_screen,
@@ -35,6 +41,14 @@ class RegisteredMeshesGifPlotter:
         self._gif = None
 
         self._subtitle_kwargs = {"font_size": 8}
+
+    def __getattr__(self, name):
+        """Get attribute.
+
+        It is only called when ``__getattribute__`` fails.
+        Delegates attribute calling to pl.
+        """
+        return getattr(self._pl, name)
 
     def set_subtitle_kwargs(self, kwargs):
         self._subtitle_kwargs.update(kwargs)
@@ -55,7 +69,8 @@ class RegisteredMeshesGifPlotter:
         meshes : list[pv.Mesh] or list[list[pv.Mesh]]
             Axes: time, subplot.
         """
-        pl = self.pl
+        # TODO: fix docstrings
+        pl = self._pl
 
         if self._gif is None:
             self._gif = pl.open_gif(self.gif_name, fps=self.fps)
@@ -91,7 +106,7 @@ class RegisteredMeshesGifPlotter:
             pl.write_frame()
 
     def close(self):
-        self.pl.close()
+        self._pl.close()
 
     def show(self):
         # show in notebook
