@@ -13,7 +13,6 @@ from support import utilities
 
 import polpo.lddmm.io as io
 import polpo.lddmm.registration as registration
-import polpo.lddmm.strings as strings
 from polpo.lddmm.utils import move_data_device
 
 logger = logging.getLogger(__name__)
@@ -170,7 +169,7 @@ def shoot(
     )
 
 
-def parallel_transport(
+def parallel_transport_fanning(
     source,
     control_points,
     momenta,
@@ -215,6 +214,49 @@ def parallel_transport(
     )
 
 
+def parallel_transport(
+    control_points,
+    momenta,
+    momenta_to_transport,
+    output_dir,
+    source=None,
+    kernel_width=1.0,
+    control_points_to_transport=None,
+    kernel_type="torch",
+    use_pole_ladder=False,
+    **model_options,
+):
+    if use_pole_ladder:
+        if source is not None:
+            logger.warn("source is ignored when pole ladder is used")
+
+        return pole_ladder(
+            control_points,
+            momenta,
+            momenta_to_transport,
+            output_dir,
+            kernel_width=kernel_width,
+            control_points_to_transport=control_points_to_transport,
+            kernel_type=kernel_type,
+            **model_options,
+        )
+
+    if source is None:
+        raise ValueError("source needs to be defined to use the fanning scheme.")
+
+    return parallel_transport_fanning(
+        source,
+        control_points,
+        momenta,
+        momenta_to_transport,
+        output_dir,
+        kernel_width=kernel_width,
+        control_points_to_transport=control_points_to_transport,
+        kernel_type=kernel_type,
+        **model_options,
+    )
+
+
 def parallel_transport_ABC(
     dataset,
     a_name,
@@ -224,6 +266,7 @@ def parallel_transport_ABC(
     kernel_width=20.0,
     kernel_type="torch",
     kernel_device="cuda",
+    use_pole_ladder=False,
     **registration_kwargs,
 ):
     """Parallel transport BC along B -> A.
@@ -264,7 +307,6 @@ def parallel_transport_ABC(
         output_dir / f"{source}{transp_target}--{source}{geod_target}>{geod_target}"
     )
 
-    # TODO: create generic parallel_transport?
     return parallel_transport(
         source=dataset[source],
         control_points=io.load_cp(
@@ -281,6 +323,7 @@ def parallel_transport_ABC(
         ),
         kernel_width=kernel_width,
         output_dir=transport_output_dir,
+        use_pole_ladder=use_pole_ladder,
     )
 
 
