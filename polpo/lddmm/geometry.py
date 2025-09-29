@@ -1,6 +1,8 @@
 import logging
 
 import support.kernels as kernel_factory
+import torch
+from core import default
 from core.model_tools.deformations.exponential import Exponential
 from launch.compute_parallel_transport import (
     compute_parallel_transport,
@@ -11,6 +13,7 @@ from support import utilities
 
 import polpo.lddmm.registration as registration
 import polpo.lddmm.strings as strings
+from polpo.lddmm.utils import move_data_device
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +38,7 @@ def pole_ladder(
     concentration_of_time_points=10,
     tmin=0,
     tmax=1,
+    as_numpy=True,
     **model_parameters,
 ):
     """Compute parallel transport of a tangent vector along a geodesic with the pole ladder.
@@ -93,6 +97,9 @@ def pole_ladder(
         tmax=tmax,
         **model_parameters,
     )
+    if as_numpy:
+        return transported_cp.numpy(), transported_mom.numpy()
+
     return transported_cp, transported_mom
 
 
@@ -288,6 +295,74 @@ def parallel_transport_from_meshes(
     )
 
     return cp, mom
+
+
+def velocity_at_x(
+    x,
+    control_points,
+    momenta,
+    kernel_type="torch",
+    kernel_width=20.0,
+    gpu_mode=default.gpu_mode,
+    tensor_scalar_type=default.tensor_scalar_type,
+    as_numpy=True,
+):
+    kernel = kernel_factory.factory(
+        kernel_type,
+        kernel_width=kernel_width,
+        gpu_mode=gpu_mode,
+    )
+
+    x, control_points, momenta = move_data_device(
+        x,
+        control_points,
+        momenta,
+        gpu_mode=gpu_mode,
+        tensor_scalar_type=tensor_scalar_type,
+    )
+
+    vel = kernel.convolve(x, control_points, momenta)
+
+    if as_numpy:
+        return vel.numpy()
+
+    return vel
+
+
+def reconstruct_parametrization(
+    velocity,
+    control_points,
+    kernel_type="torch",
+    kernel_width=20.0,
+    gpu_mode=default.gpu_mode,
+    tensor_scalar_type=default.tensor_scalar_type,
+    as_numpy=True,
+):
+    kernel = kernel_factory.factory(
+        kernel_type,
+        kernel_width=kernel_width,
+        gpu_mode=gpu_mode,
+    )
+
+    velocity, control_points = move_data_device(
+        velocity,
+        control_points,
+        gpu_mode=gpu_mode,
+        tensor_scalar_type=tensor_scalar_type,
+    )
+
+    kernel_matrix = kernel.get_kernel_matrix(control_points)
+
+    cholesky_kernel_matrix = torch.cholesky(kernel_matrix)
+
+    projected_momenta = (
+        torch.cholesky_solve(velocity, cholesky_kernel_matrix).squeeze().contiguous()
+    )
+
+    if as_numpy:
+        return projected_momenta.numpy()
+
+    return projected_momenta
 
 
 def flow(
