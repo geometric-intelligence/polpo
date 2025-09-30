@@ -9,6 +9,7 @@ docs/_build
 docs/**/_generated
 docs/.mustache.js
 Makefile
+*.gif
 
 # From running examples and notebooks
 checkpoint

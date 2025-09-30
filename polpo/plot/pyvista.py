@@ -20,7 +20,8 @@ class RegisteredMeshesGifPlotter:
         **kwargs,
     ):
         if gif_name is None:
-            gif_name = Path(tempfile.mkdtemp()) / "gif.gif"
+            _, name = tempfile.mkstemp(suffix=".gif", dir=".")
+            gif_name = Path(name).name
 
         if subtitle is True:
             subtitle = lambda x, y: str(y)
