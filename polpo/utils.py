@@ -1,6 +1,7 @@
 import collections
 import inspect
 import itertools
+import socket
 
 
 def unnest_list(ls):
@@ -166,3 +167,7 @@ def get_first(data):
         return next(iter(data.values()))
 
     return data[0]
+
+
+def in_frank():
+    return socket.gethostname() == "frank"

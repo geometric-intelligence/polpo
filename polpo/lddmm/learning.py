@@ -2,13 +2,14 @@ import os
 
 from api.deformetrica import Deformetrica
 
+import polpo.utils as putils
 from polpo.lddmm.io import load_template
 
 
 def estimate_deterministic_atlas(
-    source,
     targets,
     output_dir,
+    source=None,
     t0=0,
     max_iter=200,
     kernel_width=15.0,
@@ -112,6 +113,9 @@ def estimate_deterministic_atlas(
         Initial learning rate.
         Optional, default: 1e-4.
     """
+    if source is None:
+        source = putils.get_first(targets)
+
     template = {
         "shape": {
             "deformable_object_type": "SurfaceMesh",

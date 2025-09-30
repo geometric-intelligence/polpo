@@ -1,12 +1,29 @@
 import numpy as np
 from in_out.array_readers_and_writers import read_3D_array
+from in_out.deformable_object_reader import DeformableObjectReader
 
 import polpo.lddmm as plddmm
 import polpo.preprocessing.dict as ppdict
 import polpo.utils as putils
 from polpo.preprocessing import Map
+from polpo.preprocessing.mesh.conversion import PvFromData
 from polpo.preprocessing.path import FileFinder, IsFileType
 from polpo.preprocessing.str import Contains, RegexGroupFinder
+
+
+def load_vtk_mesh(path):
+    vertices, _, faces = DeformableObjectReader.read_vtk_file(
+        path, extract_connectivity=True
+    )
+    return vertices, faces
+
+
+def _file2mesh(as_pv=False):
+    file2mesh = load_vtk_mesh
+    if as_pv:
+        file2mesh += PvFromData()
+
+    return file2mesh
 
 
 def LoadMeshFlow(as_path=False, as_pv=True, extra_rules=()):

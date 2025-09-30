@@ -1,16 +1,38 @@
 from in_out.array_readers_and_writers import read_3D_array
-from in_out.deformable_object_reader import DeformableObjectReader
 
 import polpo.lddmm.strings as lddmm_strings
 import polpo.preprocessing.dict as ppdict
 from polpo.preprocessing import FilteredGroupBy, IdentityStep, Map, Sorter
-from polpo.preprocessing.mesh.conversion import PvFromData
+from polpo.preprocessing.load.deformetrica import (
+    LoadControlPointsFlow,
+    LoadMomentaFlow,
+    _file2mesh,
+    load_vtk_mesh,  # noqa: F401
+)
 from polpo.preprocessing.path import FileFinder, IsFileType
-from polpo.preprocessing.str import Contains, DigitFinder, RegexGroupFinder, TryToInt
+from polpo.preprocessing.str import (
+    Contains,
+    ContainsAny,
+    DigitFinder,
+    RegexGroupFinder,
+    TryToInt,
+)
 from polpo.utils import custom_order
 
 # TODO: remove strings?
 # TODO: functions need to be renamed
+
+
+def build_registration_name(source, target):
+    return f"{source}->{target}"
+
+
+def build_parallel_transport_name(source, geod_target, transp_target):
+    return f"{source}>{transp_target}--{source}>{geod_target}->{geod_target}"
+
+
+def build_parallel_shoot_name(source, geod_target, transp_target):
+    return f"{geod_target}(t{source}>{transp_target})"
 
 
 def get_deterministic_atlas_reconstruction_names(path, subset=None):
@@ -64,21 +86,6 @@ def get_deterministic_atlas_flow_names(path, subset=None):
     return file_finder(path)
 
 
-def load_vtk_mesh(path):
-    vertices, _, faces = DeformableObjectReader.read_vtk_file(
-        path, extract_connectivity=True
-    )
-    return vertices, faces
-
-
-def _file2mesh(as_pv=False):
-    file2mesh = load_vtk_mesh
-    if as_pv:
-        file2mesh += PvFromData()
-
-    return file2mesh
-
-
 def load_template(path, as_path=False, as_pv=False):
     # as_path as precedence to as_pv
     filename = path / lddmm_strings.template_str
@@ -108,6 +115,19 @@ def load_cp(path, as_path=False):
     return read_3D_array(cp_name)
 
 
+def load_transported_cp(path, as_path=False):
+    # if pole ladder
+    cp_name = path / "final_cp.txt"
+    if not cp_name.exists():
+        cp_names = LoadControlPointsFlow(as_path=True)(path)
+        cp_name = cp_names[list(cp_names.keys())[-1]]
+
+    if as_path:
+        return cp_name
+
+    return read_3D_array(cp_name)
+
+
 def load_momenta(path, as_path=False):
     possible_filenames = [
         "DeterministicAtlas__EstimatedParameters__Momenta.txt",
@@ -120,6 +140,21 @@ def load_momenta(path, as_path=False):
             break
     else:
         raise FileNotFoundError("Can't find any momenta")
+
+    if as_path:
+        return mom_name
+
+    return read_3D_array(mom_name)
+
+
+def load_transported_momenta(path, as_path=False):
+    # if pole ladder
+    mom_name = path / "transported_momenta.txt"
+    if not mom_name.exists():
+        mom_names = LoadMomentaFlow(as_path=True, extra_rules=Contains("Transported"))(
+            path
+        )
+        mom_name = mom_names[list(mom_names.keys())[-1]]
 
     if as_path:
         return mom_name
