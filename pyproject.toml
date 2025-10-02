@@ -24,6 +24,7 @@ dependencies = ["tdqm", "numpy", "joblib"]
 [project.optional-dependencies]
 doc = [
     "jupyter",
+    "nbconvert@git+https://github.com/luisfpereira/nbconvert@gif",
     "nbsphinx",
     "nbsphinx_link",
     "sphinx",
