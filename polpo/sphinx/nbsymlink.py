@@ -20,6 +20,7 @@ def _handle_how_tos(config, doc_notebooks_path):
 
     os.makedirs(doc_how_tos_path, exist_ok=True)
 
+    # TODO: from config
     topics = ["data_loading", "mesh", "mri", "maternal", "lddmm"] + ["all"]
     notebooks_by_topic = {topic: [] for topic in topics}
     for file in how_tos_path.iterdir():
@@ -31,6 +32,7 @@ def _handle_how_tos(config, doc_notebooks_path):
 
         notebooks_by_topic["all"].append(file)
 
+        # TODO: tag by default? make it configurable?
         for topic in metadata.get("docs_topics", []):
             if topic not in notebooks_by_topic:
                 warnings.warn(f"{topic} does not exist.")

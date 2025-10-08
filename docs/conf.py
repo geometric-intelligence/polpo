@@ -23,7 +23,7 @@ extensions = [
     "sphinx.ext.mathjax",
     "sphinx.ext.napoleon",
     "sphinx.ext.viewcode",
-    "ext.nbsymlink",
+    "polpo.sphinx.nbsymlink",
 ]
 
 nbsymlink_notebooks_dir = "notebooks"
