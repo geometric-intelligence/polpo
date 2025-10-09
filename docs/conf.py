@@ -6,7 +6,6 @@ import sys
 import polpo
 
 sys.path.insert(0, os.path.abspath("."))
-sys.path.insert(0, os.path.abspath("ext"))
 
 project = "polpo"
 copyright = "2024-, Geometric Intelligence Lab @ UC Santa Barbara"
@@ -27,6 +26,8 @@ extensions = [
 ]
 
 nbsymlink_notebooks_dir = "notebooks"
+nbsymlink_tags = ["data_loading", "mesh", "mri", "maternal", "lddmm"]
+nbsymlink_all = True
 
 autosummary_imported_members = True
 autosummary_generate_overwrite = False
