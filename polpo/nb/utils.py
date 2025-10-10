@@ -51,7 +51,10 @@ def remove_metadata_values(notebook, values, key="tags"):
             modified = True
             existing_values.remove(value)
 
-    metadata[key] = existing_values
+    if len(existing_values) == 0:
+        metadata.pop(key)
+    else:
+        metadata[key] = existing_values
 
     return modified
 

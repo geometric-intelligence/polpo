@@ -30,8 +30,7 @@ class NotebooksParametrizer(type):
             func_name = f"test_{name}"
             test_func = _create_new_test(path)
 
-            with open(path, "r", encoding="utf8") as file:
-                metadata = nbformat.read(path, as_version=4).metadata
+            metadata = nbformat.read(path, as_version=4).metadata
 
             for marker_ in metadata.get("markers", []):
                 marker = getattr(pytest.mark, marker_)

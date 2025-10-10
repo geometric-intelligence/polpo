@@ -1,5 +1,7 @@
 import os
 
+import nbformat
+
 
 def _create_symlinks(notebooks_path, docs_notebook_path, renamings=None):
     # TODO: add exclude
@@ -7,6 +9,9 @@ def _create_symlinks(notebooks_path, docs_notebook_path, renamings=None):
         renamings = {}
 
     for path in notebooks_path.rglob("*.ipynb"):
+        if "exclude" in nbformat.read(path, as_version=4).metadata.get("nbsymlink", {}):
+            continue
+
         rel_path = path.relative_to(notebooks_path)
 
         dir_path = docs_notebook_path / renamings.get(
