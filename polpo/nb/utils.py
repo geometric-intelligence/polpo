@@ -1,3 +1,8 @@
+import re
+
+import polpo.utils as putils
+
+
 def remove_metadata_key(notebook, key):
     if key in notebook.metadata:
         notebook.metadata.pop(key)
@@ -61,10 +66,68 @@ def get_metadata_keys(notebook):
     return list(metadata.keys())
 
 
-def key_contains_val(notebook, val, key="tags"):
+def metadata_key_contains_val(notebook, val, key="tags"):
     metadata = notebook.metadata
 
     if key not in metadata:
         return False
 
     return val in metadata.get(key)
+
+
+def get_cells_by_type(notebook, cell_type="markdown"):
+    return [cell for cell in notebook.cells if cell.cell_type == cell_type]
+
+
+def merge_cell_sources(cells, sep="\n"):
+    return f"{sep}".join([cell.source for cell in cells])
+
+
+def get_source_matches(notebook, finder, unique=True):
+    cells = get_cells_by_type(notebook)
+    text = merge_cell_sources(cells)
+
+    match = finder.findall(text)
+
+    if match is None or not unique:
+        return match
+
+    return list(set(match))
+
+
+def get_nb_local_links(notebook, unique=True):
+    pattern = r"\((\./\w+\.ipynb)\)"
+    finder = re.compile(pattern)
+
+    return get_source_matches(notebook, finder, unique=unique)
+
+
+def get_nb_links(notebook, unique=True):
+    pattern = r"\((https://[^\s)]+)\)"
+    finder = re.compile(pattern)
+
+    return get_source_matches(notebook, finder, unique=unique)
+
+
+def get_broken_nb_local_links(notebooks_dict):
+    broken_links = {}
+
+    all_paths = set(path.resolve() for path in notebooks_dict.keys())
+
+    for path, notebook in notebooks_dict.items():
+        links_nb = get_nb_local_links(notebook, unique=True)
+
+        broken_links_nb = [
+            link for link in links_nb if (path.parent / link).resolve() not in all_paths
+        ]
+
+        if broken_links_nb:
+            broken_links[path] = broken_links_nb
+
+    return broken_links
+
+
+def get_broken_nb_links(notebook):
+    urls = get_nb_links(notebook)
+
+    return [url for url, ok in zip(urls, putils.are_links_ok(urls)) if not ok]

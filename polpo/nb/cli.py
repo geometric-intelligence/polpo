@@ -83,7 +83,7 @@ def _process_cs_string(string):
 
 
 def _collection_as_str(data, sep=","):
-    return f"{sep}".join(data)
+    return sep.join(data)
 
 
 def _modify_with_vals(notebooks, vals, key, func):
@@ -95,6 +95,32 @@ def _modify_with_vals(notebooks, vals, key, func):
         notebook.modified = func(notebook.nb, vals, key=key)
 
     _write_notebooks(notebooks)
+
+
+def _nbitem_ls_to_dict(notebooks):
+    return {nb.path: nb.nb for nb in notebooks}
+
+
+def _write_dict_iter_stdout(data, tab_size=3, sep=","):
+    text = ""
+    tab = " " * tab_size
+    for path, vals in data.items():
+        text += f"{path.as_posix()}\n{tab}"
+        text += _collection_as_str(vals, sep=sep + tab)
+        text += "\n\n"
+
+    sys.stdout.write(text)
+
+
+def _write_dict_stdout(data, sep="\n"):
+    text = sep.join([nb.path.as_posix() for nb in data])
+
+    if text == "":
+        return
+
+    text += "\n"
+
+    sys.stdout.write(text)
 
 
 @app.command()
@@ -159,6 +185,7 @@ def get_md_vals(
     notebooks: List[str],
     key: str = "tags",
     tab_size: int = 3,
+    sep: str = "\n",
 ):
     notebooks = _load_notebooks(notebooks)
 
@@ -168,13 +195,7 @@ def get_md_vals(
         if key_vals is not None:
             data[notebook.path] = key_vals
 
-    text = ""
-    tab = " " * tab_size
-    for path, vals in data.items():
-        text += f"{path.as_posix()}\n"
-        text += f"{tab}{_collection_as_str(vals)}\n\n"
-
-    sys.stdout.write(text)
+    _write_dict_iter_stdout(data, tab_size=tab_size, sep=sep)
 
 
 @app.command()
@@ -182,6 +203,7 @@ def get_md_keys(
     notebooks: List[str],
     tab_size: int = 3,
     exclude: str = "kernelspec,language_info",
+    sep: str = "\n",
 ):
     notebooks = _load_notebooks(notebooks)
     exclude = set(_process_cs_string(exclude))
@@ -193,13 +215,7 @@ def get_md_keys(
         if filtered_keys:
             data[notebook.path] = filtered_keys
 
-    text = ""
-    tab = " " * tab_size
-    for path, vals in data.items():
-        text += f"{path.as_posix()}\n"
-        text += f"{tab}{_collection_as_str(vals)}\n\n"
-
-    sys.stdout.write(text)
+    _write_dict_iter_stdout(data, tab_size=tab_size, sep=sep)
 
 
 @app.command()
@@ -212,18 +228,11 @@ def mdkey_contains_val(
     notebooks = _load_notebooks(notebooks)
 
     filtered = filter(
-        lambda notebook: pnbutils.key_contains_val(notebook.nb, val, key=key),
+        lambda notebook: pnbutils.metadata_key_contains_val(notebook.nb, val, key=key),
         notebooks,
     )
 
-    text = f"{sep}".join([nb.path.as_posix() for nb in filtered])
-
-    if text == "":
-        return
-
-    text += "\n"
-
-    sys.stdout.write(text)
+    _write_dict_stdout(filtered, sep=sep)
 
 
 @app.command()
@@ -239,11 +248,46 @@ def has_mdkey(
         notebooks,
     )
 
-    text = f"{sep}".join([nb.path.as_posix() for nb in filtered])
+    _write_dict_stdout(filtered, sep=sep)
 
-    if text == "":
-        return
 
-    text += "\n"
+@app.command()
+def get_nb_local_links(
+    notebooks: List[str],
+    tab_size: int = 3,
+    sep: str = "\n",
+    broken: bool = False,
+):
+    notebooks = _load_notebooks(notebooks)
 
-    sys.stdout.write(text)
+    data = {}
+
+    if broken:
+        data = pnbutils.get_broken_nb_local_links(_nbitem_ls_to_dict(notebooks))
+    else:
+        for notebook in notebooks:
+            links = pnbutils.get_nb_local_links(notebook.nb)
+            if links:
+                data[notebook.path] = links
+
+    _write_dict_iter_stdout(data, tab_size=tab_size, sep=sep)
+
+
+@app.command()
+def get_nb_links(
+    notebooks: List[str],
+    tab_size: int = 3,
+    sep: str = "\n",
+    broken: bool = False,
+):
+    notebooks = _load_notebooks(notebooks)
+
+    func = pnbutils.get_broken_nb_links if broken else pnbutils.get_nb_links
+
+    data = {}
+    for notebook in notebooks:
+        links = func(notebook.nb)
+        if links:
+            data[notebook.path] = links
+
+    _write_dict_iter_stdout(data, tab_size=tab_size, sep=sep)
