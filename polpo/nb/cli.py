@@ -3,7 +3,7 @@ from typing import List
 import nbformat
 import typer
 
-import polpo.nbformat.utils as pnbformatu
+import polpo.nb.utils as pbnutils
 import polpo.utils as putils
 
 app = typer.Typer()
@@ -61,7 +61,7 @@ def rm_md_key(
     notebooks = _load_notebooks(notebooks)
 
     for notebook in notebooks:
-        notebook.modified = pnbformatu.remove_metadata_key(notebook.nb, key)
+        notebook.modified = pbnutils.remove_metadata_key(notebook.nb, key)
 
     _write_notebooks(notebooks)
 
@@ -75,9 +75,7 @@ def mv_md_key(
     notebooks = _load_notebooks(notebooks)
 
     for notebook in notebooks:
-        notebook.modified = pnbformatu.rename_metadata_key(
-            notebook.nb, old_key, new_key
-        )
+        notebook.modified = pbnutils.rename_metadata_key(notebook.nb, old_key, new_key)
 
     _write_notebooks(notebooks)
 
@@ -96,6 +94,6 @@ def add_md_vals(
         vals = [vals]
 
     for notebook in notebooks:
-        notebook.modified = pnbformatu.add_metadata_values(notebook.nb, vals, key=key)
+        notebook.modified = pbnutils.add_metadata_values(notebook.nb, vals, key=key)
 
     _write_notebooks(notebooks)

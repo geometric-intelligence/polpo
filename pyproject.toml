@@ -76,7 +76,7 @@ repository = "http://github.com/geometric-intelligence/polpo"
 
 [project.scripts]
 polpo-dash = "polpo.dash.app.cli:app"
-polpo-nb = "polpo.nb_cli:app"
+polpo-nb = "polpo.nb.cli:app"
 
 [tool.setuptools]
 include-package-data = true
