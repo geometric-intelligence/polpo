@@ -82,7 +82,3 @@ def multi_image_explorer(
     logging.basicConfig(level=logging_level)
 
     my_app()
-
-
-if __name__ == "__main__":
-    app()

@@ -74,6 +74,9 @@ all = ["polpo[dash,app,plot,preprocessing,hydra,varifold]"]
 [project.urls]
 repository = "http://github.com/geometric-intelligence/polpo"
 
+[project.scripts]
+polpo-dash = "polpo.dash.app.cli:app"
+
 [tool.setuptools]
 include-package-data = true
 
