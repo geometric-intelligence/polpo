@@ -52,8 +52,7 @@ def _group_by_tags(notebooks_path, directive_path, tags=(), auto=False):
     for file in notebooks_path.rglob("*.ipynb"):
         metadata = nbformat.read(file, as_version=4).metadata
 
-        # TODO: use tags instead
-        for tag in metadata.get("docs_topics", []):
+        for tag in metadata.get("tags", []):
             if tag not in grouped_notebooks:
                 if not auto:
                     continue
