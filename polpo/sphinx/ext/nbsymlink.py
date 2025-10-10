@@ -22,7 +22,6 @@ def _create_symlinks(notebooks_path, docs_notebook_path, renamings=None):
 
 
 def run(app, config):
-    # TODO: need to rethink this path?
     notebooks_path = (app.confdir / config.nbsymlink_notebooks_dir).resolve()
     doc_notebooks_path = app.srcdir / "_generated/notebooks"
 
