@@ -1,6 +1,7 @@
 """Sphinx configuration file."""
 
 import polpo
+from polpo.nbconvert.exporters import Exporter  # noqa: F401
 
 project = "polpo"
 copyright = "2024-, Geometric Intelligence Lab @ UC Santa Barbara"
