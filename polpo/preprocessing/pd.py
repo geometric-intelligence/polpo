@@ -45,11 +45,18 @@ class ColumnsSelector(PreprocessingStep):
     ----------
     column_names : str or list[str]
         Column(s) to select.
+    as_list : bool
+        Whether to convert output into a list.
+        Only applies if ``column_names`` is ``str``.
     """
 
-    def __init__(self, column_names):
+    def __init__(self, column_names, as_list=False):
         super().__init__()
+        if not isinstance(column_names, str) and as_list:
+            raise ValueError("Can't convert multiple columns to list.")
+
         self.column_names = column_names
+        self.as_list = as_list
 
     def __call__(self, df):
         """Apply step.
@@ -59,7 +66,11 @@ class ColumnsSelector(PreprocessingStep):
         df : pandas.DataFrame
             Dataframe.
         """
-        return df[self.column_names]
+        out = df[self.column_names]
+        if self.as_list:
+            return out.to_list()
+
+        return out
 
 
 class Dropna(PreprocessingStep):
@@ -162,6 +173,7 @@ class DfCopy(PreprocessingStep):
     """
 
     def __init__(self, deep=True):
+        super().__init__()
         self.deep = deep
 
     def __call__(self, df):
@@ -243,8 +255,9 @@ class IndexSetter(PreprocessingStep):
         Check the new index for duplicates.
     """
 
-    def __init__(self, key, inplace=True, drop=False, verify_integrity=True):
-        self.key = key
+    def __init__(self, keys, inplace=True, drop=False, verify_integrity=True):
+        super().__init__()
+        self.keys = keys
         self.inplace = inplace
         self.drop = drop
         self.verify_integrity = verify_integrity
@@ -257,12 +270,71 @@ class IndexSetter(PreprocessingStep):
         df : pandas.DataFrame
             Dataframe.
         """
-        out = df.set_index(
-            self.key,
-            inplace=self.inplace,
-            drop=self.drop,
-            verify_integrity=self.verify_integrity,
-        )
+        out = df.set_index(**params_to_kwargs(self))
+        return out or df
+
+
+class GroupByColumn(PreprocessingStep):
+    """Group DataFrame using a mapper or by a Series of columns.
+
+    Check out
+    https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.DataFrame.groupby.html
+    """
+
+    def __init__(self, column_name, as_dict=False):
+        super().__init__()
+        self.column_name = column_name
+        self.as_dict = as_dict
+
+    def __call__(self, df):
+        """Apply step.
+
+        Parameters
+        ----------
+        df : pandas.DataFrame
+            Dataframe.
+        """
+        out = df.groupby(by=self.column_name)
+        if self.as_dict:
+            return dict(list(out))
+
+        return out
+
+
+class DfInsert(PreprocessingStep):
+    """Insert column into DataFrame at specified location.
+
+    Check out
+    https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.insert.html
+
+    Parameters
+    ----------
+    loc : int
+        Insertion index. Must verify 0 <= loc <= len(columns).
+    column: str, number, or hashable object
+        Label of the inserted column.
+    value : Scalar, Series, or array-like
+        Content of the inserted column.
+    allow_duplicates : bool
+        Allow duplicate column labels to be created.
+    """
+
+    def __init__(self, column, value, loc=0, allow_duplicates=False):
+        super().__init__()
+        self.loc = loc
+        self.column = column
+        self.value = value
+        self.allow_duplicates = allow_duplicates
+
+    def __call__(self, df):
+        """Apply step.
+
+        Parameters
+        ----------
+        df : pandas.DataFrame
+            Dataframe.
+        """
+        out = df.insert(**params_to_kwargs(self))
         return out or df
 
 
