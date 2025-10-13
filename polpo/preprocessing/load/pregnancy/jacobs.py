@@ -1,7 +1,8 @@
-import logging
 import os
 import re
 from pathlib import Path
+
+import pandas as pd
 
 import polpo.preprocessing.dict as ppdict
 import polpo.preprocessing.pd as ppd
@@ -30,16 +31,17 @@ def _session_sorter(session_id):
     )
 
 
-def TabularDataLoader(data_dir="~/.herbrain/data/maternal", subject_id=None):
+def TabularDataLoader(data_dir="~/.herbrain/data/maternal", subject_subset=None):
     """Create pipeline to load maternal csv data.
 
     Parameters
     ----------
     data_dir : str
         Data root dir.
-    subject_id : str
-        Identification of the subject. If None, loads full dataframe (except "01").
+    subject_subset : array-like
+        Id of the subjects. If None, assumes all.
         One of the following: "01", "1001B", "1004B".
+        If pilot and other, loads only common columns.
 
     Returns
     -------
@@ -49,38 +51,46 @@ def TabularDataLoader(data_dir="~/.herbrain/data/maternal", subject_id=None):
     project_folder = "maternal_brain_project"
     data_dir = Path(data_dir).expanduser()
 
-    if subject_id == "01":
-        project_folder = f"{project_folder}_pilot"
+    pilot_pipe = None
+    if subject_subset is None or "01" in subject_subset:
+        project_folder_pilot = f"{project_folder}_pilot"
 
-        if subject_id is not None and subject_id != "01":
-            logging.warning("`subject_id` is ignored, as there's only one subject")
-
-        return PilotTabularDataLoader(
-            data_dir=data_dir / project_folder / "rawdata",
+        pilot_pipe = PilotTabularDataLoader(
+            data_dir=data_dir / project_folder_pilot / "rawdata", index_by_session=False
         )
 
-    else:
-        loader = Constant(data_dir / project_folder / "rawdata" / "SubjectData.csv")
+    if pilot_pipe and (subject_subset is not None and len(subject_subset) == 1):
+        return pilot_pipe
 
-        session_updater = ppd.UpdateColumnValues(
-            column_name="sessionID", func=lambda entry: entry.split("-")[1]
-        )
-        if subject_id is not None:
-            prep_pipe = (
-                ppd.DfIsInFilter("subject", [f"sub-{subject_id}"])
-                + ppd.Drop("subject", axis=1)
-                + session_updater
-                + ppd.IndexSetter(key="sessionID", drop=True)
-            )
-        else:
-            prep_pipe = (
-                ppd.UpdateColumnValues(
-                    column_name="subject", func=lambda entry: entry.split("-")[1]
-                )
-                + session_updater
-            )
+    if subject_subset is not None:
+        subject_subset = subject_subset.copy()
+        subject_subset.remove("01")
 
-    return loader + ppd.CsvReader() + prep_pipe
+    loader = Constant(data_dir / project_folder / "rawdata" / "SubjectData.csv")
+
+    session_updater = ppd.UpdateColumnValues(
+        column_name="sessionID", func=lambda entry: entry.split("-")[1]
+    )
+    subject_updater = ppd.UpdateColumnValues(
+        column_name="subject", func=lambda entry: entry.split("-")[1]
+    )
+
+    prep_pipe = subject_updater + session_updater
+
+    if subject_subset is not None:
+        prep_pipe += ppd.DfIsInFilter("subject", subject_subset)
+
+    pipe = loader + ppd.CsvReader() + prep_pipe
+
+    if pilot_pipe is None:
+        return pipe
+
+    pilot_pipe += ppd.DfInsert(column="subject", value="01")
+
+    return BranchingPipeline(
+        branches=[pilot_pipe, pipe],
+        merger=lambda dfs: pd.concat(dfs, join="inner", ignore_index=True),
+    )
 
 
 def FoldersSelector(

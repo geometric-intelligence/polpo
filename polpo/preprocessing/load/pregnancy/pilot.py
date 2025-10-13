@@ -254,7 +254,9 @@ def _FigsharePregnancyFolderLoader(
     )
 
 
-def TabularDataLoader(data_dir="~/.herbrain/data/pregnancy", use_cache=True):
+def TabularDataLoader(
+    data_dir="~/.herbrain/data/pregnancy", use_cache=True, index_by_session=True
+):
     loader = FigsharePregnancyDataLoader(
         data_dir=data_dir,
         remote_path="28Baby_Hormones.csv",
@@ -263,7 +265,10 @@ def TabularDataLoader(data_dir="~/.herbrain/data/pregnancy", use_cache=True):
 
     prep_pipe = ppd.UpdateColumnValues(
         column_name="sessionID", func=lambda entry: int(entry.split("-")[1])
-    ) + ppd.IndexSetter(key="sessionID", drop=True)
+    ) + ppd.DfFilter(lambda df: df["sessionID"] == 27, negate=True)  # because repeated
+
+    if index_by_session:
+        prep_pipe + ppd.IndexSetter(key="sessionID", drop=True)
 
     return loader + ppd.CsvReader() + prep_pipe
 
