@@ -56,7 +56,7 @@ class BranchingPipeline(PreprocessingStep):
         self.branches = branches
         self.merger = _wrap_step(merger)
 
-    def __call__(self, data):
+    def __call__(self, data=None):
         out = []
         for pipeline in self.branches:
             out.append(pipeline(data))
@@ -299,12 +299,17 @@ class Truncater(PreprocessingStep):
 class DataPrinter(PreprocessingStep):
     # useful for debugging
 
-    def __init__(self, silent=False):
+    def __init__(self, silent=False, headers=None):
+        super().__init__()
         # avoids having to comment code out
         self.silent = silent
+        self.headers = headers
 
     def __call__(self, data):
         if not self.silent:
+            if self.headers is not None:
+                print(self.headers)
+
             print(data)
         return data
 
