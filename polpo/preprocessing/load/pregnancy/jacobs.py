@@ -181,6 +181,10 @@ def FoldersSelector(
             )
         )
 
+        if pilot:
+            # same session metadata as 26
+            pipe += ppdict.DictMap(ppdict.RemoveKeys(keys=[27]))
+
         pipes.append(pipe)
 
     if len(pipes) == 1:

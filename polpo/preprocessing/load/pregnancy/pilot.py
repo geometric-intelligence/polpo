@@ -265,7 +265,7 @@ def TabularDataLoader(
 
     prep_pipe = ppd.UpdateColumnValues(
         column_name="sessionID", func=lambda entry: int(entry.split("-")[1])
-    ) + ppd.DfFilter(lambda df: df["sessionID"] == 27, negate=True)  # because repeated
+    ) + ppd.DfFilter(lambda df: df["sessionID"] == 27, negate=True)  # repeated
 
     if index_by_session:
         prep_pipe + ppd.IndexSetter(key="sessionID", drop=True)

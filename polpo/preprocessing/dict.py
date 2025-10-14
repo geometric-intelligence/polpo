@@ -161,6 +161,18 @@ class DictExtractKey(PreprocessingStep):
         return data[self.key]
 
 
+class RemoveKeys(PreprocessingStep):
+    def __init__(self, keys):
+        super().__init__()
+        self.keys = keys
+
+    def __call__(self, data):
+        for key in self.keys:
+            del data[key]
+
+        return data
+
+
 class _ExtractUniqueOuterKey(PreprocessingStep):
     def __call__(self, dict_):
         if (n_keys := len(dict_)) != 1:
