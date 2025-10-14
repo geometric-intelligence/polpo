@@ -268,7 +268,7 @@ def TabularDataLoader(
     ) + ppd.DfFilter(lambda df: df["sessionID"] == 27, negate=True)  # repeated
 
     if index_by_session:
-        prep_pipe + ppd.IndexSetter(key="sessionID", drop=True)
+        prep_pipe += ppd.IndexSetter("sessionID", drop=True)
 
     return loader + ppd.CsvReader() + prep_pipe
 

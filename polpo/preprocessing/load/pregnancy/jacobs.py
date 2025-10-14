@@ -6,7 +6,7 @@ import pandas as pd
 
 import polpo.preprocessing.dict as ppdict
 import polpo.preprocessing.pd as ppd
-from polpo.preprocessing import BranchingPipeline, Constant
+from polpo.preprocessing import BranchingPipeline, Constant, ExceptionToWarning
 from polpo.preprocessing.load.bids import DerivativeFoldersSelector
 from polpo.preprocessing.load.fsl import (
     MeshLoader as FslMeshLoader,
@@ -31,7 +31,9 @@ def _session_sorter(session_id):
     )
 
 
-def TabularDataLoader(data_dir="~/.herbrain/data/maternal", subject_subset=None):
+def TabularDataLoader(
+    data_dir="~/.herbrain/data/maternal", subject_subset=None, index_by_session=False
+):
     """Create pipeline to load maternal csv data.
 
     Parameters
@@ -42,6 +44,10 @@ def TabularDataLoader(data_dir="~/.herbrain/data/maternal", subject_subset=None)
         Id of the subjects. If None, assumes all.
         One of the following: "01", "1001B", "1004B".
         If pilot and other, loads only common columns.
+    index_by_session : bool
+        Whether to index the dataframe by session.
+        Only applies if one subject.
+
 
     Returns
     -------
@@ -56,7 +62,8 @@ def TabularDataLoader(data_dir="~/.herbrain/data/maternal", subject_subset=None)
         project_folder_pilot = f"{project_folder}_pilot"
 
         pilot_pipe = PilotTabularDataLoader(
-            data_dir=data_dir / project_folder_pilot / "rawdata", index_by_session=False
+            data_dir=data_dir / project_folder_pilot / "rawdata",
+            index_by_session=index_by_session and len(subject_subset) == 1,
         )
 
     if pilot_pipe and (subject_subset is not None and len(subject_subset) == 1):
@@ -83,6 +90,8 @@ def TabularDataLoader(data_dir="~/.herbrain/data/maternal", subject_subset=None)
     pipe = loader + ppd.CsvReader() + prep_pipe
 
     if pilot_pipe is None:
+        if index_by_session and len(subject_subset) == 1:
+            pipe += ppd.IndexSetter("sessionID", drop=True)
         return pipe
 
     pilot_pipe += ppd.DfInsert(column="subject", value="01")
@@ -183,7 +192,9 @@ def FoldersSelector(
 
         if pilot:
             # same session metadata as 26
-            pipe += ppdict.DictMap(ppdict.RemoveKeys(keys=[27]))
+            pipe += ppdict.DictMap(
+                ExceptionToWarning(ppdict.RemoveKeys(keys=[27]), warn=False)
+            )
 
         pipes.append(pipe)
 
