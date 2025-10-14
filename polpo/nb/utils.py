@@ -134,3 +134,10 @@ def get_broken_nb_links(notebook):
     urls = get_nb_links(notebook)
 
     return [url for url, ok in zip(urls, putils.are_links_ok(urls)) if not ok]
+
+
+def get_run_stats(notebook):
+    code_cells = get_cells_by_type(notebook, "code")
+    null_cells = list(filter(lambda x: x["execution_count"] is None, code_cells))
+
+    return len(null_cells), len(code_cells)

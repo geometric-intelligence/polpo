@@ -104,8 +104,8 @@ def _nbitem_ls_to_dict(notebooks):
 def _write_dict_iter_stdout(data, tab_size=3, sep=","):
     text = ""
     tab = " " * tab_size
-    for path, vals in data.items():
-        text += f"{path.as_posix()}\n{tab}"
+    for key, vals in data.items():
+        text += f"{key}\n{tab}"
         text += _collection_as_str(vals, sep=sep + tab)
         text += "\n\n"
 
@@ -289,5 +289,30 @@ def get_nb_links(
         links = func(notebook.nb)
         if links:
             data[notebook.path] = links
+
+    _write_dict_iter_stdout(data, tab_size=tab_size, sep=sep)
+
+
+@app.command()
+def get_run_status(
+    notebooks: List[str],
+    tab_size: int = 3,
+    sep: str = "\n",
+):
+    notebooks = _load_notebooks(notebooks)
+
+    data = {"norun": [], "partial": []}
+    for notebook in notebooks:
+        null_cells, code_cells = pnbutils.get_run_stats(notebook.nb)
+
+        if null_cells == code_cells:
+            data["norun"].append(notebook.path.as_posix())
+
+        elif null_cells:
+            data["partial"].append(notebook.path.as_posix())
+
+    for key in ("norun", "partial"):
+        if len(data[key]) == 0:
+            del data[key]
 
     _write_dict_iter_stdout(data, tab_size=tab_size, sep=sep)
