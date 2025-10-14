@@ -70,6 +70,7 @@ deformetrica = [
     "imageio",
     "pandas",
     "scikit-image",
+    "statsmodels",
 ]
 varifold = ["geomstats", "kneebow", "trimesh"]
 dataframe = ["pandas"]
