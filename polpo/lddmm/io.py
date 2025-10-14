@@ -12,7 +12,6 @@ from polpo.preprocessing.load.deformetrica import (
 from polpo.preprocessing.path import FileFinder, IsFileType
 from polpo.preprocessing.str import (
     Contains,
-    ContainsAny,
     DigitFinder,
     RegexGroupFinder,
     TryToInt,
