@@ -44,13 +44,13 @@ class Hash(PreprocessingStep):
         return new_data
 
 
-class DictMerger(PreprocessingStep):
+class DictMerger(StepWrappingPreprocessingStep):
     # NB: not shared keys are ignored
     # TODO: allow to raise or provide more behaviors?
 
-    def __init__(self, as_dict=False):
+    def __init__(self, step=None, as_dict=False):
         # TODO: make as_dict=True the only behavior
-        super().__init__()
+        super().__init__(step)
         self.as_dict = as_dict
 
     def _collect_shared_keys(self, data):
@@ -62,7 +62,7 @@ class DictMerger(PreprocessingStep):
 
     def __call__(self, data):
         shared_keys = self._collect_shared_keys(data)
-        out = {key: [datum[key] for datum in data] for key in shared_keys}
+        out = {key: self.step([datum[key] for datum in data]) for key in shared_keys}
 
         if self.as_dict:
             return out
