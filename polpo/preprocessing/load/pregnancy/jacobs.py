@@ -20,7 +20,8 @@ from polpo.preprocessing.str import DigitFinder, StartsWith
 
 from .pilot import TabularDataLoader as PilotTabularDataLoader
 
-MATERNAL_IDS = {"01", "1001B", "1004B"}
+MATERNAL_IDS = {"01", "1001B", "1004B", "2004B", "1009B"}
+# TODO: add register ID?
 
 
 def _session_sorter(session_id):
