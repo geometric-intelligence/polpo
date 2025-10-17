@@ -6,9 +6,8 @@ import pyvista as pv
 from sklearn.neighbors import NearestNeighbors
 
 from polpo.preprocessing.base import PreprocessingStep, RegistrationStep
+from polpo.preprocessing.mesh._register import register_vertices_attr
 from polpo.utils import params_to_kwargs
-
-from ._register import register_vertices_attr
 
 register_vertices_attr(pv.PolyData, "points")
 
