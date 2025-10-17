@@ -94,3 +94,21 @@ class Pipeline(PreprocessingStep, DataLoader):
             steps = [other] + steps
 
         return Pipeline(steps)
+
+
+class RegistrationStep(PreprocessingStep, abc.ABC):
+    def __init__(self, target=None):
+        super().__init__()
+        self.target = target
+
+    def _get_source_and_target(self, data):
+        if isinstance(data, (list, tuple)):
+            source, target = data
+        else:
+            if self.target is None:
+                raise ValueError("Target mesh is undefined.")
+
+            source = data
+            target = self.target
+
+        return source, target

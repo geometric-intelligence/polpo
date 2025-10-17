@@ -1,7 +1,7 @@
 import numpy as np
 import open3d as o3d
 
-from polpo.preprocessing.base import PreprocessingStep
+from polpo.preprocessing.base import PreprocessingStep, RegistrationStep
 
 
 class O3dPointCloudFromNp(PreprocessingStep):
@@ -11,14 +11,18 @@ class O3dPointCloudFromNp(PreprocessingStep):
         return pcd
 
 
-class O3dIcp(PreprocessingStep):
-    def __init__(self, threshold=None, estimation_method=None):
+class O3dIcp(RegistrationStep):
+    def __init__(
+        self, target=None, threshold=None, estimation_method=None, return_matrix=False
+    ):
+        super().__init__(target=target)
         if estimation_method is None:
             estimation_method = (
                 o3d.pipelines.registration.TransformationEstimationPointToPoint()
             )
         self.threshold = threshold
         self.estimation_method = estimation_method
+        self.return_matrix = return_matrix
 
     def _threshold(self, source, target):
         return (
@@ -32,14 +36,20 @@ class O3dIcp(PreprocessingStep):
         )
 
     def __call__(self, data):
-        source, target = data
+        source, target = self._get_source_and_target(data)
 
         threshold = self.threshold or self._threshold(source, target)
 
-        reg_p2p = o3d.pipelines.registration.registration_icp(
+        reg_res = o3d.pipelines.registration.registration_icp(
             source,
             target,
             threshold,
             estimation_method=self.estimation_method,
         )
-        return reg_p2p.transformation
+
+        # TODO: done in place; confirm if desired behavior
+        source.transform(reg_res.transformation)
+        if not self.return_matrix:
+            return source
+
+        return source, reg_res.transformation

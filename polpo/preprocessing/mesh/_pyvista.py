@@ -5,7 +5,7 @@ import numpy as np
 import pyvista as pv
 from sklearn.neighbors import NearestNeighbors
 
-from polpo.preprocessing.base import PreprocessingStep
+from polpo.preprocessing.base import PreprocessingStep, RegistrationStep
 from polpo.utils import params_to_kwargs
 
 from ._register import register_vertices_attr
@@ -75,7 +75,7 @@ class DataFromPv(PreprocessingStep):
         return vertices, faces
 
 
-class PvAlign(PreprocessingStep):
+class PvAlign(RegistrationStep):
     """Align a dataset to another with ICP.
 
     https://docs.pyvista.org/api/core/_autosummary/pyvista.datasetfilters.align
@@ -89,14 +89,15 @@ class PvAlign(PreprocessingStep):
         max_iterations=500,
         check_mean_distance=True,
         start_by_matching_centroids=True,
+        return_matrix=False,
     ):
-        super().__init__()
-        self.target = target
+        super().__init__(target=target)
         self.max_landmarks = max_landmarks
         self.max_mean_distance = max_mean_distance
         self.max_iterations = max_iterations
         self.check_mean_distance = check_mean_distance
         self.start_by_matching_centroids = start_by_matching_centroids
+        self.return_matrix = return_matrix
 
     def __call__(self, data):
         """Apply step.
@@ -110,15 +111,10 @@ class PvAlign(PreprocessingStep):
         -------
         mesh : pv.PolyData
             Source aligned to target.
+        matrix : numpy.ndarray
+            Transform matrix to transform the input dataset to the target dataset.
         """
-        if isinstance(data, (list, tuple)):
-            source, target = data
-        else:
-            if self.target is None:
-                raise ValueError("Target mesh is undefined.")
-
-            source = data
-            target = self.target
+        source, target = self._get_source_and_target(data)
 
         return source.align(
             target,
