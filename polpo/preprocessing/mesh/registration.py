@@ -3,17 +3,17 @@ from polpo.preprocessing._preprocessing import Map, PartiallyInitializedStep
 from polpo.preprocessing.base import PreprocessingStep
 
 try:
-    from ._pyvista import PvAlign  # noqa:F401
+    from polpo.preprocessing._pyvista import PvAlign  # noqa:F401
 except ImportError:
     pass
 
 try:
-    from ._h2_surfacematch import H2MeshAligner  # noqa:F401
+    from polpo.preprocessing._h2_surfacematch import H2MeshAligner  # noqa:F401
 except ImportError:
     pass
 
 try:
-    from ._skshapes import SksRigidRegistration  # noqa:F401
+    from polpo.preprocessing._skshapes import SksRigidRegistration  # noqa:F401
 except ImportError:
     pass
 
