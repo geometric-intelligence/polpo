@@ -103,6 +103,20 @@ class HashWithIncoming(StepWrappingPreprocessingStep):
         return {key: value for key, value in zipped_data}
 
 
+class KeySorter(PreprocessingStep):
+    def __init__(self, sorter=None):
+        if sorter is None:
+            sorter = lambda x: x
+
+        self.sorter = sorter
+        super().__init__()
+
+    def __call__(self, data):
+        sorted_keys = sorted(data.keys(), key=self.sorter)
+
+        return {key: data[key] for key in sorted_keys}
+
+
 class DictFilter(Filter):
     def __init__(self, func, filter_keys=False):
         if filter_keys:
