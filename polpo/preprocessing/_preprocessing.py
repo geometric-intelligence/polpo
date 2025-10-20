@@ -331,7 +331,7 @@ class PartiallyInitializedStep(PreprocessingStep):
         self.pass_data = pass_data
         self.kwargs = kwargs
 
-    def __call__(self, data):
+    def instantiate(self, data):
         kwargs = self.kwargs.copy()
         dependent_keys = list(filter(lambda x: x.startswith("_"), kwargs.keys()))
         for key in dependent_keys:
@@ -341,7 +341,10 @@ class PartiallyInitializedStep(PreprocessingStep):
 
             kwargs[key[1:]] = value
 
-        step = self.Step(**kwargs)
+        return self.Step(**kwargs)
+
+    def __call__(self, data):
+        step = self.instantiate(data)
 
         if self.pass_data:
             return step(data)
