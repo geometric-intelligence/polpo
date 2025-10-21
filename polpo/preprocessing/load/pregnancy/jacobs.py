@@ -6,7 +6,16 @@ import pandas as pd
 
 import polpo.preprocessing.dict as ppdict
 import polpo.preprocessing.pd as ppd
-from polpo.preprocessing import BranchingPipeline, Constant, ExceptionToWarning
+from polpo.preprocessing import (
+    BranchingPipeline,
+    CartesianProduct,
+    Constant,
+    ExceptionToWarning,
+    IdentityStep,
+    IndexSelector,
+    InjectData,
+    Map,
+)
 from polpo.preprocessing.load.bids import DerivativeFoldersSelector
 from polpo.preprocessing.load.fsl import (
     MeshLoader as FslMeshLoader,
@@ -14,14 +23,20 @@ from polpo.preprocessing.load.fsl import (
 from polpo.preprocessing.load.fsl import (
     SegmentationsLoader as FslSegmentationsLoader,
 )
-from polpo.preprocessing.mri import MriImageLoader
+from polpo.preprocessing.mesh.conversion import PvFromData
+from polpo.preprocessing.mri import (
+    MeshExtractorFromSegmentedImage,
+    MeshExtractorFromSegmentedMesh,
+    MriImageLoader,
+    segmtool2encoding,
+)
 from polpo.preprocessing.path import ExpandUser, FileFinder
 from polpo.preprocessing.str import DigitFinder, StartsWith
 
 from .pilot import TabularDataLoader as PilotTabularDataLoader
 
-MATERNAL_IDS = {"01", "1001B", "1004B", "2004B", "1009B"}
 # TODO: add register ID?
+MATERNAL_IDS = {"01", "1001B", "1004B", "2004B", "1009B"}
 
 
 def _session_sorter(session_id):
@@ -48,7 +63,6 @@ def TabularDataLoader(
     index_by_session : bool
         Whether to index the dataframe by session.
         Only applies if one subject.
-
 
     Returns
     -------
@@ -297,3 +311,61 @@ def SegmentationsLoader(
         image_selector += MriImageLoader()
 
     return folders_selector + ppdict.NestedDictMap(image_selector)
+
+
+def MeshLoaderFromMri(
+    data_dir="~/.herbrain/data/maternal",
+    subject_subset=None,
+    session_subset=None,
+    struct_subset=None,
+    derivative="fast",
+    split_before_meshing=False,
+    n_jobs=1,
+):
+    # subj, session
+    segmentations_loader = SegmentationsLoader(
+        data_dir=data_dir,
+        subject_subset=subject_subset,
+        session_subset=session_subset,
+        tool=derivative,
+        as_image=True,
+    )
+
+    encoding = segmtool2encoding(derivative, raise_=False)
+    if struct_subset is None:
+        struct_subset = encoding.structs
+
+    if split_before_meshing:
+        init_step = IdentityStep()
+        to_mesh = (
+            MeshExtractorFromSegmentedImage(return_colors=False, encoding=encoding)
+            + PvFromData()
+        )
+    else:
+        init_step = (
+            MeshExtractorFromSegmentedImage(return_colors=True, encoding=encoding)
+            + PvFromData()
+        )
+        to_mesh = MeshExtractorFromSegmentedMesh()
+
+    img2mesh = ppdict.NestedDictMap(
+        init_step
+        + (lambda obj: [obj])
+        + InjectData(struct_subset, as_first=False)
+        + CartesianProduct()
+        + BranchingPipeline(
+            [
+                Map(IndexSelector(index=1)),
+                Map(
+                    to_mesh,
+                    n_jobs=n_jobs,
+                ),
+            ],
+        )
+        + ppdict.Hash()
+    )
+
+    pipe = segmentations_loader + img2mesh
+
+    # subj, session, struct
+    return pipe

@@ -180,7 +180,7 @@ class FreeSurferStructEncoding(BrainStructEncoding):
 
 class FslFirstStructEncoding(FreeSurferStructEncoding):
     """
-    https://fsl.fmrib.ox.ac.uk/fsl/docs/#/structural/first?id=supported-structures
+    https://fsl.fmrib.ox.ac.uk/fsl/docs/structural/first.html#supported-structures
 
     NB: compatible with FreeSurfer for the existing ones.
     """
@@ -364,7 +364,6 @@ class MeshExtractorFromSegmentedImage(PreprocessingStep):
 
     def __call__(self, data):
         """Extract one surface mesh from the fdata of a segmented image."""
-
         if isinstance(data, (list, tuple)):
             image, struct_id = data
         elif isinstance(data, (int, str)):
@@ -394,7 +393,13 @@ class MeshExtractorFromSegmentedImage(PreprocessingStep):
             return out[:2]
 
         colors2dict = encoding.ids2colors
-        colors = np.array([np.array(colors2dict[value]) for value in out[-1]])
+        color_values = np.asarray(out[-1], dtype=int)
+
+        # TODO: fix here
+        # TODO: ability to keep only subcortical?
+        colors = np.array(
+            [colors2dict.get(int(value), (0, 0, 0, 0)) for value in color_values]
+        )
         return out[:2] + (colors,)
 
 

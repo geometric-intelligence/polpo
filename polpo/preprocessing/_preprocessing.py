@@ -1,5 +1,6 @@
 import abc
 import importlib
+import itertools
 import logging
 import os
 import shutil
@@ -246,8 +247,8 @@ class EnsureListIterable(EnsureIterable):
 
 
 class Map:
-    def __new__(cls, step, n_jobs=0, verbose=0, force_iter=False):
-        if n_jobs != 0:
+    def __new__(cls, step, n_jobs=1, verbose=0, force_iter=False):
+        if n_jobs != 1:
             map_ = ParMap(step, n_jobs=n_jobs, verbose=verbose)
 
         else:
@@ -705,3 +706,21 @@ class FilteredGroupBy(PreprocessingStep):
             out[key].append(datum)
 
         return out
+
+
+class InjectData(PreprocessingStep):
+    def __init__(self, data, as_first=True):
+        super().__init__()
+        self.data = data
+        self.as_first = as_first
+
+    def __call__(self, data):
+        if self.as_first:
+            return (self.data, data)
+
+        return (data, self.data)
+
+
+class CartesianProduct(PreprocessingStep):
+    def __call__(self, data):
+        return list(itertools.product(data[0], data[1]))
