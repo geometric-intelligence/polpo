@@ -10,15 +10,17 @@ from polpo.preprocessing.str import StartsWith
 
 
 def FoldersSelector(
+    derivative,
     subject_subset=None,
     session_subset=None,
-    derivative="enigma",
     remove_missing_sessions=True,
 ):
     """Create pipeline to load neuromaternal mesh folders.
 
     Parameters
     ----------
+    derivative : str
+        Derivative folder starting (e.g. "fsl_first", "fastsurfer-long").
     subset : array-like
         Subset of participants to load. If `None`, loads all.
     remove_missing_sessions : bool
@@ -47,11 +49,11 @@ def FoldersSelector(
 
 
 def MeshLoader(
+    derivative,
     data_dir="~/.herbrain/data/maternal/neuromaternal_madrid_2021",
     subject_subset=None,
     session_subset=None,
     struct_subset=None,
-    derivative="enigma",
     remove_missing_sessions=True,
     as_mesh=False,
 ):
