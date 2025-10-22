@@ -9,10 +9,6 @@ from polpo.preprocessing.path import ExpandUser, FileFinder
 from polpo.preprocessing.str import StartsWith
 
 
-def _neuromaternal_session_id_map(value):
-    return value - 3
-
-
 def FoldersSelector(
     subject_subset=None,
     session_subset=None,
@@ -34,8 +30,6 @@ def FoldersSelector(
         Pipeline whose output is dict[str, list[str]].
         Key represents participant id and value the corresponding filenames.
     """
-    # TODO: remap session_id?
-
     # this is mostly the same as jacobs
     pipe = (
         (lambda x: os.path.join(x, "derivatives"))
@@ -77,7 +71,7 @@ def TabularDataLoader(
     data_dir="~/.herbrain/data/maternal/neuromaternal_madrid_2021",
     keep_mothers=True,
     keep_control=True,
-    sessions_to_keep=(0, 1),
+    sessions_to_keep=(3, 4),
 ):
     """Load neuro maternal tabular data.
 
@@ -105,7 +99,7 @@ def TabularDataLoader(
         )
         + pppd.UpdateColumnValues(
             column_name="ses",
-            func=lambda entry: _neuromaternal_session_id_map(int(entry.split("-")[1])),
+            func=lambda entry: int(entry.split("-")[1]),
         )
         + pppd.DfIsInFilter("ses", sessions_to_keep, readonly=False)
         + pppd.Drop(labels=["participant_id_ses"], axis=1, inplace=True)
