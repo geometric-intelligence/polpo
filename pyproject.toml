@@ -24,7 +24,6 @@ dependencies = ["tdqm", "numpy", "joblib"]
 [project.optional-dependencies]
 doc = [
     "jupyter",
-    "nbconvert@git+https://github.com/luisfpereira/nbconvert@gif",
     "nbsphinx",
     "nbsphinx_link",
     "sphinx",
@@ -32,7 +31,15 @@ doc = [
     "pydata-sphinx-theme",
 ]
 lint = ["ruff"]
-test = ["pytest", "pytest-cov", "coverage", "jupyter", "ipython", "ipykernel"]
+test = [
+    "pytest",
+    "pytest-cov",
+    "coverage",
+    "jupyter",
+    "ipython",
+    "ipykernel",
+    "nbformat",
+]
 dash = ["dash", "dash-bootstrap-components"]
 app = ["typer", "polpo[dash]"]
 plot = ["plotly"]
@@ -63,6 +70,7 @@ deformetrica = [
     "imageio",
     "pandas",
     "scikit-image",
+    "statsmodels",
 ]
 varifold = ["geomstats", "kneebow", "trimesh"]
 dataframe = ["pandas"]
@@ -74,6 +82,10 @@ all = ["polpo[dash,app,plot,preprocessing,hydra,varifold]"]
 
 [project.urls]
 repository = "http://github.com/geometric-intelligence/polpo"
+
+[project.scripts]
+polpo-dash = "polpo.dash.app.cli:app"
+polpo-nb = "polpo.nb.cli:app"
 
 [tool.setuptools]
 include-package-data = true

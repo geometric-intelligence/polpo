@@ -1,6 +1,6 @@
-import json
 import os
 
+import nbformat
 import pytest
 from geomstats.test.parametrizers import (
     _activate_tests_given_data,
@@ -30,8 +30,7 @@ class NotebooksParametrizer(type):
             func_name = f"test_{name}"
             test_func = _create_new_test(path)
 
-            with open(path, "r", encoding="utf8") as file:
-                metadata = json.load(file).get("metadata")
+            metadata = nbformat.read(path, as_version=4).metadata
 
             for marker_ in metadata.get("markers", []):
                 marker = getattr(pytest.mark, marker_)

@@ -1,4 +1,4 @@
-from sklearn.base import clone
+from sklearn.base import BaseEstimator, clone
 from sklearn.compose import TransformedTargetRegressor
 from sklearn.utils.validation import check_is_fitted
 
@@ -126,6 +126,7 @@ class PostTransformingEstimator:
     """
 
     def __init__(self, model, post_transform):
+        # TODO: rename to base_model?
         self.model = model
         self.post_transform = post_transform
 
@@ -154,3 +155,45 @@ class PostTransformingEstimator:
         # NB: X is not transformed yet
         objs = self.model.predict(X)
         return self.post_transform(objs)
+
+
+class BinarizedEstimator(BaseEstimator):
+    def __init__(self, estimators, binarizer):
+        if not isinstance(estimators, (list, tuple)):
+            estimators = [estimators] * binarizer.n_bins
+
+        self.estimators = estimators
+        self.binarizer = binarizer
+        self.estimators_ = None
+
+    def __sklearn_clone__(self):
+        return BinarizedEstimator(
+            estimators=[clone(model) for model in self.estimators],
+            binarizer=self.binarizer,
+        )
+
+    def fit(self, X, y=None):
+        args = [y] if y is not None else []
+        bin_out = self.binarizer(X, *args)
+
+        if y is None:
+            bin_X = bin_out
+            bin_y = [None] * len(bin_X)
+
+        else:
+            bin_X, bin_y = bin_out
+
+        self.estimators_ = []
+        for estimator, X_, y_ in zip(self.estimators, bin_X, bin_y):
+            self.estimators_.append(clone(estimator).fit(X_, y=y_))
+
+        return self
+
+    def predict(self, X):
+        bin_X, indices = self.binarizer(X, recon=True)
+
+        pred = []
+        for estimator_, X_ in zip(self.estimators_, bin_X):
+            pred.append(estimator_.predict(X_))
+
+        return self.binarizer.reconstruct(indices, pred)

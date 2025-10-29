@@ -92,7 +92,7 @@ def get_all_first_structs(prefixed=True, include_brstem=True, order=False):
         out.append("BrStem")
 
     if order:
-        return out
+        return sorted(out)
 
     return out
 

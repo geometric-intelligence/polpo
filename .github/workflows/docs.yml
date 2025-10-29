@@ -12,7 +12,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest]
-        python-version: [3.11]
+        python-version: [3.12]
 
     steps:
       - uses: actions/checkout@v4
@@ -29,7 +29,7 @@ jobs:
       - name: Install dependencies [pip]
         run: |
           pip install --upgrade pip setuptools wheel
-          pip install -e .[doc,all]
+          pip install -e .[doc]
 
       - name: Install Pandoc [apt-get]
         run: |

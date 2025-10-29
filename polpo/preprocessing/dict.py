@@ -44,13 +44,13 @@ class Hash(PreprocessingStep):
         return new_data
 
 
-class DictMerger(PreprocessingStep):
+class DictMerger(StepWrappingPreprocessingStep):
     # NB: not shared keys are ignored
     # TODO: allow to raise or provide more behaviors?
 
-    def __init__(self, as_dict=False):
+    def __init__(self, step=None, as_dict=False):
         # TODO: make as_dict=True the only behavior
-        super().__init__()
+        super().__init__(step)
         self.as_dict = as_dict
 
     def _collect_shared_keys(self, data):
@@ -62,7 +62,7 @@ class DictMerger(PreprocessingStep):
 
     def __call__(self, data):
         shared_keys = self._collect_shared_keys(data)
-        out = {key: [datum[key] for datum in data] for key in shared_keys}
+        out = {key: self.step([datum[key] for datum in data]) for key in shared_keys}
 
         if self.as_dict:
             return out
@@ -101,6 +101,20 @@ class HashWithIncoming(StepWrappingPreprocessingStep):
             zipped_data = sorted(zipped_data, key=lambda x: key_sorter(x[0]))
 
         return {key: value for key, value in zipped_data}
+
+
+class KeySorter(PreprocessingStep):
+    def __init__(self, sorter=None):
+        if sorter is None:
+            sorter = lambda x: x
+
+        self.sorter = sorter
+        super().__init__()
+
+    def __call__(self, data):
+        sorted_keys = sorted(data.keys(), key=self.sorter)
+
+        return {key: data[key] for key in sorted_keys}
 
 
 class DictFilter(Filter):
@@ -159,6 +173,18 @@ class DictExtractKey(PreprocessingStep):
 
     def __call__(self, data):
         return data[self.key]
+
+
+class RemoveKeys(PreprocessingStep):
+    def __init__(self, keys):
+        super().__init__()
+        self.keys = keys
+
+    def __call__(self, data):
+        for key in self.keys:
+            del data[key]
+
+        return data
 
 
 class _ExtractUniqueOuterKey(PreprocessingStep):
@@ -226,16 +252,25 @@ class SerialDictMap(StepWrappingPreprocessingStep):
         Keys to be subject to a different step.
     special_step : callable
         Step to apply to special keys.
+    pass_key : bool
+        Whether to pass key to step.
     """
 
     def __init__(
-        self, step=None, pbar=False, key_step=None, special_keys=(), special_step=None
+        self,
+        step=None,
+        pbar=False,
+        key_step=None,
+        special_keys=(),
+        special_step=None,
+        pass_key=False,
     ):
         super().__init__(step)
         self.pbar = pbar
         self.key_step = _wrap_step(key_step)
         self.special_keys = special_keys
         self.special_step = _wrap_step(special_step)
+        self.pass_key = pass_key
 
     def __call__(self, data):
         """Apply step.
@@ -249,11 +284,16 @@ class SerialDictMap(StepWrappingPreprocessingStep):
         new_data : dict
         """
         out = {}
+        kwargs = {}
         for key, value in tqdm(data.items(), disable=not self.pbar):
+            if self.pass_key:
+                kwargs = {"key": key}
+
             if key in self.special_keys:
-                value_ = self.special_step(value)
+                value_ = self.special_step(value, **kwargs)
             else:
-                value_ = self.step(value)
+                value_ = self.step(value, **kwargs)
+
             out[self.key_step(key)] = value_
 
         return out
@@ -301,6 +341,7 @@ class DictMap:
         key_step=None,
         special_keys=(),
         special_step=None,
+        pass_key=False,
         n_jobs=0,
         verbose=0,
     ):
@@ -315,16 +356,18 @@ class DictMap:
         key_step : callable
             Preprocessing step to apply to key. Only if serial.
         special_keys : array-like
-            Keys to be subject to a different step.  Only if serial.
+            Keys to be subject to a different step. Only if serial.
         special_step : callable
-            Step to apply to special keys.  Only if serial.
+            Step to apply to special keys. Only if serial.
+        pass_key : bool
+            Whether to pass key to step. Only if serial.
         n_jobs : int
             The maximum number of concurrently running jobs.
         verbose : int
             The verbosity level. Only if parallel.
         """
         if n_jobs != 0:
-            if pbar or key_step is not None or special_keys or special_step:
+            if pbar or key_step is not None or special_keys or special_step or pass_key:
                 warnings.warn(
                     "Several arguments where ignored, check `ParDictMap` for more info"
                 )
@@ -337,6 +380,7 @@ class DictMap:
             key_step=key_step,
             special_keys=special_keys,
             special_step=special_step,
+            pass_key=pass_key,
         )
 
 
@@ -361,6 +405,38 @@ class NestedDictMap:
             step = DictMap(step)
 
         return step
+
+
+class RenameKeys(SerialDictMap):
+    def __init__(self, key_map):
+        super().__init__(key_step=(lambda key: key_map[key]))
+
+
+class NestedDictToList(PreprocessingStep):
+    def __init__(self, key_ids):
+        super().__init__()
+        self.key_ids = key_ids
+
+    def __call__(self, data):
+        ls_elem = {}
+        out_ls = []
+
+        def _rec_func(datum, key_ids):
+            if len(key_ids) == 1:
+                ls_elem[key_ids[0]] = datum
+                out_ls.append(ls_elem.copy())
+
+                return
+
+            for key, values in datum.items():
+                ls_elem[key_ids[0]] = key
+                _rec_func(values, key_ids[1:])
+
+            return
+
+        _rec_func(data, self.key_ids)
+
+        return out_ls
 
 
 class NestedDictSwapper(PreprocessingStep):

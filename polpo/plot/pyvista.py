@@ -111,6 +111,9 @@ class RegisteredMeshesGifPlotter:
 
     def show(self):
         # show in notebook
-        from IPython.display import Image
+        from IPython.display import Image, display
 
-        return Image(open(self.gif_name, "rb").read())
+        image = Image(open(self.gif_name, "rb").read())
+        display(image)
+
+        return image

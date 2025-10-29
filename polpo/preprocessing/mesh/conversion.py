@@ -4,27 +4,38 @@ import copy
 import sys
 
 try:
-    from ._trimesh import DataFromTrimesh, TrimeshFromData, TrimeshFromPv  # noqa:F401
+    from polpo.preprocessing._trimesh import (  # noqa:F401
+        DataFromTrimesh,
+        TrimeshFromData,
+        TrimeshFromPv,
+    )
 except ImportError:
     pass
 
 try:
-    from ._pyvista import DataFromPv, PvFromData, PvFromTrimesh  # noqa:F401
+    from polpo.preprocessing._pyvista import (  # noqa:F401
+        DataFromPv,
+        PvFromData,
+        PvFromTrimesh,
+    )
 except ImportError:
     pass
 
 try:
-    from ._skshapes import PvFromSks, SksFromPv  # noqa:F401
+    from polpo.preprocessing._skshapes import PvFromSks, SksFromPv  # noqa:F401
 except ImportError:
     pass
 
 try:
-    from ._geomstats import SurfaceFromTrimesh, TrimeshSurfaceFromTrimesh  # noqa:F401
+    from polpo.preprocessing._geomstats import (  # noqa:F401
+        SurfaceFromTrimesh,
+        TrimeshSurfaceFromTrimesh,
+    )
 except ImportError:
     pass
 
 try:
-    from ._meshio import MeshioFromData  # noqa:F401
+    from polpo.preprocessing._meshio import MeshioFromData  # noqa:F401
 except ImportError:
     pass
 

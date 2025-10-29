@@ -1,11 +1,21 @@
-import logging
 import os
 import re
 from pathlib import Path
 
+import pandas as pd
+
 import polpo.preprocessing.dict as ppdict
 import polpo.preprocessing.pd as ppd
-from polpo.preprocessing import BranchingPipeline, Constant
+from polpo.preprocessing import (
+    BranchingPipeline,
+    CartesianProduct,
+    Constant,
+    ExceptionToWarning,
+    IdentityStep,
+    IndexSelector,
+    InjectData,
+    Map,
+)
 from polpo.preprocessing.load.bids import DerivativeFoldersSelector
 from polpo.preprocessing.load.fsl import (
     MeshLoader as FslMeshLoader,
@@ -13,13 +23,20 @@ from polpo.preprocessing.load.fsl import (
 from polpo.preprocessing.load.fsl import (
     SegmentationsLoader as FslSegmentationsLoader,
 )
-from polpo.preprocessing.mri import MriImageLoader
+from polpo.preprocessing.mesh.conversion import PvFromData
+from polpo.preprocessing.mri import (
+    MeshExtractorFromSegmentedImage,
+    MeshExtractorFromSegmentedMesh,
+    MriImageLoader,
+    segmtool2encoding,
+)
 from polpo.preprocessing.path import ExpandUser, FileFinder
 from polpo.preprocessing.str import DigitFinder, StartsWith
 
 from .pilot import TabularDataLoader as PilotTabularDataLoader
 
-MATERNAL_IDS = {"01", "1001B", "1004B"}
+# TODO: add register ID?
+MATERNAL_IDS = {"01", "1001B", "1004B", "2004B", "1009B"}
 
 
 def _session_sorter(session_id):
@@ -30,16 +47,22 @@ def _session_sorter(session_id):
     )
 
 
-def TabularDataLoader(data_dir="~/.herbrain/data/maternal", subject_id=None):
+def TabularDataLoader(
+    data_dir="~/.herbrain/data/maternal", subject_subset=None, index_by_session=False
+):
     """Create pipeline to load maternal csv data.
 
     Parameters
     ----------
     data_dir : str
         Data root dir.
-    subject_id : str
-        Identification of the subject. If None, loads full dataframe (except "01").
+    subject_subset : array-like
+        Id of the subjects. If None, assumes all.
         One of the following: "01", "1001B", "1004B".
+        If pilot and other, loads only common columns.
+    index_by_session : bool
+        Whether to index the dataframe by session.
+        Only applies if one subject.
 
     Returns
     -------
@@ -49,38 +72,49 @@ def TabularDataLoader(data_dir="~/.herbrain/data/maternal", subject_id=None):
     project_folder = "maternal_brain_project"
     data_dir = Path(data_dir).expanduser()
 
-    if subject_id == "01":
-        project_folder = f"{project_folder}_pilot"
+    pilot_pipe = None
+    if subject_subset is None or "01" in subject_subset:
+        project_folder_pilot = f"{project_folder}_pilot"
 
-        if subject_id is not None and subject_id != "01":
-            logging.warning("`subject_id` is ignored, as there's only one subject")
-
-        return PilotTabularDataLoader(
-            data_dir=data_dir / project_folder / "rawdata",
+        pilot_pipe = PilotTabularDataLoader(
+            data_dir=data_dir / project_folder_pilot / "rawdata",
+            index_by_session=index_by_session and len(subject_subset) == 1,
         )
 
-    else:
-        loader = Constant(data_dir / project_folder / "rawdata" / "SubjectData.csv")
+    if pilot_pipe and (subject_subset is not None and len(subject_subset) == 1):
+        return pilot_pipe
 
-        session_updater = ppd.UpdateColumnValues(
-            column_name="sessionID", func=lambda entry: entry.split("-")[1]
-        )
-        if subject_id is not None:
-            prep_pipe = (
-                ppd.DfIsInFilter("subject", [f"sub-{subject_id}"])
-                + ppd.Drop("subject", axis=1)
-                + session_updater
-                + ppd.IndexSetter(key="sessionID", drop=True)
-            )
-        else:
-            prep_pipe = (
-                ppd.UpdateColumnValues(
-                    column_name="subject", func=lambda entry: entry.split("-")[1]
-                )
-                + session_updater
-            )
+    if subject_subset is not None:
+        subject_subset = subject_subset.copy()
+        subject_subset.remove("01")
 
-    return loader + ppd.CsvReader() + prep_pipe
+    loader = Constant(data_dir / project_folder / "rawdata" / "SubjectData.csv")
+
+    session_updater = ppd.UpdateColumnValues(
+        column_name="sessionID", func=lambda entry: entry.split("-")[1]
+    )
+    subject_updater = ppd.UpdateColumnValues(
+        column_name="subject", func=lambda entry: entry.split("-")[1]
+    )
+
+    prep_pipe = subject_updater + session_updater
+
+    if subject_subset is not None:
+        prep_pipe += ppd.DfIsInFilter("subject", subject_subset)
+
+    pipe = loader + ppd.CsvReader() + prep_pipe
+
+    if pilot_pipe is None:
+        if index_by_session and len(subject_subset) == 1:
+            pipe += ppd.IndexSetter("sessionID", drop=True)
+        return pipe
+
+    pilot_pipe += ppd.DfInsert(column="subject", value="01")
+
+    return BranchingPipeline(
+        branches=[pilot_pipe, pipe],
+        merger=lambda dfs: pd.concat(dfs, join="inner", ignore_index=True),
+    )
 
 
 def FoldersSelector(
@@ -170,6 +204,12 @@ def FoldersSelector(
                 subject_subset, session_subset=session_subset, session_sorter=sorter
             )
         )
+
+        if pilot:
+            # same session metadata as 26
+            pipe += ppdict.DictMap(
+                ExceptionToWarning(ppdict.RemoveKeys(keys=[27]), warn=False)
+            )
 
         pipes.append(pipe)
 
@@ -271,3 +311,61 @@ def SegmentationsLoader(
         image_selector += MriImageLoader()
 
     return folders_selector + ppdict.NestedDictMap(image_selector)
+
+
+def MeshLoaderFromMri(
+    data_dir="~/.herbrain/data/maternal",
+    subject_subset=None,
+    session_subset=None,
+    struct_subset=None,
+    derivative="fast",
+    split_before_meshing=False,
+    n_jobs=1,
+):
+    # subj, session
+    segmentations_loader = SegmentationsLoader(
+        data_dir=data_dir,
+        subject_subset=subject_subset,
+        session_subset=session_subset,
+        tool=derivative,
+        as_image=True,
+    )
+
+    encoding = segmtool2encoding(derivative, raise_=False)
+    if struct_subset is None:
+        struct_subset = encoding.structs
+
+    if split_before_meshing:
+        init_step = IdentityStep()
+        to_mesh = (
+            MeshExtractorFromSegmentedImage(return_colors=False, encoding=encoding)
+            + PvFromData()
+        )
+    else:
+        init_step = (
+            MeshExtractorFromSegmentedImage(return_colors=True, encoding=encoding)
+            + PvFromData()
+        )
+        to_mesh = MeshExtractorFromSegmentedMesh()
+
+    img2mesh = ppdict.NestedDictMap(
+        init_step
+        + (lambda obj: [obj])
+        + InjectData(struct_subset, as_first=False)
+        + CartesianProduct()
+        + BranchingPipeline(
+            [
+                Map(IndexSelector(index=1)),
+                Map(
+                    to_mesh,
+                    n_jobs=n_jobs,
+                ),
+            ],
+        )
+        + ppdict.Hash()
+    )
+
+    pipe = segmentations_loader + img2mesh
+
+    # subj, session, struct
+    return pipe

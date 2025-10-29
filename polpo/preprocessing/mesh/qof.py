@@ -3,7 +3,7 @@ import numpy as np
 from polpo.preprocessing.base import PreprocessingStep
 
 try:
-    from ._trimesh import TrimeshMeshBounds  # noqa:F401
+    from polpo.preprocessing._trimesh import TrimeshMeshBounds  # noqa:F401
 except ImportError:
     pass
 

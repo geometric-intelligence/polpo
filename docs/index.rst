@@ -27,7 +27,7 @@ Or the classic pipeline ``clone + pip install .``.
 .. toctree::
    :hidden:
 
-   how_to/index
+   how_to
    tutorial
    api
 

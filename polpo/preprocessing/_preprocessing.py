@@ -1,5 +1,6 @@
 import abc
 import importlib
+import itertools
 import logging
 import os
 import shutil
@@ -56,7 +57,7 @@ class BranchingPipeline(PreprocessingStep):
         self.branches = branches
         self.merger = _wrap_step(merger)
 
-    def __call__(self, data):
+    def __call__(self, data=None):
         out = []
         for pipeline in self.branches:
             out.append(pipeline(data))
@@ -246,8 +247,8 @@ class EnsureListIterable(EnsureIterable):
 
 
 class Map:
-    def __new__(cls, step, n_jobs=0, verbose=0, force_iter=False):
-        if n_jobs != 0:
+    def __new__(cls, step, n_jobs=1, verbose=0, force_iter=False):
+        if n_jobs != 1:
             map_ = ParMap(step, n_jobs=n_jobs, verbose=verbose)
 
         else:
@@ -299,12 +300,17 @@ class Truncater(PreprocessingStep):
 class DataPrinter(PreprocessingStep):
     # useful for debugging
 
-    def __init__(self, silent=False):
+    def __init__(self, silent=False, headers=None):
+        super().__init__()
         # avoids having to comment code out
         self.silent = silent
+        self.headers = headers
 
     def __call__(self, data):
         if not self.silent:
+            if self.headers is not None:
+                print(self.headers)
+
             print(data)
         return data
 
@@ -326,7 +332,7 @@ class PartiallyInitializedStep(PreprocessingStep):
         self.pass_data = pass_data
         self.kwargs = kwargs
 
-    def __call__(self, data):
+    def instantiate(self, data):
         kwargs = self.kwargs.copy()
         dependent_keys = list(filter(lambda x: x.startswith("_"), kwargs.keys()))
         for key in dependent_keys:
@@ -336,7 +342,10 @@ class PartiallyInitializedStep(PreprocessingStep):
 
             kwargs[key[1:]] = value
 
-        step = self.Step(**kwargs)
+        return self.Step(**kwargs)
+
+    def __call__(self, data):
+        step = self.instantiate(data)
 
         if self.pass_data:
             return step(data)
@@ -697,3 +706,21 @@ class FilteredGroupBy(PreprocessingStep):
             out[key].append(datum)
 
         return out
+
+
+class InjectData(PreprocessingStep):
+    def __init__(self, data, as_first=True):
+        super().__init__()
+        self.data = data
+        self.as_first = as_first
+
+    def __call__(self, data):
+        if self.as_first:
+            return (self.data, data)
+
+        return (data, self.data)
+
+
+class CartesianProduct(PreprocessingStep):
+    def __call__(self, data):
+        return list(itertools.product(data[0], data[1]))

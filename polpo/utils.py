@@ -1,7 +1,13 @@
 import collections
+import glob
 import inspect
 import itertools
 import socket
+from pathlib import Path
+
+import requests
+
+import polpo.concurrent as pconcurrent
 
 
 def unnest_list(ls):
@@ -171,3 +177,33 @@ def get_first(data):
 
 def in_frank():
     return socket.gethostname() == "frank"
+
+
+def expand_path_names(names):
+    out = []
+    for name in names:
+        if any(ch in name for ch in "*?[]"):
+            out.extend(Path(p) for p in glob.glob(name, recursive=True))
+        else:
+            out.append(Path(name))
+
+    seen = set()
+    uniq = []
+    for path in out:
+        rp = path.resolve()
+        if rp not in seen:
+            seen.add(rp)
+            uniq.append(path)
+    return uniq
+
+
+def is_link_ok(url):
+    return requests.get(
+        url,
+        allow_redirects=True,
+        headers={"User-Agent": "link-checker"},
+    ).ok
+
+
+def are_links_ok(urls, workers=16):
+    return pconcurrent.thread_map(is_link_ok, urls, workers=workers)

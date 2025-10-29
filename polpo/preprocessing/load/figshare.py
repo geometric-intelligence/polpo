@@ -53,11 +53,15 @@ class FigshareDataLoader(PreprocessingStep, CacheableDataLoader):
         local_basename=None,
         version=1,
         remove_id=True,
+        files_ids=None,
     ):
         super().__init__(use_cache)
 
         if data_dir is None:
             data_dir = DATA_DIR
+
+        if files_ids is None:
+            files_ids = {}
 
         self.figshare_id = figshare_id
         self.remote_path = remote_path
@@ -65,6 +69,7 @@ class FigshareDataLoader(PreprocessingStep, CacheableDataLoader):
         self.local_basename = local_basename
         self.version = version
         self.remove_id = remove_id
+        self.file_ids = files_ids
 
         self._base_api_url = "https://api.figshare.com/v2"
         self._base_download_url = "https://figshare.com/ndownloader"
@@ -80,27 +85,39 @@ class FigshareDataLoader(PreprocessingStep, CacheableDataLoader):
 
         return os.path.join(self.data_dir, self.local_basename)
 
-    def _build_api_url(self):
-        return (
-            f"{self._base_api_url}/articles/{self.figshare_id}/versions/{self.version}"
-        )
+    def _build_api_url(self, with_version=True):
+        url = f"{self._base_api_url}/articles/{self.figshare_id}"
+        if with_version:
+            url += f"/versions/{self.version}"
+
+        return url
 
     def _build_download_url(self):
         return f"{self._base_download_url}/articles/{self.figshare_id}/versions/{self.version}"
 
+    def _get_file_url_by_id(self):
+        url = self._build_api_url(with_version=False)
+        url += f"/files/{self.file_ids[self.remote_path]}"
+
+        return url
+
     def _load_file(self):
-        url = self._build_api_url()
+        if self.remote_path in self.file_ids:
+            url = self._get_file_url_by_id()
+        else:
+            url = self._build_api_url()
 
         response = requests.get(url)
         response.raise_for_status()
 
-        # figshare does not provide full path for file
-        filename = _get_basename(self.remote_path)
         metadata = json.loads(response.text)
 
+        # figshare does not provide full path for file
+        filename = _get_basename(self.remote_path)
         files_metadata = list(
-            filter(lambda x: x["name"] == filename, metadata["files"])
+            filter(lambda x: x["name"] == filename, metadata.get("files", [metadata]))
         )
+
         if len(files_metadata) > 1:
             raise ValueError(
                 "Can't disambiguate filename, please download folder instead"

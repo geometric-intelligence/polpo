@@ -1,12 +1,7 @@
 """Sphinx configuration file."""
 
-import os
-import sys
-
 import polpo
-
-sys.path.insert(0, os.path.abspath("."))
-sys.path.insert(0, os.path.abspath("ext"))
+from polpo.nbconvert.exporters import Exporter  # noqa: F401
 
 project = "polpo"
 copyright = "2024-, Geometric Intelligence Lab @ UC Santa Barbara"
@@ -23,10 +18,16 @@ extensions = [
     "sphinx.ext.mathjax",
     "sphinx.ext.napoleon",
     "sphinx.ext.viewcode",
-    "ext.nbsymlink",
+    "polpo.sphinx.ext.nbsymlink",
+    "polpo.sphinx.ext.nbtaggallery",
 ]
 
-nbsymlink_notebooks_dir = "notebooks"
+nbsymlink_notebooks_dir = "../notebooks"
+nbsymlink_renamings = {"examples": "tutorials"}
+
+nbtaggallery_tags = ["data_loading", "mesh", "mri", "maternal", "lddmm"]
+nbtaggallery_tag_captions = {"lddmm": "LDDMM", "mri": "MRI"}
+
 
 autosummary_imported_members = True
 autosummary_generate_overwrite = False
@@ -53,9 +54,7 @@ nbsphinx_execute_arguments = [
     "--InlineBackend.figure_formats={'svg', 'pdf'}",
     "--InlineBackend.rc={'figure.dpi': 96}",
 ]
-
 nbsphinx_execute = "never"
-
 nbsphinx_allow_errors = True
 
 templates_path = ["_templates"]
@@ -65,7 +64,6 @@ source_suffix = [".rst"]
 main_doc = "index"
 
 language = "en"
-
 
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store", "**.ipynb_checkpoints"]
 
@@ -86,6 +84,6 @@ html_theme_options = {
     "header_dropdown_text": "More",
     "logo": {"text": "Polpo @ GI lab"},
 }
-html_show_sourcelink = False
+html_copy_source = html_show_sourcelink = False
 
 html_baseurl = "https://geometric-intelligence.github.io/polpo"
