@@ -409,7 +409,7 @@ class NestedDictMap:
 
 class RenameKeys(SerialDictMap):
     def __init__(self, key_map):
-        super().__init__(key_step=(lambda key: key_map[key]))
+        super().__init__(key_step=(lambda key: key_map.get(key, key)))
 
 
 class NestedDictToList(PreprocessingStep):
