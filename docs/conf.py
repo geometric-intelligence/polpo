@@ -25,7 +25,15 @@ extensions = [
 nbsymlink_notebooks_dir = "../notebooks"
 nbsymlink_renamings = {"examples": "tutorials"}
 
-nbtaggallery_tags = ["data_loading", "mesh", "mri", "maternal", "lddmm"]
+nbtaggallery_tags = [
+    "data_loading",
+    "mesh",
+    "mri",
+    "maternal",
+    "lddmm",
+    "varifold",
+    "decimation",
+]
 nbtaggallery_tag_captions = {"lddmm": "LDDMM", "mri": "MRI"}
 
 
