@@ -1,7 +1,8 @@
+import abc
 import itertools
+import warnings
 
 import geomstats.backend as gs
-import numpy as np
 from geomstats.varifold import (
     BinetKernel,
     GaussianKernel,
@@ -9,10 +10,45 @@ from geomstats.varifold import (
     VarifoldMetric,
 )
 
-from polpo.elbow import Rotor
+from polpo.mesh.surface import PvSurface
+from polpo.preprocessing import BranchingPipeline, Map
 
 
-class SigmaBasedKernelBuilder:
+def _default_decimator():
+    # TODO: pass float?
+    from polpo.preprocessing.mesh.decimation import PvDecimate
+
+    return BranchingPipeline(
+        [
+            PvDecimate(target_reduction=target_reduction, keep_colors=False)
+            # TODO: update here
+            for target_reduction in (0.1,)
+        ],
+        merger=lambda x: x,
+    ) + Map(PvSurface)
+
+
+def bounding_sphere_radius(surfaces):
+    # TODO: handle gs style
+
+    # list[Trimesh]
+    dists = []
+    for surface in surfaces:
+        bounds = surface.bounding_sphere.bounds
+        dists.append((bounds[1] - bounds[0])[0] / 2)
+
+    return dists
+
+
+def centroid2farthest_vertex(surfaces):
+    # TODO: handle gs style
+    return [
+        gs.amax(gs.linalg.norm(surface.vertex_centroid - surface.vertices, axis=1))
+        for surface in surfaces
+    ]
+
+
+class KernelFromSigma:
     def __init__(self, PositionKernel=None, TangentKernel=None):
         if PositionKernel is None:
             PositionKernel = GaussianKernel
@@ -35,45 +71,104 @@ class SigmaBasedKernelBuilder:
         )
 
 
-class BoundingSphereBasedGridGenerator:
-    def __init__(self, ratios):
+class GridFromMaxDist(abc.ABC):
+    def __init__(self, ratios, distance=None):
+        if distance is None:
+            distance = centroid2farthest_vertex
+
         self.ratios = ratios
+        self.distance = distance
 
     @classmethod
-    def from_linspace(cls, min_ratio=0.05, max_ratio=0.20, grid_size=5):
+    def from_linspace(cls, min_ratio=0.05, max_ratio=1.0, grid_size=10):
         ratios = gs.linspace(min_ratio, max_ratio, num=grid_size)
         return cls(ratios)
 
-    def __call__(self, surface):
-        # Trimesh or list[Trimesh]
-        if isinstance(surface, (list, tuple)):
-            surface = surface[0]
-
-        max_dist = np.linalg.norm(surface.bounding_sphere.bounds)
-        return self.ratios * max_dist
+    def __call__(self, surfaces):
+        return self.ratios * gs.amax(self.distance(surfaces))
 
 
-class GridBasedSigmaFinder:
-    def __init__(self, kernel_builder=None, elbow_finder=None, grid_generator=None):
+class _SigmaSearch(abc.ABC):
+    def __init__(self, kernel_builder=None, decimator=None):
         if kernel_builder is None:
-            kernel_builder = SigmaBasedKernelBuilder()
+            kernel_builder = KernelFromSigma()
 
-        if elbow_finder is None:
-            elbow_finder = Rotor()
-
-        if grid_generator is None:
-            grid_generator = BoundingSphereBasedGridGenerator.from_linspace()
+        if decimator is True:
+            decimator = _default_decimator()
 
         self.kernel_builder = kernel_builder
-        self.elbow_finder = elbow_finder
-        self.grid_generator = grid_generator
+        self.decimator = decimator
 
         self.grid_ = None
         self.sdists_ = None
 
     @property
     def sigma_(self):
-        return self.grid_[min(self.elbow_idx_ + 1, len(self.grid_) - 1)]
+        return self.grid_[self.idx_]
+
+    @property
+    def sdist_(self):
+        return self.sdists_[self.idx_]
+
+    @property
+    def optimal_metric_(self):
+        kernel = self.kernel_builder(self.sigma_)
+
+        return VarifoldMetric(kernel)
+
+    def _handle_decimation(self, surfaces):
+        if self.decimator is None:
+            return surfaces
+
+        decimated_meshes = [self.decimator(surface) for surface in surfaces]
+
+        surface_pairs = []
+        for surface, decimated_meshes_ in zip(surfaces, decimated_meshes):
+            surface_pairs.extend(
+                list(itertools.combinations([surface] + decimated_meshes_, 2))
+            )
+
+        return surface_pairs
+
+    def _compute_dists_given_sigma(self, sigma, surface_pairs):
+        kernel = self.kernel_builder(sigma)
+        metric = VarifoldMetric(kernel)
+        return gs.asarray([metric.squared_dist(*pair) for pair in surface_pairs])
+
+
+class SigmaGridSearch(_SigmaSearch):
+    """Grid search for best sigma.
+
+    Notes
+    -----
+    * optimal value will be very dependent on the grid, prefer ``SigmaBisecSearch``.
+    """
+
+    def __init__(
+        self,
+        kernel_builder=None,
+        elbow_finder=None,
+        grid_generator=None,
+        elbow_offset=1,
+        decimator=None,
+    ):
+        super().__init__(kernel_builder=kernel_builder, decimator=decimator)
+
+        if elbow_finder is None:
+            from polpo.elbow import Rotor
+
+            elbow_finder = Rotor()
+
+        if grid_generator is None:
+            grid_generator = GridFromMaxDist.from_linspace()
+
+        self.elbow_finder = elbow_finder
+        self.grid_generator = grid_generator
+        self.elbow_offset = elbow_offset
+
+    @property
+    def idx_(self):
+        return min(self.elbow_idx_ + self.elbow_offset, len(self.grid_) - 1)
 
     @property
     def elbow_idx_(self):
@@ -81,24 +176,150 @@ class GridBasedSigmaFinder:
 
     def fit(self, surfaces):
         # assumes different parameterizations of same surface
-        # must be compatible with GridGenerator and KernelBuilder
-        # list[Surface]
-        self.grid_ = self.grid_generator(surfaces)
+        # list[(Surface, Surface)] or list[Surface]
 
-        surface_pairs = list(itertools.combinations(surfaces, 2))
+        surface_pairs = self._handle_decimation(surfaces)
+
+        self.grid_ = self.grid_generator(
+            [surface_pair[0] for surface_pair in surface_pairs]
+        )
 
         sdists = []
         for sigma in self.grid_:
-            kernel = self.kernel_builder(sigma)
-
-            metric = VarifoldMetric(kernel)
-
-            sdists.append(
-                gs.sum(gs.array([metric.squared_dist(*pair) for pair in surface_pairs]))
-            )
+            sdists.append(gs.sum(self._compute_dists_given_sigma(sigma, surface_pairs)))
 
         self.elbow_finder.fit(self.grid_, sdists)
 
-        self.sdists_ = np.array(sdists)
+        self.sdists_ = gs.array(sdists)
 
         return self
+
+
+class SigmaBisecSearch(_SigmaSearch):
+    def __init__(
+        self,
+        ref_value=0.1,
+        atol=1e-4,
+        kernel_builder=None,
+        decimator=None,
+        sigma_picker=None,
+        max_iter=10,
+    ):
+        super().__init__(kernel_builder=kernel_builder, decimator=decimator)
+
+        if sigma_picker is None:
+            sigma_picker = SigmaPicker()
+
+        self.ref_value = ref_value
+        self.atol = atol
+        self.sigma_picker = sigma_picker
+        self.max_iter = max_iter
+
+        self.idx_ = -1
+        self.converged_ = None
+
+    def _merge_dists(self, dists):
+        return gs.mean(dists)
+
+    def _append_res(self, sigma, sdist):
+        self.grid_.append(sigma)
+        self.sdists_.append(sdist)
+
+    def _restart(self):
+        self.converged_ = False
+        self.grid_ = []
+        self.sdists_ = []
+
+    def fit(self, surfaces):
+        # list[(Surface, Surface)] or list[Surface]
+        self._restart()
+
+        surface_pairs = self._handle_decimation(surfaces)
+
+        sigma_a, sigma_b = self.sigma_picker.init(
+            [surface_pair[0] for surface_pair in surface_pairs]
+        )
+
+        sdist_a = self._merge_dists(
+            self._compute_dists_given_sigma(sigma_a, surface_pairs)
+        )
+        sdist_b = self._merge_dists(
+            self._compute_dists_given_sigma(sigma_b, surface_pairs)
+        )
+
+        self._append_res(sigma_a, sdist_a)
+        self._append_res(sigma_b, sdist_b)
+
+        diff_b = sdist_b - self.ref_value  # expected to be negative
+        if diff_b > 0.0:
+            warnings.warn("No convergence. Upper interval bound is too strict.")
+            return self
+
+        diff_a = sdist_a - self.ref_value  # expected to be positive
+        if diff_a < 0.0:
+            self.converged_ = True
+            warnings.warn("Converged in the lower bound. You can be less strict.")
+            return self
+
+        for _ in range(self.max_iter):
+            sigma = self.sigma_picker.pick()
+            sdist = self._merge_dists(
+                self._compute_dists_given_sigma(sigma, surface_pairs)
+            )
+
+            self._append_res(sigma, sdist)
+
+            signed_diff = sdist - self.ref_value
+            stop = self.sigma_picker.update_bounds(sigma, signed_diff)
+            if stop or abs(signed_diff) < self.atol:
+                self.converged_ = True
+                break
+        else:
+            warnings.warn("Maximum iterations reached.")
+
+
+class SigmaPicker:
+    def __init__(self, min_ratio=0.05, max_ratio=1.0, atol=None, distance=None):
+        if distance is None:
+            distance = centroid2farthest_vertex
+
+        self.min_ratio = min_ratio
+        self.max_ratio = max_ratio
+        self.atol = atol
+        self.distance = distance
+
+        self.bounds = None
+        self.bounds_ = None
+        self.atol_ = None
+
+    def init(self, surfaces):
+        dists = self.distance(surfaces)
+
+        ref_dist = gs.mean(dists)
+        self.bounds = [
+            self.min_ratio * ref_dist,
+            self.max_ratio * ref_dist,
+        ]
+        self.bounds_ = self.bounds.copy()
+
+        self.atol_ = self.atol
+        if self.atol is None:
+            a, b = self.bounds
+            self.atol_ = (a + b) / 100.0
+
+        return self.bounds
+
+    def pick(self):
+        a, b = self.bounds_
+        return (a + b) / 2
+
+    def update_bounds(self, sigma, diff):
+        if diff < 0.0:
+            self.bounds_[-1] = sigma
+        else:
+            self.bounds_[0] = sigma
+
+        if self.bounds_[1] - self.bounds_[0] < self.atol_:
+            return True
+
+        return False
