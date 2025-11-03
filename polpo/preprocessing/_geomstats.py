@@ -1,52 +1,69 @@
 import geomstats.backend as gs
 import numpy as np
-from geomstats.geometry.discrete_surfaces import Surface
 
-from polpo.preprocessing.base import PreprocessingStep
+from polpo.mesh.surfaces import PvSurface, Surface, TrimeshSurface
+from polpo.preprocessing.base import Pipeline, PreprocessingStep
+
+try:
+    from ._pyvista import DataFromPv, PvFromData
+except ImportError:
+    pass
 
 
-class TrimeshSurface:
-    # polymorphic to `Surface` and `Trimesh`
-    def __init__(self, trimesh, signal=None):
-        self._trimesh = trimesh
-        self.signal = signal
+class SurfaceFromData:
+    def __call__(self, mesh):
+        # TODO: handle colors and signal?
+        print(mesh)
+        if len(mesh) == 3:
+            vertices, faces, _ = mesh
+        else:
+            vertices, faces = mesh
 
-    @property
-    def face_centroids(self):
-        return gs.from_numpy(self._trimesh.triangles_center)
+        return Surface(gs.asarray(vertices), gs.asarray(faces))
 
-    @property
-    def face_areas(self):
-        return gs.expand_dims(gs.from_numpy(self._trimesh.area_faces), axis=1)
 
-    def __getattr__(self, name):
-        """Get attribute.
+class DataFromSurface:
+    def __call__(self, mesh):
+        # TODO: handle colors and signal?
+        return np.asarray(mesh.vertices), np.asarray(mesh.faces)
 
-        It is only called when ``__getattribute__`` fails.
-        Delegates attribute calling to _trimesh.
-        """
-        # TODO: may need to check dtype for faces
-        out = getattr(self._trimesh, name)
-        if isinstance(out, np.ndarray):
-            return gs.from_numpy(out)
 
-        return out
+class SurfaceFromPvMesh(Pipeline):
+    def __init__(self):
+        super().__init__(steps=[DataFromPv(), SurfaceFromData()])
+
+
+class PvMeshFromSurface(Pipeline):
+    def __init__(self):
+        super().__init__(steps=[DataFromSurface(), PvFromData()])
 
 
 class SurfaceFromTrimesh(PreprocessingStep):
-    def __call__(self, trimesh):
+    def __call__(self, mesh):
         return Surface(
-            gs.from_numpy(trimesh.vertices),
-            gs.from_numpy(trimesh.faces.astype(np.int64)),
+            gs.from_numpy(mesh.vertices),
+            gs.from_numpy(mesh.faces.astype(np.int64)),
         )
 
 
-class TrimeshSurfaceFromTrimesh(PreprocessingStep):
-    def __init__(self, clone=False):
+class _SurfaceFromMesh(PreprocessingStep):
+    def __init__(self, Surface, clone=False):
+        super().__init__()
         self.clone = clone
+        self.Surface = Surface
 
-    def __call__(self, trimesh):
+    def __call__(self, mesh):
         if self.clone:
-            trimesh = trimesh.copy()
+            mesh = mesh.copy()
 
-        return TrimeshSurface(trimesh)
+        return self.Surface(mesh)
+
+
+class TrimeshSurfaceFromTrimesh(_SurfaceFromMesh):
+    def __init__(self, clone=False):
+        super().__init__(TrimeshSurface, clone=clone)
+
+
+class PvSurfaceFromPvMesh(_SurfaceFromMesh):
+    def __init__(self, clone=False):
+        super().__init__(PvSurface, clone=clone)

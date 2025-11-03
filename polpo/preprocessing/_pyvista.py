@@ -66,7 +66,7 @@ class DataFromPv(PreprocessingStep):
     def __call__(self, mesh):
         vertices, faces = (
             np.array(mesh.points),
-            np.array(mesh.faces).reshape(-1, 4)[:, 1:],
+            np.array(mesh.regular_faces),
         )
         if self.keep_colors and "colors" in mesh.array_names:
             return vertices, faces, np.array(mesh["colors"])
@@ -167,7 +167,7 @@ class PvDecimate(PreprocessingStep):
     def __init__(
         self,
         target_reduction,
-        volume_preservation=False,
+        volume_preservation=True,
         attribute_error=False,
         scalars=True,
         vectors=True,

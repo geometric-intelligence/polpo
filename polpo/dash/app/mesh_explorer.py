@@ -41,7 +41,10 @@ from polpo.preprocessing.load.pregnancy import (
     PregnancyPilotRegisteredMeshesLoader,
     PregnancyPilotSegmentationsLoader,
 )
-from polpo.preprocessing.mesh.conversion import TrimeshFromData, TrimeshFromPv
+from polpo.preprocessing.mesh.conversion import (
+    TrimeshFromData,
+    TrimeshFromPvMesh,
+)
 from polpo.preprocessing.mesh.io import PvReader, TrimeshReader
 from polpo.preprocessing.mesh.registration import PvAlign
 from polpo.preprocessing.mesh.transform import AffineTransformation
@@ -151,7 +154,7 @@ def _load_maternal_pilot():
                 _target=lambda meshes: meshes[1],  # template mesh
                 max_iterations=500,
             ),
-            ppdict.DictMap(step=TrimeshFromPv()),
+            ppdict.DictMap(step=TrimeshFromPvMesh()),
         ]
     )()
 
@@ -176,7 +179,7 @@ def _load_maternal_multiple(subject_id="01", tool="fsl"):
     )
 
     prep_pipe = PartiallyInitializedStep(
-        Step=lambda **kwargs: ppdict.DictMap(PvAlign(**kwargs) + TrimeshFromPv()),
+        Step=lambda **kwargs: ppdict.DictMap(PvAlign(**kwargs) + TrimeshFromPvMesh()),
         _target=lambda meshes: meshes[list(meshes.keys())[0]],
         max_iterations=500,
     )

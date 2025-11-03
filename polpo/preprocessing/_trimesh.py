@@ -4,8 +4,13 @@ import numpy as np
 import trimesh
 
 from polpo.preprocessing.base import PreprocessingStep
+from polpo.preprocessing.mesh._register import register_vertices_attr
 
-from ._register import register_vertices_attr
+try:
+    from ._pyvista import PvReader
+except ImportError:
+    pass
+
 
 register_vertices_attr(trimesh.Trimesh, "vertices")
 
@@ -29,12 +34,12 @@ class DataFromTrimesh(PreprocessingStep):
         )
 
 
-class TrimeshFromPv(PreprocessingStep):
+class TrimeshFromPvMesh(PreprocessingStep):
     def __call__(self, poly_data):
         vertex_colors = (
             poly_data["colors"] if "colors" in poly_data.array_names else None
         )
-        faces_as_array = poly_data.faces.reshape((poly_data.n_faces, 4))[:, 1:]
+        faces_as_array = poly_data.faces.reshape((poly_data.n_faces_strict, 4))[:, 1:]
         return trimesh.Trimesh(
             poly_data.points, faces_as_array, vertex_colors=vertex_colors
         )
@@ -192,10 +197,7 @@ class TrimeshReader(PreprocessingStep):
         if ext in self._supported_fmts:
             return trimesh.load_mesh(path)
 
-        # import here to avoid forcing pyvista installation
-        from ._pyvista import PvReader
-
-        return (PvReader() + TrimeshFromPv())(path)
+        return (PvReader() + TrimeshFromPvMesh())(path)
 
 
 class TrimeshLaplacianSmoothing(PreprocessingStep):
