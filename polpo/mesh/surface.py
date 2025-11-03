@@ -97,3 +97,29 @@ class PvSurface(_MeshDispatchMixins):
     @property
     def vertex_centroid(self):
         return gs.mean(self.vertices, axis=0)
+
+    @property
+    def edges(self):
+        """Edges of the mesh.
+
+        Returns
+        -------
+        edges : array-like, shape=[n_edges, 2]
+        """
+        vind012 = gs.concatenate([self.faces[:, 0], self.faces[:, 1], self.faces[:, 2]])
+        vind120 = gs.concatenate([self.faces[:, 1], self.faces[:, 2], self.faces[:, 0]])
+        edges = gs.stack(
+            [
+                gs.concatenate([vind012, vind120]),
+                gs.concatenate([vind120, vind012]),
+            ],
+            axis=-1,
+        )
+        edges = gs.unique(edges, axis=0)
+        return edges[edges[:, 1] > edges[:, 0]]
+
+    @property
+    def edge_lengths(self):
+        edge_points = self.vertices[self.edges]
+
+        return gs.linalg.norm(edge_points[..., 0, :] - edge_points[..., 1, :], axis=-1)

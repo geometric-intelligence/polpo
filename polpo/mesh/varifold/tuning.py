@@ -3,6 +3,7 @@ import itertools
 import warnings
 
 import geomstats.backend as gs
+import numpy as np
 from geomstats.varifold import (
     BinetKernel,
     GaussianKernel,
@@ -10,6 +11,7 @@ from geomstats.varifold import (
     VarifoldMetric,
 )
 
+from polpo.mesh.geometry import centroid2farthest_vertex
 from polpo.mesh.surface import PvSurface
 from polpo.preprocessing import BranchingPipeline, Map
 
@@ -26,26 +28,6 @@ def _default_decimator():
         ],
         merger=lambda x: x,
     ) + Map(PvSurface)
-
-
-def bounding_sphere_radius(surfaces):
-    # TODO: handle gs style
-
-    # list[Trimesh]
-    dists = []
-    for surface in surfaces:
-        bounds = surface.bounding_sphere.bounds
-        dists.append((bounds[1] - bounds[0])[0] / 2)
-
-    return dists
-
-
-def centroid2farthest_vertex(surfaces):
-    # TODO: handle gs style
-    return [
-        gs.amax(gs.linalg.norm(surface.vertex_centroid - surface.vertices, axis=1))
-        for surface in surfaces
-    ]
 
 
 class KernelFromSigma:
@@ -89,14 +71,28 @@ class GridFromMaxDist(abc.ABC):
 
 
 class _SigmaSearch(abc.ABC):
-    def __init__(self, kernel_builder=None, decimator=None):
+    def __init__(self, kernel_builder=None):
         if kernel_builder is None:
             kernel_builder = KernelFromSigma()
+
+        self.kernel_builder = kernel_builder
+
+        self.sigma_ = None
+
+    @property
+    def optimal_metric_(self):
+        kernel = self.kernel_builder(self.sigma_)
+
+        return VarifoldMetric(kernel)
+
+
+class _DecimationBasedSigmaSearch(_SigmaSearch, abc.ABC):
+    def __init__(self, kernel_builder=None, decimator=None):
+        super().__init__(kernel_builder)
 
         if decimator is True:
             decimator = _default_decimator()
 
-        self.kernel_builder = kernel_builder
         self.decimator = decimator
 
         self.grid_ = None
@@ -106,15 +102,18 @@ class _SigmaSearch(abc.ABC):
     def sigma_(self):
         return self.grid_[self.idx_]
 
+    @sigma_.setter
+    def sigma_(self, value):
+        pass
+
     @property
     def sdist_(self):
         return self.sdists_[self.idx_]
 
-    @property
-    def optimal_metric_(self):
-        kernel = self.kernel_builder(self.sigma_)
-
-        return VarifoldMetric(kernel)
+    def _compute_dists_given_sigma(self, sigma, surface_pairs):
+        kernel = self.kernel_builder(sigma)
+        metric = VarifoldMetric(kernel)
+        return gs.asarray([metric.squared_dist(*pair) for pair in surface_pairs])
 
     def _handle_decimation(self, surfaces):
         if self.decimator is None:
@@ -130,13 +129,8 @@ class _SigmaSearch(abc.ABC):
 
         return surface_pairs
 
-    def _compute_dists_given_sigma(self, sigma, surface_pairs):
-        kernel = self.kernel_builder(sigma)
-        metric = VarifoldMetric(kernel)
-        return gs.asarray([metric.squared_dist(*pair) for pair in surface_pairs])
 
-
-class SigmaGridSearch(_SigmaSearch):
+class SigmaGridSearch(_DecimationBasedSigmaSearch):
     """Grid search for best sigma.
 
     Notes
@@ -195,7 +189,13 @@ class SigmaGridSearch(_SigmaSearch):
         return self
 
 
-class SigmaBisecSearch(_SigmaSearch):
+class SigmaBisecSearch(_DecimationBasedSigmaSearch):
+    """Sigma bisection search.
+
+    This method depends on the characteristic length of the mesh
+    and should probably be avoided
+    """
+
     def __init__(
         self,
         ref_value=0.1,
@@ -323,3 +323,38 @@ class SigmaPicker:
             return True
 
         return False
+
+
+class SigmaFromLengths(_SigmaSearch):
+    def __init__(
+        self,
+        ratio_charlen_mesh=2.0,
+        ratio_charlen=0.25,
+        charlen_fun=None,
+        kernel_builder=None,
+    ):
+        super().__init__(kernel_builder)
+
+        if charlen_fun is None:
+            charlen_fun = centroid2farthest_vertex
+
+        self.charlen_fun = charlen_fun
+        self.ratio_charlen_mesh = ratio_charlen_mesh
+        self.ratio_charlen = ratio_charlen
+
+        self.sigma_ = None
+
+    def fit(self, surfaces):
+        charlen = self.charlen_fun(surfaces)
+        charlen_mesh = gs.array(
+            [np.median(surface.edge_lengths) for surface in surfaces]
+        )
+
+        sigmas = np.maximum(
+            charlen * self.ratio_charlen,
+            charlen_mesh * self.ratio_charlen_mesh,
+        )
+
+        self.sigma_ = np.amax(sigmas)
+
+        return self
