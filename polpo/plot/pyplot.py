@@ -75,7 +75,7 @@ def grouped_barplot(
     data,
     agg=None,
     show_std=True,
-    cmap_name="tab10",
+    cmap="tab10",
     ax=None,
     xtick_rotation=30,
 ):
@@ -94,7 +94,9 @@ def grouped_barplot(
     x = np.arange(n_groups)
     total_width = 0.8
     bar_width = total_width / max(n_subgroups, 1)
-    cmap = plt.get_cmap(cmap_name)
+
+    if isinstance(cmap, str):
+        cmap = plt.get_cmap(cmap)
     colors = {subgroups[index]: cmap(index % cmap.N) for index in range(n_subgroups)}
 
     for subgroup_index, subgroup in enumerate(subgroups):
