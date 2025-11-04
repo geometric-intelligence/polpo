@@ -1,3 +1,4 @@
+import random
 import warnings
 
 from joblib import Parallel, delayed
@@ -531,3 +532,16 @@ class TruncateDict(PreprocessingStep):
         keys_to_keep = keys[: min(len(keys), self.n_keys)]
 
         return {key: data[key] for key in keys_to_keep}
+
+
+class Subsample(PreprocessingStep):
+    def __init__(self, n_samples=None):
+        super().__init__()
+        self.n_samples = n_samples
+
+    def __call__(self, data):
+        if self.n_samples is None:
+            return data
+
+        keys = random.sample(list(data.keys()), k=self.n_samples)
+        return {key: data[key] for key in keys}
