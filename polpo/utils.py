@@ -5,6 +5,7 @@ import itertools
 import socket
 from pathlib import Path
 
+import numpy as np
 import requests
 
 import polpo.concurrent as pconcurrent
@@ -207,3 +208,40 @@ def is_link_ok(url):
 
 def are_links_ok(urls, workers=16):
     return pconcurrent.thread_map(is_link_ok, urls, workers=workers)
+
+
+def pairwise_dists(points, metric):
+    dists = []
+    for index, point in enumerate(points):
+        for cmp_point in points[index + 1 :]:
+            dists.append(metric.dist(point, cmp_point))
+
+    return triu_vec_to_sym(np.array(dists))
+
+
+def sym_to_triu_vec(mat, k=1):
+    return mat[np.triu_indices(len(mat), k=k)]
+
+
+def triu_vec_to_sym(vec, includes_diag=False):
+    if includes_diag:
+        k = 0
+        n = int((np.sqrt(8 * vec.size + 1) - 1) / 2)
+    else:
+        k = 1
+        n = int((1 + np.sqrt(1 + 8 * vec.size)) / 2)
+
+    mat = np.zeros((n, n))
+
+    mat[np.triu_indices(n, k=k)] = vec
+
+    mat = mat + mat.T
+
+    if includes_diag == 0:
+        mat = mat - diag(mat)
+
+    return mat
+
+
+def diag(mat):
+    return mat[np.diag_indices(mat.shape[-1])]
