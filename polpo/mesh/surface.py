@@ -123,3 +123,6 @@ class PvSurface(_MeshDispatchMixins):
         edge_points = self.vertices[self.edges]
 
         return gs.linalg.norm(edge_points[..., 0, :] - edge_points[..., 1, :], axis=-1)
+
+    def as_pv(self):
+        return self._mesh
