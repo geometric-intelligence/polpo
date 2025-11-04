@@ -39,6 +39,23 @@ from .pilot import TabularDataLoader as PilotTabularDataLoader
 MATERNAL_IDS = {"01", "1001B", "1004B", "2004B", "1009B"}
 
 
+def get_subject_ids(include_pilot=True, include_male=True, sort=False):
+    ids = MATERNAL_IDS.copy()
+
+    if not include_pilot:
+        ids.remove("01")
+
+    if not include_male:
+        for id_ in ids.copy():
+            if id_.startswith("2"):
+                ids.remove(id_)
+
+    if sort:
+        ids = sorted(ids)
+
+    return ids
+
+
 def _session_sorter(session_id):
     # for session_id other than in pilot
     return (
@@ -118,9 +135,9 @@ def TabularDataLoader(
 
 
 def FoldersSelector(
+    derivative,
     subject_subset=None,
     session_subset=None,
-    derivative="fsl",
 ):
     """Create pipeline to load maternal sessions folder names.
 
@@ -142,13 +159,13 @@ def FoldersSelector(
 
     Parameters
     ----------
+    derivative : str
+        Derivative folder starting (e.g. "fsl_first", "fastsurfer-long").
     subject_subset : array-like
         Id of the subjects. If None, assumes all.
         One of the following: "01", "1001B", "1004B".
     session_subset : array-like
         Subset of sessions to load. If `None`, loads all.
-    derivative : str
-        Derivative folder starting (e.g. "fsl_first", "fastsurfer-long").
 
     Returns
     -------
@@ -222,11 +239,11 @@ def FoldersSelector(
 
 
 def MeshLoader(
+    derivative,
     data_dir="~/.herbrain/data/maternal",
     subject_subset=None,
     session_subset=None,
     struct_subset=None,
-    derivative="fsl",
     as_mesh=False,
 ):
     """Create pipeline to load maternal mesh filenames.
@@ -235,6 +252,8 @@ def MeshLoader(
 
     Parameters
     ----------
+    derivative : str
+        Derivative folder starting (e.g. "fsl_first", "fastsurfer-long").
     data_dir : str
         Directory where data is stored.
     subject_id : str
@@ -248,8 +267,6 @@ def MeshLoader(
         Whether to load left side. Not applicable to 'BrStem'.
     subset : array-like
         Subset of sessions to load. If `None`, loads all.
-    derivative : str
-        Derivative folder starting (e.g. "fsl_first", "fastsurfer-long").
 
     Returns
     -------
@@ -270,16 +287,19 @@ def MeshLoader(
 
 
 def SegmentationsLoader(
+    derivative,
     data_dir="~/.herbrain/data/maternal",
     subject_subset=None,
     session_subset=None,
     as_image=False,
-    tool="fsl_first",
 ):
     """Create pipeline to load segmented mri filenames.
 
     Parameters
     ----------
+    derivative : str
+        Tool used to generate derivatives.
+        One of the following: "fsl*", "fast*".
     data_dir : str
         Directory where to store data.
     subset : array-like
@@ -289,9 +309,6 @@ def SegmentationsLoader(
         One of the following: "01", "1001B", "1004B".
     as_image : bool
         Whether to load file as image.
-    tool : str
-        Tool used to generate derivatives.
-        One of the following: "fsl*", "fast*".
 
     Returns
     -------
@@ -302,10 +319,10 @@ def SegmentationsLoader(
     folders_selector = Constant(data_dir) + FoldersSelector(
         subject_subset=subject_subset,
         session_subset=session_subset,
-        derivative=tool,
+        derivative=derivative,
     )
 
-    image_selector = FslSegmentationsLoader(tool)
+    image_selector = FslSegmentationsLoader(derivative)
 
     if as_image:
         image_selector += MriImageLoader()
@@ -314,11 +331,11 @@ def SegmentationsLoader(
 
 
 def MeshLoaderFromMri(
+    derivative,
     data_dir="~/.herbrain/data/maternal",
     subject_subset=None,
     session_subset=None,
     struct_subset=None,
-    derivative="fast",
     split_before_meshing=False,
     n_jobs=1,
 ):
@@ -327,7 +344,7 @@ def MeshLoaderFromMri(
         data_dir=data_dir,
         subject_subset=subject_subset,
         session_subset=session_subset,
-        tool=derivative,
+        derivative=derivative,
         as_image=True,
     )
 

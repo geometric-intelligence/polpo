@@ -3,9 +3,10 @@
 How-tos
 =======
 
-.. toctree::
-   :glob:
+
+.. nbgallery::
    :maxdepth: 1
+   :glob:
 
    _generated/notebooks/how_to/*
 

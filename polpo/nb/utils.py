@@ -99,7 +99,7 @@ def get_source_matches(notebook, finder, unique=True):
 
 
 def get_nb_local_links(notebook, unique=True):
-    pattern = r"\((\./\w+\.ipynb)\)"
+    pattern = r"\((\.+/[\w\-/]+\.ipynb)\)"
     finder = re.compile(pattern)
 
     return get_source_matches(notebook, finder, unique=unique)

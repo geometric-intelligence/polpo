@@ -7,7 +7,7 @@ try:
     from polpo.preprocessing._trimesh import (  # noqa:F401
         DataFromTrimesh,
         TrimeshFromData,
-        TrimeshFromPv,
+        TrimeshFromPvMesh,
     )
 except ImportError:
     pass
@@ -28,6 +28,11 @@ except ImportError:
 
 try:
     from polpo.preprocessing._geomstats import (  # noqa:F401
+        DataFromSurface,
+        PvMeshFromSurface,
+        PvSurfaceFromPvMesh,
+        SurfaceFromData,
+        SurfaceFromPvMesh,
         SurfaceFromTrimesh,
         TrimeshSurfaceFromTrimesh,
     )
