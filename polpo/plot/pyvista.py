@@ -115,5 +115,3 @@ class RegisteredMeshesGifPlotter:
 
         image = Image(open(self.gif_name, "rb").read())
         display(image)
-
-        return image

@@ -23,6 +23,7 @@ def estimate_registration(
     preserve_volume=False,
     print_every=20,
     attachment_kernel_width=4.0,
+    verbosity="INFO",
 ):
     r"""Registration.
 
@@ -137,7 +138,7 @@ def estimate_registration(
     }
 
     # register source on target
-    deformetrica = Deformetrica(output_dir, verbosity="DEBUG")
+    deformetrica = Deformetrica(output_dir, verbosity=verbosity)
 
     model_options = {
         "deformation_kernel_type": kernel_type,

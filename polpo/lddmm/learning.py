@@ -29,6 +29,7 @@ def estimate_deterministic_atlas(
     print_every=20,
     attachment_kernel_width=4.0,
     initial_step_size=1e-4,
+    verbosity="INFO",
 ):
     r"""Atlas computation.
 
@@ -192,7 +193,7 @@ def estimate_deterministic_atlas(
         "initial_step_size": initial_step_size,
     }
 
-    deformetrica = Deformetrica(output_dir, verbosity="DEBUG")
+    deformetrica = Deformetrica(output_dir, verbosity=verbosity)
     deformetrica.estimate_deterministic_atlas(
         template_specifications=template,
         dataset_specifications=data_set,
@@ -229,6 +230,7 @@ def estimate_spline_regression(
     metric="landmark",
     attachment_kernel_width=15.0,
     print_every=20,
+    verbosity="INFO",
 ):
     r"""Geodesic or Spline Regression.
 
@@ -399,7 +401,7 @@ def estimate_spline_regression(
     else:
         patient_output_dir = output_dir
 
-    deformetrica = Deformetrica(patient_output_dir, verbosity="DEBUG")
+    deformetrica = Deformetrica(patient_output_dir, verbosity=verbosity)
     deformetrica.estimate_spline_regression(
         template_specifications=template,
         dataset_specifications=data_set,
