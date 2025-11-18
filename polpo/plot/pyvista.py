@@ -1,12 +1,45 @@
+import abc
 import tempfile
 from pathlib import Path
 
+import numpy as np
 import pyvista as pv
 
 import polpo.utils as putils
 
 
-class RegisteredMeshesGifPlotter:
+class _PvPlotter(abc.ABC):
+    def __init__(self, **kwargs):
+        self._pl = pv.Plotter(**kwargs)
+
+    def __getattr__(self, name):
+        """Get attribute.
+
+        It is only called when ``__getattribute__`` fails.
+        Delegates attribute calling to pl.
+        """
+        return getattr(self._pl, name)
+
+
+class RegisteredMeshesColoredPlotter(_PvPlotter):
+    def _compute_vertex_dists(self, points_a, points_b):
+        return np.linalg.norm(points_a - points_b, axis=-1)
+
+    def add_meshes(
+        self, mesh_a, mesh_b, ref_dist=None, name="vertex diffs", cmap="bwr", **kwargs
+    ):
+        diffs = self._compute_vertex_dists(mesh_a.points, mesh_b.points)
+
+        if ref_dist is not None:
+            diffs = diffs / ref_dist
+
+        vis_mesh = mesh_a.copy()
+        vis_mesh[name] = diffs
+
+        return self._pl.add_mesh(vis_mesh, cmap=cmap, **kwargs)
+
+
+class RegisteredMeshesGifPlotter(_PvPlotter):
     def __init__(
         self,
         gif_name=None,
@@ -31,25 +64,17 @@ class RegisteredMeshesGifPlotter:
         self.subtitle = subtitle
         self.rowise = rowise
 
-        self._pl = pv.Plotter(
+        self._gif = None
+
+        self._subtitle_kwargs = {"font_size": 8}
+
+        super().__init__(
             shape=shape,
             border=border,
             off_screen=off_screen,
             notebook=notebook,
             **kwargs,
         )
-
-        self._gif = None
-
-        self._subtitle_kwargs = {"font_size": 8}
-
-    def __getattr__(self, name):
-        """Get attribute.
-
-        It is only called when ``__getattribute__`` fails.
-        Delegates attribute calling to pl.
-        """
-        return getattr(self._pl, name)
 
     def set_subtitle_kwargs(self, kwargs):
         self._subtitle_kwargs.update(kwargs)
