@@ -641,7 +641,7 @@ class CachablePipeline(PreprocessingStep):
         if self.overwrite:
             self.reset_cache()
 
-        os.mkdir(self.cache_dir)
+        self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.to_cache_pipe((self.cache_dir, out))
 
         return out
