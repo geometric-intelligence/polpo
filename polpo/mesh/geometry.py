@@ -17,7 +17,11 @@ def centroid2farthest_vertex(surfaces):
     # TODO: handle gs style
     return gs.array(
         [
-            gs.amax(gs.linalg.norm(surface.vertex_centroid - surface.vertices, axis=1))
+            gs.amax(gs.linalg.norm(surface.vertex_centroid - surface.vertices, axis=-1))
             for surface in surfaces
         ]
     )
+
+
+def vertexwise_euclidean(surface_a, surface_b):
+    return gs.linalg.norm(surface_a.vertices - surface_b.vertices, axis=-1)
