@@ -1,12 +1,10 @@
-import random
-
 import polpo.preprocessing.dict as ppdict
 from polpo.mesh.surface import PvSurface
 from polpo.preprocessing import CachablePipeline, Map
-from polpo.preprocessing.load.pregnancy.jacobs import MeshLoader, get_subject_ids
-from polpo.preprocessing.mesh.decimation import PvDecimate
+from polpo.preprocessing.load.pregnancy.random import (
+    TwoRandomMeshesPipe as _TwoRandomMeshesPipe,
+)
 from polpo.preprocessing.mesh.io import PvReader, PvWriter
-from polpo.preprocessing.mesh.registration import RigidAlignment
 
 
 class TwoRandomMaternalMeshesPipe(CachablePipeline):
@@ -15,11 +13,11 @@ class TwoRandomMaternalMeshesPipe(CachablePipeline):
         outputs_dir,
         mesh_names=("mesh_a", "mesh_b"),
         struct_name="L_Hipp",
+        align=True,
         target_reduction=0.6,
         as_pv_surface=True,
+        use_cache=True,
     ):
-        subject_ids = random.sample(get_subject_ids(include_male=False, sort=True), 2)
-
         meshes_writer = (
             lambda dir_and_meshes: [
                 (f"{dir_and_meshes[0]}/{name}", mesh)
@@ -36,29 +34,11 @@ class TwoRandomMaternalMeshesPipe(CachablePipeline):
         ) + vtk_loader
 
         pregnancy_loader = (
-            (
-                MeshLoader(
-                    subject_subset=subject_ids,
-                    struct_subset=[struct_name],
-                    session_subset=None,
-                    derivative="enigma",
-                    as_mesh=True,
-                )
-                # TODO: split here when getting new dataset
-                + ppdict.DictMap(ppdict.ExtractRandomKey())
-                + ppdict.ExtractUniqueKey(nested=True)
-                + ppdict.DictToValuesList()
-                + RigidAlignment(
-                    target=lambda x: x[0],
-                    known_correspondences=True,
-                )
-                + Map(
-                    PvDecimate(
-                        target_reduction=target_reduction, volume_preservation=True
-                    )
-                    if target_reduction
-                    else None
-                )
+            _TwoRandomMeshesPipe(
+                struct_name=struct_name,
+                target_reduction=target_reduction,
+                align=align,
+                as_pv_surface=False,
             )
             + (lambda data: (outputs_dir, data))
             + meshes_writer
@@ -70,22 +50,26 @@ class TwoRandomMaternalMeshesPipe(CachablePipeline):
             no_cache_pipe=pregnancy_loader,
             cache_pipe=cache_loader,
             to_cache_pipe=lambda x: x,  # TODO: handle this better
-            use_cache=True,
+            use_cache=use_cache,
         )
 
 
-def get_two_random_maternal_meshes(
+def get_two_random_meshes(
     outputs_dir,
     mesh_names=("mesh_a", "mesh_b"),
     struct_name="L_Hipp",
+    align=True,
     target_reduction=0.6,
     as_pv_surface=True,
+    use_cache=True,
 ):
     pipe = TwoRandomMaternalMeshesPipe(
         outputs_dir,
         mesh_names=mesh_names,
         struct_name=struct_name,
+        align=align,
         target_reduction=target_reduction,
         as_pv_surface=as_pv_surface,
+        use_cache=use_cache,
     )
     return pipe()
