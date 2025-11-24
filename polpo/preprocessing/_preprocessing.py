@@ -11,7 +11,7 @@ from tqdm import tqdm
 
 from polpo.utils import is_non_string_iterable, unnest
 
-from .base import Pipeline, PreprocessingStep
+from .base import IdentityStep, Pipeline, PreprocessingStep
 
 # TODO: create polpo.preprocessing.iter
 
@@ -63,11 +63,6 @@ class BranchingPipeline(PreprocessingStep):
             out.append(pipeline(data))
 
         return self.merger(out)
-
-
-class IdentityStep(PreprocessingStep):
-    def __call__(self, data=None):
-        return data
 
 
 class NestingSwapper(PreprocessingStep):
@@ -248,6 +243,9 @@ class EnsureListIterable(EnsureIterable):
 
 class Map:
     def __new__(cls, step, n_jobs=1, verbose=0, force_iter=False):
+        if step is None or isinstance(step, IdentityStep):
+            return IdentityStep()
+
         if n_jobs != 1:
             map_ = ParMap(step, n_jobs=n_jobs, verbose=verbose)
 

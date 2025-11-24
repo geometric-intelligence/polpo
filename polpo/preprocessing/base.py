@@ -54,6 +54,11 @@ class PreprocessingStep(abc.ABC):
         return Pipeline([other, self])
 
 
+class IdentityStep(PreprocessingStep):
+    def __call__(self, data=None):
+        return data
+
+
 class Pipeline(PreprocessingStep, DataLoader):
     def __init__(self, steps, data=None):
         super().__init__()
@@ -73,6 +78,12 @@ class Pipeline(PreprocessingStep, DataLoader):
     def load(self):
         return self.__call__()
 
+    def _ignore_other(self, other):
+        if other is None or isinstance(other, IdentityStep):
+            return True
+
+        return False
+
     def __add__(self, other):
         steps = self.steps.copy()
         if hasattr(other, "steps"):
@@ -80,7 +91,8 @@ class Pipeline(PreprocessingStep, DataLoader):
         elif isinstance(other, list):
             steps.extend(other)
         else:
-            steps.append(other)
+            if not self._ignore_other(other):
+                steps.append(other)
 
         return Pipeline(steps)
 
@@ -91,7 +103,8 @@ class Pipeline(PreprocessingStep, DataLoader):
         elif isinstance(other, list):
             steps = other + steps
         else:
-            steps = [other] + steps
+            if not self._ignore_other(other):
+                steps = [other] + steps
 
         return Pipeline(steps)
 
