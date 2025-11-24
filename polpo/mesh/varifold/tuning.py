@@ -11,7 +11,7 @@ from geomstats.varifold import (
     VarifoldMetric,
 )
 
-from polpo.mesh.geometry import centroid2farthest_vertex
+from polpo.mesh.qoi import centroid2farthest_vertex
 from polpo.mesh.surface import PvSurface
 from polpo.preprocessing import BranchingPipeline, Map
 
