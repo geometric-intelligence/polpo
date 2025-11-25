@@ -298,10 +298,9 @@ class PvWriter(PreprocessingStep):
         path : str
             Filename.
         """
-        # TODO: create dir if does not exist?
         filename, poly_data = data
 
-        if "." not in filename and self.ext is not None:
+        if "." not in Path(filename).name and self.ext is not None:
             filename += f".{self.ext}"
 
         ext = filename.split(".")[1]

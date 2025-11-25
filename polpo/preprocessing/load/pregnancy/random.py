@@ -51,3 +51,20 @@ class TwoRandomMeshesPipe(Pipeline):
         )
 
         super().__init__(steps=pipe.steps)
+
+
+def get_two_random_meshes(
+    struct_name="L_Hipp",
+    target_reduction=0.6,
+    align=True,
+    same_subject=False,
+    as_pv_surface=False,
+):
+    pipe = TwoRandomMeshesPipe(
+        struct_name=struct_name,
+        target_reduction=target_reduction,
+        align=align,
+        same_subject=same_subject,
+        as_pv_surface=as_pv_surface,
+    )
+    return pipe()

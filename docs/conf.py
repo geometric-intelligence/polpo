@@ -30,11 +30,13 @@ nbtaggallery_tags = [
     "mesh",
     "mri",
     "maternal",
+    "euclidean",
     "lddmm",
     "varifold",
+    "fmap",
     "decimation",
 ]
-nbtaggallery_tag_captions = {"lddmm": "LDDMM", "mri": "MRI"}
+nbtaggallery_tag_captions = {"lddmm": "LDDMM", "mri": "MRI", "fmap": "Functional maps"}
 
 
 autosummary_imported_members = True
