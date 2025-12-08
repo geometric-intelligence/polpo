@@ -245,3 +245,12 @@ def triu_vec_to_sym(vec, includes_diag=False):
 
 def diag(mat):
     return mat[np.diag_indices(mat.shape[-1])]
+
+
+def get_diag_blocks_by_size(mat, sizes):
+    indices = np.r_[[0], np.cumsum(sizes)]
+
+    return [
+        mat[init_index:end_index, init_index:end_index]
+        for init_index, end_index in zip(indices, indices[1:])
+    ]
