@@ -25,7 +25,7 @@ dependencies = ["tdqm", "numpy", "joblib"]
 doc = [
     "jupyter",
     "nbsphinx",
-    "nbsphinx_link",
+    "nbsphinx_link@git+https://github.com/maurerle/nbsphinx-link.git@fix_paths",
     "sphinx",
     "sphinx_gallery",
     "pydata-sphinx-theme",
