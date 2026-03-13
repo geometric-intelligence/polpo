@@ -79,6 +79,17 @@ preprocessing = ["polpo[mri,mesh,dataframe,ssh,point_cloud]"]
 hydra = ["hydra-core", "omegaconf"]
 dev = ["polpo[doc,lint,test]"]
 all = ["polpo[dash,app,plot,preprocessing,hydra,varifold]"]
+# dependencies for computing the pairwise distance varifold protocol
+dist_varifold_long = [
+    "requests",                                                 # TODO: remove dependency
+    "numpy",
+    "geomstats@git+https://github.com/geomstats/geomstats.git",
+    "pykeops",
+    "pyvista",
+    "scikit-learn",                                             # TODO: remove dependency
+    "nibabel",                                                  # NB: project dependent
+    "scikit-image",                                             # NB: project dependent
+]
 
 [project.urls]
 repository = "http://github.com/geometric-intelligence/polpo"
