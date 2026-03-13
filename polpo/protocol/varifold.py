@@ -94,6 +94,7 @@ class PairwiseVarifold:
         meshes_flat = ppdict.UnnestDict(sep="-")(meshes)
         self.results_["keys"] = list(meshes_flat.keys())
 
+        # TODO: add tqdm
         dists = putils.pairwise_dists(list(meshes_flat.values()), metric)
 
         self.timer.stamp("dist_end")
@@ -119,6 +120,6 @@ class PairwiseVarifold:
         metric = self.tune_kernel(meshes)
         self.dists_ = self.compute_dist(meshes, metric)
 
-        self.write()
-
         self.timer.stamp("end")
+
+        self.write()
