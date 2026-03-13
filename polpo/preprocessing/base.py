@@ -36,6 +36,9 @@ class PreprocessingStep(abc.ABC):
         """Apply step."""
 
     def __add__(self, other):
+        if other is None:
+            return self
+
         if isinstance(other, list):
             other = Pipeline(other)
 
@@ -45,6 +48,9 @@ class PreprocessingStep(abc.ABC):
         return Pipeline([self, other])
 
     def __radd__(self, other):
+        if other is None:
+            return self
+
         if isinstance(other, list):
             other = Pipeline(other)
 

@@ -213,6 +213,7 @@ def are_links_ok(urls, workers=16):
 def pairwise_dists(points, metric):
     dists = []
     for index, point in enumerate(points):
+        # TODO: do vectorize version of it?
         for cmp_point in points[index + 1 :]:
             dists.append(metric.dist(point, cmp_point))
 
@@ -254,3 +255,11 @@ def get_diag_blocks_by_size(mat, sizes):
         mat[init_index:end_index, init_index:end_index]
         for init_index, end_index in zip(indices, indices[1:])
     ]
+
+
+def get_results_path(prefix=".polpo/"):
+    folder_name = "results"
+    if prefix:
+        folder_name = f"{prefix}{folder_name}"
+
+    return Path.home() / folder_name
