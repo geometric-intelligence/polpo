@@ -55,6 +55,10 @@ if __name__ == "__main__":
     structs = get_all_first_structs(order=True, include_brstem=False)
     derivative = "enigma"
 
+    data_dir = (
+        "/scratch/data/maternal" if putils.in_frank() else "~/.herbrain/data/maternal"
+    )
+
     for struct in structs:
         results_dir = Path("results") / f"{struct}_{derivative}"
         if results_dir.exists():
@@ -67,9 +71,7 @@ if __name__ == "__main__":
             protocol_per_struct(
                 struct,
                 subject_ids=get_subject_ids(sort=True),
-                data_dir="/scratch/data/maternal"
-                if putils.in_frank()
-                else "~/.herbrain/data/maternal",
+                data_dir=data_dir,
                 results_dir=results_dir,
                 subsample=None,  # make None to run all
             )

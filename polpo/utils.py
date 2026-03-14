@@ -210,12 +210,12 @@ def are_links_ok(urls, workers=16):
     return pconcurrent.thread_map(is_link_ok, urls, workers=workers)
 
 
-def pairwise_dists(points, metric):
+def pairwise_dists(points, dist_fnc):
     dists = []
     for index, point in enumerate(points):
         # TODO: do vectorize version of it?
         for cmp_point in points[index + 1 :]:
-            dists.append(metric.dist(point, cmp_point))
+            dists.append(dist_fnc(point, cmp_point))
 
     return triu_vec_to_sym(np.array(dists))
 

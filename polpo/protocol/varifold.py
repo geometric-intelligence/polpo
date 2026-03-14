@@ -95,7 +95,7 @@ class PairwiseVarifold:
         self.results_["keys"] = list(meshes_flat.keys())
 
         # TODO: add tqdm
-        dists = putils.pairwise_dists(list(meshes_flat.values()), metric)
+        dists = putils.pairwise_dists(list(meshes_flat.values()), metric.dist)
 
         self.timer.stamp("dist_end")
 
