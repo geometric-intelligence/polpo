@@ -55,12 +55,15 @@ if __name__ == "__main__":
     structs = get_all_first_structs(order=True, include_brstem=False)
     derivative = "enigma"
 
-    data_dir = (
-        "/scratch/data/maternal" if putils.in_frank() else "~/.herbrain/data/maternal"
-    )
+    if putils.in_frank():
+        data_dir = "/scratch/data/maternal"
+        results_dir_pre = putils.get_frank_user_scratch()
+    else:
+        data_dir = Path.home() / ".herbrain/data/maternal"
+        results_dir_pre = putils.get_results_path()
 
     for struct in structs:
-        results_dir = Path("results") / f"{struct}_{derivative}"
+        results_dir = results_dir_pre / "pairwise_varifold" / f"{struct}_{derivative}"
         if results_dir.exists():
             logging.info(f"Skipping {struct} because folder already exists")
             continue

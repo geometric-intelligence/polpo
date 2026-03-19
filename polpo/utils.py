@@ -1,4 +1,5 @@
 import collections
+import getpass
 import glob
 import inspect
 import itertools
@@ -178,6 +179,10 @@ def get_first(data):
 
 def in_frank():
     return socket.gethostname() == "frank"
+
+
+def get_frank_user_scratch():
+    return Path(f"/scratch/{getpass.getuser()}")
 
 
 def expand_path_names(names):
