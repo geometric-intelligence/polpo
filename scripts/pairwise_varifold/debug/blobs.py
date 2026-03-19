@@ -4,7 +4,7 @@ if __name__ == "__main__":
 
     import polpo.utils as putils
     from polpo.mesh.generation.blob import create_blob
-    from polpo.protocol.varifold import PairwiseVarifold
+    from polpo.protocol.pairwise_varifold import PairwiseVarifold
 
     outputs_dir = putils.get_results_path() / "pairwise_varifold/debug/blobs"
 

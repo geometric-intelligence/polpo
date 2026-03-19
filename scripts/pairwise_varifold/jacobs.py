@@ -9,7 +9,7 @@ from polpo.preprocessing.load.pregnancy.jacobs import (
     MeshLoader,
     get_subject_ids,
 )
-from polpo.protocol.varifold import PairwiseVarifold
+from polpo.protocol.pairwise_varifold import PairwiseVarifold
 
 
 def protocol_per_struct(
