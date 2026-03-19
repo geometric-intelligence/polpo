@@ -5,6 +5,7 @@ def estimate_registration(
     source,
     target,
     output_dir,
+    target_id="target",
     kernel_width=20.0,
     regularisation=1.0,
     number_of_time_steps=10,
@@ -107,10 +108,6 @@ def estimate_registration(
         Optional, default: False
     print_every: int
         Sets the verbosity level of the optimization scheme.
-    filter_cp: bool
-        Whether to filter control points saved in the vtk file to exclude those whose momenum
-        vector is not significative and does not contribute to the deformation.
-        Optional, default: False
     threshold: float
         Threshold to use on momenta norm when filtering. Ignored if `filter_cp` is set to `False`.
     max_iter: int
@@ -137,7 +134,6 @@ def estimate_registration(
         "optimization_method_type": "ScipyLBFGS",
     }
 
-    # register source on target
     deformetrica = Deformetrica(output_dir, verbosity=verbosity)
 
     model_options = {
@@ -174,7 +170,7 @@ def estimate_registration(
     data_set = {
         "visit_ages": [[]],
         "dataset_filenames": [[{"shape": target}]],
-        "subject_ids": ["target"],
+        "subject_ids": [target_id],
     }
 
     deformetrica.estimate_registration(
@@ -183,13 +179,3 @@ def estimate_registration(
         model_options=model_options,
         estimator_options=optimization_parameters,
     )
-
-    # # TODO: uncomment?
-    # path_cp = join(output_dir, lddmm_strings.cp_str)
-    # cp = read_2D_array(path_cp)
-
-    # path_momenta = join(output_dir, lddmm_strings.momenta_str)
-    # momenta = read_3D_array(path_momenta)
-    # poly_cp = momenta_to_vtk(cp, momenta, kernel_width, filter_cp, threshold)
-    # poly_cp.save(join(output_dir, "initial_control_points.vtk"))
-    # pv.read(target).save(join(output_dir, "target_shape.vtk"))

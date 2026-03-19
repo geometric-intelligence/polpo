@@ -27,6 +27,22 @@ FIRST_STRUCTS = {
     "Accu",
 }
 
+FIRST_STRUCTS_LONG = {
+    "L_Thal": "Left Thalamus",
+    "L_Caud": "Left Caudate",
+    "L_Puta": "Left Putamen",
+    "L_Pall": "Left Pallidum",
+    "L_Hipp": "Left Hippocampus",
+    "L_Amyg": "Left Amygdala",
+    "L_Accu": "Left Accumbens",
+    "R_Thal": "Right Thalamus",
+    "R_Caud": "Right Caudate",
+    "R_Puta": "Right Putamen",
+    "R_Pall": "Right Pallidum",
+    "R_Hipp": "Right Hippocampus",
+    "R_Amyg": "Right Amygdala",
+    "R_Accu": "Right Accumbens",
+}
 
 ENIGMA_STRUCT2FIRST = {
     "L_Thal": 10,
@@ -70,6 +86,10 @@ def validate_first_struct(struct):
 
 def first_struct_to_enigma_id(struct):
     return ENIGMA_STRUCT2FIRST[struct]
+
+
+def get_first_struct_long_name(struct):
+    return FIRST_STRUCTS_LONG[struct]
 
 
 def enigma_id_to_first_struct(struct):

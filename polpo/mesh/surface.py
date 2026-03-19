@@ -62,9 +62,10 @@ class PvSurface(_MeshDispatchMixins):
     # https://docs.pyvista.org/api/core/_autosummary/pyvista.polydata
     # polymorphic to `Surface` and `pyvista.PolyData`
 
-    def __init__(self, pv_mesh, signal=None):
+    def __init__(self, pv_mesh, signal=None, id_=None):
         super().__init__(pv_mesh)
         self.signal = signal
+        self.id_ = id_
 
     @property
     def vertices(self):

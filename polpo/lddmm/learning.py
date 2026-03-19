@@ -347,7 +347,7 @@ def estimate_spline_regression(
 
     data_set = {
         "visit_ages": [times],
-        "dataset_filenames": [targets],
+        "dataset_filenames": [{"shape": target} for target in targets],
         "subject_ids": subject_id,
     }
 
