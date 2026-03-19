@@ -2,6 +2,7 @@ import json
 
 import numpy as np
 
+import polpo.dict as pudict
 import polpo.preprocessing.dict as ppdict
 import polpo.utils as putils
 from polpo.mesh.surface import PvSurface
@@ -9,20 +10,14 @@ from polpo.mesh.varifold.tuning import SigmaFromLengths
 from polpo.preprocessing.mesh.registration import RigidAlignment
 from polpo.time import Timer
 
-# TODO: add documentation
-
 
 class PairwiseVarifold:
-    def __init__(self, mesh_loader, known_correspondences, results_dir, timer=None):
-        if not callable(mesh_loader):
-            mesh_loader = lambda *args: mesh_loader
-
+    def __init__(self, known_correspondences, results_dir, timer=None):
         if timer is None:
             timer = Timer()
 
         self.timer = timer
 
-        self.mesh_loader = mesh_loader
         self.known_correspondences = known_correspondences
         self.results_dir = results_dir
 
@@ -33,20 +28,15 @@ class PairwiseVarifold:
         self.dists_ = None
         self.timer.reset()
 
-    def load_data(self):
-        with self.timer("load"):
-            raw_meshes = self.mesh_loader()  # subject, session
-
-        return raw_meshes
-
     def preprocess_meshes(self, raw_meshes):
+        # rigidly aligns all the meshes against a randomly chosen target
         self.timer.start("prep")
 
-        # TODO: improve naming
-        # TODO: save info
-        random_subj_key = None
+        subj_key = pudict.extract_random_key(raw_meshes)
+        session_id = pudict.extract_random_key(raw_meshes[subj_key])
+
         align_pipe = RigidAlignment(
-            target=ppdict.ExtractRandomKey()(putils.get_first(raw_meshes)),
+            target=raw_meshes[subj_key][session_id],
             known_correspondences=self.known_correspondences,
         )
 
@@ -54,10 +44,16 @@ class PairwiseVarifold:
 
         self.timer.stop("prep")
 
+        self.results_["rigid_alignment"] = {
+            "subject_id": subj_key,
+            "session_id": session_id,
+            "known_correspondences": self.known_correspondences,
+        }
+
         return meshes
 
     def tune_kernel(self, meshes):
-        # select varifold kernel
+        # select varifold kernel using a randomly selected mesh per subject
         self.timer.start("tuning")
 
         sigma_search = SigmaFromLengths(
@@ -65,15 +61,23 @@ class PairwiseVarifold:
             ratio_charlen=0.25,
         )
 
-        mesh_per_subject = (
-            ppdict.DictMap(ppdict.ExtractRandomKey()) + ppdict.DictToValuesList()
-        )(meshes)  # one mesh per subject
+        mesh_per_subject = []
+        subj_keys = {}
+        for subj_key, subj_meshes in meshes.items():
+            session_id = pudict.extract_random_key(subj_meshes)
+            mesh_per_subject.append(subj_meshes[session_id])
+
+            subj_keys[subj_key] = session_id
 
         sigma_search.fit(mesh_per_subject)
-        self.results_["sigma"] = sigma_search.sigma_
 
         metric = sigma_search.optimal_metric_
         self.timer.stop("tuning")
+
+        self.results_["kernel_tuning"] = {
+            "sigma": sigma_search.sigma_,
+            "meshes": subj_keys,
+        }
 
         return metric
 
@@ -84,7 +88,7 @@ class PairwiseVarifold:
         meshes_flat = ppdict.UnnestDict(sep="-")(meshes)
         self.results_["keys"] = list(meshes_flat.keys())
 
-        # TODO: add tqdm
+        # TODO: add tqdm? or timing per mesh?
         dists = putils.pairwise_dists(list(meshes_flat.values()), metric.dist)
 
         self.timer.stop("dist")
@@ -100,13 +104,14 @@ class PairwiseVarifold:
         # TODO: can dump only upper triangular?
         np.save(self.results_dir / "pair_dists.npy", self.dists_)
 
-    def run(self):
+    def run(self, dataset):
+        # dataset: subject, session
+
         self.reset()
 
         self.timer.start("run")
 
-        raw_meshes = self.load_data()
-        meshes = self.preprocess_meshes(raw_meshes)
+        meshes = self.preprocess_meshes(dataset)
         metric = self.tune_kernel(meshes)
         self.dists_ = self.compute_dist(meshes, metric)
 

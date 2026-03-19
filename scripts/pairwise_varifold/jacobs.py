@@ -27,7 +27,7 @@ def protocol_per_struct(
 
     known_correspondences = True if derivative == "enigma" else False
 
-    mesh_loader = (
+    dataset = (
         MeshLoader(
             data_dir=data_dir,
             subject_subset=subject_ids,
@@ -37,11 +37,11 @@ def protocol_per_struct(
         )
         + ppdict.ExtractUniqueKey(nested=True)
         + ppdict.DictMap(ppdict.Subsample(subsample))
-    )
+    )()
 
-    protocol = PairwiseVarifold(mesh_loader, known_correspondences, results_dir)
+    protocol = PairwiseVarifold(known_correspondences, results_dir)
 
-    protocol.run()
+    protocol.run(dataset)
 
 
 if __name__ == "__main__":
