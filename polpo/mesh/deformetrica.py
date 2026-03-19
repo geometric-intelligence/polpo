@@ -248,7 +248,11 @@ class TransportedVectorFan(_TransportedVec):
     # NB: they choose to use the same control points for geodesic and pt
     def __init__(self, tangent_vec, base_point, direction, outputs_dir=None):
         super().__init__(
-            tangent_vec, base_point, direction, outputs_dir=None, pole_ladder=False
+            tangent_vec,
+            base_point,
+            direction,
+            outputs_dir=outputs_dir,
+            pole_ladder=False,
         )
 
     def reconstructed(self):

@@ -262,9 +262,8 @@ def get_diag_blocks_by_size(mat, sizes):
     ]
 
 
-def get_results_path(prefix=".polpo/"):
-    folder_name = "results"
-    if prefix:
-        folder_name = f"{prefix}{folder_name}"
+def get_results_path():
+    if in_frank():
+        return get_frank_user_scratch()
 
-    return Path.home() / folder_name
+    return Path.home() / ".polpo/results"

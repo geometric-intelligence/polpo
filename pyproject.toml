@@ -55,7 +55,7 @@ mesh = [
     "meshio",
 ]
 deformetrica = [
-    "deformetrica@git+https://github.com/nguigs/deformetrica@spline-regression",
+    "deformetrica@git+https://github.com/nguigs/deformetrica.git@spline-regression",
     "scipy",
     "nibabel",
     "PyQt5",
@@ -80,15 +80,27 @@ hydra = ["hydra-core", "omegaconf"]
 dev = ["polpo[doc,lint,test]"]
 all = ["polpo[dash,app,plot,preprocessing,hydra,varifold]"]
 # dependencies for computing the pairwise distance varifold protocol
-dist_varifold_long = [
+maternal_io = [
+    "pyvista",
+    "nibabel",      # NB: project dependent
+    "scikit-image", # NB: project dependent
+]
+pairwise_varifold = [
     "requests",                                                 # TODO: remove dependency
     "numpy",
     "geomstats@git+https://github.com/geomstats/geomstats.git",
     "pykeops",
     "pyvista",
     "scikit-learn",                                             # TODO: remove dependency
-    "nibabel",                                                  # NB: project dependent
-    "scikit-image",                                             # NB: project dependent
+]
+lddmm_to_global = [
+    "deformetrica@git+https://github.com/nguigs/deformetrica.git@spline-regression",
+    "pyvista",
+    "scikit-learn",                                                                  # TODO: remove dependency
+    "torch",
+    "scipy",
+    "nibabel",
+    "psutil",
 ]
 
 [project.urls]
