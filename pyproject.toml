@@ -93,6 +93,7 @@ pairwise_varifold = [
     "scikit-learn",                                             # TODO: remove dependency
 ]
 lddmm_to_global = [
+    "setuptools",
     "deformetrica@git+https://github.com/nguigs/deformetrica.git@spline-regression",
     "pyvista",
     "scikit-learn",                                                                  # TODO: remove dependency

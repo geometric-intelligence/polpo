@@ -38,7 +38,6 @@ def pole_ladder(
     concentration_of_time_points=10,
     tmin=0,
     tmax=1,
-    as_numpy=True,
     **model_parameters,
 ):
     """Compute parallel transport of a tangent vector along a geodesic with the pole ladder.
@@ -97,8 +96,6 @@ def pole_ladder(
         tmax=tmax,
         **model_parameters,
     )
-    if as_numpy:
-        return transported_cp.numpy(), transported_mom.numpy()
 
     return transported_cp, transported_mom
 
@@ -374,7 +371,6 @@ def velocity_at_x(
     kernel_width=20.0,
     gpu_mode=default.gpu_mode,
     tensor_scalar_type=default.tensor_scalar_type,
-    as_numpy=True,
 ):
     kernel = kernel_factory.factory(
         kernel_type,
@@ -392,9 +388,6 @@ def velocity_at_x(
 
     vel = kernel.convolve(x, control_points, momenta)
 
-    if as_numpy:
-        return vel.numpy()
-
     return vel
 
 
@@ -405,7 +398,6 @@ def reconstruct_parametrization(
     kernel_width=20.0,
     gpu_mode=default.gpu_mode,
     tensor_scalar_type=default.tensor_scalar_type,
-    as_numpy=True,
 ):
     kernel = kernel_factory.factory(
         kernel_type,
@@ -427,9 +419,6 @@ def reconstruct_parametrization(
     projected_momenta = (
         torch.cholesky_solve(velocity, cholesky_kernel_matrix).squeeze().contiguous()
     )
-
-    if as_numpy:
-        return projected_momenta.numpy()
 
     return projected_momenta
 
