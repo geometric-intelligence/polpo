@@ -7,7 +7,8 @@ import itertools
 import socket
 from pathlib import Path
 
-from .dict import *  # noqa: F403
+from .dict_ import *  # noqa: F403  # noqa: F403
+from .pd import *  # noqa: F403
 
 try:
     from .np import *  # noqa: F403

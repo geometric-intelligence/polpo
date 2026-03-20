@@ -6,6 +6,7 @@ import pandas as pd
 
 import polpo.preprocessing.dict as ppdict
 import polpo.preprocessing.pd as ppd
+import polpo.utils as putils
 from polpo.preprocessing import (
     BranchingPipeline,
     CartesianProduct,
@@ -86,6 +87,8 @@ def TabularDataLoader(
     pipe : Pipeline
         Pipeline to load maternal csv data.
     """
+    # TODO: simplify: no need to download
+
     project_folder = "maternal_brain_project"
     data_dir = Path(data_dir).expanduser()
 
@@ -386,3 +389,11 @@ def MeshLoaderFromMri(
 
     # subj, session, struct
     return pipe
+
+
+def get_key_to_week():
+    df = TabularDataLoader()()
+
+    return putils.df_to_nested_dict(
+        df, outer_key="subject", inner_key="sessionID", value_col="gestWeek"
+    )

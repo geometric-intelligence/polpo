@@ -5,7 +5,7 @@ import numpy as np
 import polpo.preprocessing.dict as ppdict
 import polpo.utils as putils
 from polpo.mesh.surface import PvSurface
-from polpo.mesh.varifold.tuning import SigmaFromLengths
+from polpo.mesh.varifold.tuning.metric_based import SigmaFromLengths
 from polpo.preprocessing.mesh.registration import RigidAlignment
 from polpo.time import Timer
 

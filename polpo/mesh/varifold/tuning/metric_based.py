@@ -3,7 +3,6 @@ import itertools
 import warnings
 
 import geomstats.backend as gs
-import numpy as np
 from geomstats.varifold import (
     BinetKernel,
     GaussianKernel,
@@ -15,19 +14,7 @@ from polpo.mesh.qoi import centroid2farthest_vertex
 from polpo.mesh.surface import PvSurface
 from polpo.preprocessing import BranchingPipeline, Map
 
-
-def _default_decimator():
-    # TODO: pass float?
-    from polpo.preprocessing.mesh.decimation import PvDecimate
-
-    return BranchingPipeline(
-        [
-            PvDecimate(target_reduction=target_reduction, keep_colors=False)
-            # TODO: update here
-            for target_reduction in (0.1,)
-        ],
-        merger=lambda x: x,
-    ) + Map(PvSurface)
+from .geometry_based import SigmaFromLengths as _SigmaFromLengths
 
 
 class KernelFromSigma:
@@ -51,6 +38,20 @@ class KernelFromSigma:
             position_kernel,
             tangent_kernel,
         )
+
+
+def _default_decimator():
+    # TODO: pass float?
+    from polpo.preprocessing.mesh.decimation import PvDecimate
+
+    return BranchingPipeline(
+        [
+            PvDecimate(target_reduction=target_reduction, keep_colors=False)
+            # TODO: update here
+            for target_reduction in (0.1,)
+        ],
+        merger=lambda x: x,
+    ) + Map(PvSurface)
 
 
 class GridFromMaxDist(abc.ABC):
@@ -325,7 +326,7 @@ class SigmaPicker:
         return False
 
 
-class SigmaFromLengths(_SigmaSearch):
+class SigmaFromLengths(_SigmaFromLengths, _SigmaSearch):
     def __init__(
         self,
         ratio_charlen_mesh=2.0,
@@ -333,28 +334,13 @@ class SigmaFromLengths(_SigmaSearch):
         charlen_fun=None,
         kernel_builder=None,
     ):
-        super().__init__(kernel_builder)
-
-        if charlen_fun is None:
-            charlen_fun = centroid2farthest_vertex
-
-        self.charlen_fun = charlen_fun
-        self.ratio_charlen_mesh = ratio_charlen_mesh
-        self.ratio_charlen = ratio_charlen
-
-        self.sigma_ = None
-
-    def fit(self, surfaces):
-        charlen = self.charlen_fun(surfaces)
-        charlen_mesh = gs.array(
-            [np.median(surface.edge_lengths) for surface in surfaces]
+        _SigmaFromLengths.__init__(
+            self,
+            ratio_charlen_mesh=ratio_charlen_mesh,
+            ratio_charlen=ratio_charlen,
+            charlen_fun=charlen_fun,
         )
-
-        sigmas = np.maximum(
-            charlen * self.ratio_charlen,
-            charlen_mesh * self.ratio_charlen_mesh,
+        _SigmaSearch.__init__(
+            self,
+            kernel_builder=kernel_builder,
         )
-
-        self.sigma_ = np.amax(sigmas)
-
-        return self
