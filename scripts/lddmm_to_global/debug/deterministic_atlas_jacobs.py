@@ -47,16 +47,15 @@ if __name__ == "__main__":
         + ppdict.ExtractUniqueKey(nested=True)
     )()
 
-    key2week = get_key_to_week()[subject_id]
+    key2week = get_key_to_week(data_dir=data_dir)[subject_id]
     key_filter = ppdict.DictFilter(func=(lambda x: x < 0))
-    pre_keys = list(key_filter(get_key_to_week()["01"]).keys())
+    pre_keys = list(key_filter(key2week).keys())
     filt_meshes = ppdict.SelectKeySubset(pre_keys)(raw_meshes)
 
     if len(filt_meshes) < 1:
         raise ValueError()
 
     # preprocess
-    # TODO: add decimation
     align_pipe = RigidAlignment(
         target=putils.get_first(filt_meshes),
         known_correspondences=known_correspondences,
@@ -86,7 +85,6 @@ if __name__ == "__main__":
 
     metric = LddmmMetric(outputs_dir, **registration_kwargs)
 
-    # TODO: filter dataset for time before
     dataset = [
         Point(
             id_=key,

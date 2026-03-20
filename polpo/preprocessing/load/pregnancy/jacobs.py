@@ -391,8 +391,8 @@ def MeshLoaderFromMri(
     return pipe
 
 
-def get_key_to_week():
-    df = TabularDataLoader()()
+def get_key_to_week(data_dir="~/.herbrain/data/maternal"):
+    df = TabularDataLoader(data_dir=data_dir)()
 
     return putils.df_to_nested_dict(
         df, outer_key="subject", inner_key="sessionID", value_col="gestWeek"
