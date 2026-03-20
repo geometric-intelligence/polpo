@@ -1,3 +1,4 @@
+# NB: do not explictly import anything that depends on third part library
 import collections
 import getpass
 import glob
@@ -6,10 +7,17 @@ import itertools
 import socket
 from pathlib import Path
 
-import numpy as np
-import requests
+from .dict import *  # noqa: F403
 
-import polpo.concurrent as pconcurrent
+try:
+    from .np import *  # noqa: F403
+except ImportError:
+    pass
+
+try:
+    from .url import *  # noqa: F403
+except ImportError:
+    pass
 
 
 def unnest_list(ls):
@@ -84,60 +92,6 @@ def params_to_kwargs(obj, ignore=(), renamings=None, ignore_private=False, func=
     return kwargs
 
 
-def unnest_dict(nested_dict, sep="/", current_key="", flat_dict=None):
-    sep_ = sep if current_key else ""
-
-    if flat_dict is None:
-        flat_dict = {}
-
-    for key, value in nested_dict.items():
-        new_key = f"{current_key}{sep_}{key}"
-
-        if not isinstance(value, dict):
-            flat_dict[new_key] = value
-        else:
-            flat_dict = unnest_dict(
-                value, sep=sep, current_key=new_key, flat_dict=flat_dict
-            )
-
-    return flat_dict
-
-
-def nest_dict_inner_level(flat_dict, sep="/"):
-    nested_dict = {}
-
-    for key, value in flat_dict.items():
-        outer_key, inner_key = key.rsplit(sep, maxsplit=1)
-
-        inner_dict = nested_dict[outer_key] = nested_dict.get(outer_key, {})
-        inner_dict[inner_key] = value
-
-    return nested_dict
-
-
-def nest_dict(flat_dict, sep="/"):
-    while True:
-        # TODO: make a nicer recursion
-
-        try:
-            flat_dict = nest_dict_inner_level(flat_dict, sep=sep)
-        except ValueError:
-            # when unpack error is raised
-            break
-
-    return flat_dict
-
-
-def extract_unique_key_nested(data):
-    if not isinstance(data, dict):
-        return data
-
-    if len(data.keys()) == 1:
-        return extract_unique_key_nested(data[next(iter(data))])
-
-    return {key: extract_unique_key_nested(value) for key, value in data.items()}
-
-
 def custom_order(reference):
     # behavior is random if element is not in reference
     order_ = {val: index for index, val in enumerate(reference)}
@@ -201,65 +155,6 @@ def expand_path_names(names):
             seen.add(rp)
             uniq.append(path)
     return uniq
-
-
-def is_link_ok(url):
-    return requests.get(
-        url,
-        allow_redirects=True,
-        headers={"User-Agent": "link-checker"},
-    ).ok
-
-
-def are_links_ok(urls, workers=16):
-    return pconcurrent.thread_map(is_link_ok, urls, workers=workers)
-
-
-def pairwise_dists(points, dist_fnc):
-    dists = []
-    for index, point in enumerate(points):
-        # TODO: do vectorize version of it?
-        for cmp_point in points[index + 1 :]:
-            dists.append(dist_fnc(point, cmp_point))
-
-    return triu_vec_to_sym(np.array(dists))
-
-
-def sym_to_triu_vec(mat, k=1):
-    return mat[np.triu_indices(len(mat), k=k)]
-
-
-def triu_vec_to_sym(vec, includes_diag=False):
-    if includes_diag:
-        k = 0
-        n = int((np.sqrt(8 * vec.size + 1) - 1) / 2)
-    else:
-        k = 1
-        n = int((1 + np.sqrt(1 + 8 * vec.size)) / 2)
-
-    mat = np.zeros((n, n))
-
-    mat[np.triu_indices(n, k=k)] = vec
-
-    mat = mat + mat.T
-
-    if includes_diag == 0:
-        mat = mat - diag(mat)
-
-    return mat
-
-
-def diag(mat):
-    return mat[np.diag_indices(mat.shape[-1])]
-
-
-def get_diag_blocks_by_size(mat, sizes):
-    indices = np.r_[[0], np.cumsum(sizes)]
-
-    return [
-        mat[init_index:end_index, init_index:end_index]
-        for init_index, end_index in zip(indices, indices[1:])
-    ]
 
 
 def get_results_path():
