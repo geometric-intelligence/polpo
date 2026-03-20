@@ -1,6 +1,8 @@
 # TODO: move to utils folder
 
+import json
 import random
+from pathlib import Path
 
 from polpo.auto_all import auto_all
 
@@ -76,6 +78,21 @@ def rekey_nested_dict(nested_dict, outer_map, inner_maps):
 
 def invert_dict(dict_):
     return dict(zip(dict_.values(), dict_.keys()))
+
+
+class JsonDict(dict):
+    def __init__(self, path, *, load=True):
+        self.path = Path(path)
+
+        if load and self.path.exists():
+            with self.path.open() as f:
+                super().__init__(json.load(f))
+        else:
+            super().__init__()
+
+    def write(self):
+        with self.path.open("w") as file:
+            json.dump(self, file, indent=4)
 
 
 __all__ = auto_all(globals())

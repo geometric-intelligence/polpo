@@ -7,6 +7,14 @@ import polpo.deformetrica.io as pdefoio
 from polpo.auto_all import auto_all
 
 
+class DummyPoint:
+    def __init__(self, id_):
+        self.id = id_
+
+
+DummyVec = DummyPoint
+
+
 class _Point(abc.ABC):
     # TODO: transform some of the variables into functions instead of properties?
 
