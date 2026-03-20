@@ -14,7 +14,14 @@ from polpo.protocol.lddmm_to_global import LddmmToGlobal
 
 
 def protocol_per_struct(
-    struct, subject_ids, data_dir, results_dir, atlases_keys, derivative="enigma"
+    struct,
+    subject_ids,
+    data_dir,
+    results_dir,
+    atlases_keys,
+    derivative="enigma",
+    ratio_charlen=0.25,
+    ratio_kernel=1.5,
 ):
     # for serialization
     params = dict(
@@ -73,10 +80,8 @@ if __name__ == "__main__":
     key_filter = ppdict.DictFilter(func=(lambda x: x < 0))
     atlases_keys = {}
     for subject_id in subject_ids:
-        atlases_keys[subject_id] = pre_keys = list(
-            key_filter(key2week[subject_id]).keys()
-        )
-        if len(pre_keys) < 1:
+        atlases_keys[subject_id] = keys = list(key_filter(key2week[subject_id]).keys())
+        if len(keys) < 1:
             raise ValueError(f"No pre meshes for {subject_id}")
 
     for struct in structs:
@@ -99,6 +104,8 @@ if __name__ == "__main__":
                 data_dir=data_dir,
                 results_dir=results_dir,
                 atlases_keys=atlases_keys,
+                ratio_charlen=0.25,
+                ratio_kernel=1.5,
             )
         except Exception as e:
             logging.warning(f"Oops, something went wrong for {struct}: {e}")

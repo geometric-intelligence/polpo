@@ -6,7 +6,7 @@ if __name__ == "__main__":
     from polpo.mesh.generation.blob import create_blob
     from polpo.protocol.lddmm_to_global import LddmmToGlobal
 
-    outputs_dir = putils.get_results_path() / "lddmm_to_global/debug/blobs"
+    outputs_dir = putils.get_results_path() / "lddmm_to_global/blobs"
 
     if outputs_dir.exists():
         shutil.rmtree(outputs_dir)

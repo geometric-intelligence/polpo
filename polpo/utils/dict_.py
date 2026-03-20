@@ -54,6 +54,7 @@ def nest_dict(flat_dict, sep="/"):
 
 
 def extract_unique_key_nested(data):
+    # TODO: rethink function name
     if not isinstance(data, dict):
         return data
 
@@ -71,6 +72,10 @@ def rekey_nested_dict(nested_dict, outer_map, inner_maps):
         }
         for outer_key, inner in nested_dict.items()
     }
+
+
+def invert_dict(dict_):
+    return dict(zip(dict_.values(), dict_.keys()))
 
 
 __all__ = auto_all(globals())

@@ -158,7 +158,11 @@ class LddmmToGlobal:
             attachment_kernel_width=sigma_var,
         )
 
-        return LddmmMetric(self.results_dir, **registration_kwargs)
+        metric = LddmmMetric(self.results_dir, **registration_kwargs)
+
+        self.results_["dirs"] = metric.all_dirs()
+
+        return metric
 
     def meshes_as_points(self, metric, nested_meshes):
         nested_points = {}

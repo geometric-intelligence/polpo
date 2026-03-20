@@ -2,6 +2,7 @@
 import collections
 import getpass
 import glob
+import importlib
 import inspect
 import itertools
 import socket
@@ -163,3 +164,14 @@ def get_results_path():
         return get_frank_user_scratch()
 
     return Path.home() / ".polpo/results"
+
+
+def has_package(package_name):
+    """Check if package is installed.
+
+    Parameters
+    ----------
+    package_name : str
+        Package name.
+    """
+    return importlib.util.find_spec(package_name) is not None

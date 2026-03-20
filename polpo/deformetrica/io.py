@@ -1,44 +1,118 @@
 from pathlib import Path
 
-from in_out.array_readers_and_writers import read_3D_array
+import numpy as np
+import pyvista as pv
 
 import polpo.preprocessing.dict as ppdict
+import polpo.preprocessing.path as pppath
+import polpo.preprocessing.str as ppstr
+import polpo.utils as putils
 from polpo.preprocessing import FilteredGroupBy, Map, Sorter
-from polpo.preprocessing.load.deformetrica import (
-    LoadControlPointsFlow,
-    LoadMomentaFlow,
-    _file2mesh,
-    load_vtk_mesh,  # noqa: F401
-)
-from polpo.preprocessing.path import FileFinder, IsFileType, PathShortener
-from polpo.preprocessing.str import (
-    Contains,
-    ContainsAll,
-    DigitFinder,
-    RegexGroupFinder,
-    TryToInt,
-)
-from polpo.utils import custom_order
+from polpo.preprocessing.mesh.conversion import DataFromPv
 
-# TODO: remove strings?
 # TODO: functions need to be renamed
 
 # TODO: deeply simplify this file
 
 
-def build_registration_name(source, target):
-    # TODO: remove
-    return f"{source}->{target}"
+def read_array(path):
+    with open(path, "r") as file:
+        first_line = next(file)
+        second_line = next(file)
+
+        if second_line != "\n":
+            return np.loadtxt(path)
+
+        n_arrays = int(first_line.split(" ")[0])
+        array = np.loadtxt(file)
+        if n_arrays == 1:
+            return array
+
+        n, dim = array.shape
+        return array.reshape((n_arrays, n // n_arrays, dim))
 
 
-def build_parallel_transport_name(source, geod_target, transp_target):
-    # TODO: remove
-    return f"{source}>{transp_target}--{source}>{geod_target}->{geod_target}"
+def load_vtk_mesh(path, as_pv=False):
+    pv_mesh = pv.read(path)
+    if as_pv:
+        return pv_mesh
+
+    # vertices, faces
+    return DataFromPv()(pv_mesh)
 
 
-def build_parallel_shoot_name(source, geod_target, transp_target):
-    # TODO: remove
-    return f"{geod_target}(t{source}>{transp_target})"
+def _file2mesh(as_pv=False):
+    return lambda path: load_vtk_mesh(path, as_pv=as_pv)
+
+
+def LoadMeshFlow(as_path=False, as_pv=True, extra_rules=()):
+    # TODO: index by time bool
+
+    # as_path as precedence to as_pv
+    path_to_tp = ppstr.RegexGroupFinder(r"_tp_(\d+)") + int
+
+    rules = [pppath.IsFileType("vtk")] + putils.as_list(extra_rules)
+
+    file_finder = pppath.FileFinder(
+        rules=rules,
+        as_list=True,
+    ) + ppdict.HashWithIncoming(key_step=Map(path_to_tp), key_sorter=lambda x: x)
+
+    if as_path:
+        return file_finder
+
+    return file_finder + ppdict.DictMap(_file2mesh(as_pv=as_pv))
+
+
+def LoadControlPointsFlow(as_path=False, as_array=True, extra_rules=()):
+    # as_path as precedence to as_array
+
+    path_to_tp = ppstr.RegexGroupFinder(r"_tp_(\d+)") + int
+
+    rules = [
+        pppath.IsFileType("txt"),
+        ppstr.Contains("ControlPoints"),
+    ] + putils.as_list(extra_rules)
+
+    file_finder = pppath.FileFinder(
+        rules=rules,
+        as_list=True,
+    ) + ppdict.HashWithIncoming(key_step=Map(path_to_tp), key_sorter=lambda x: x)
+
+    if as_path:
+        return file_finder
+
+    pipe = file_finder + ppdict.DictMap(read_array)
+    if not as_array:
+        return pipe
+
+    return pipe + ppdict.DictToValuesList() + np.stack
+
+
+def LoadMomentaFlow(as_path=False, as_array=True, extra_rules=()):
+    # as_path as precedence to as_array
+
+    path_to_tp = ppstr.RegexGroupFinder(r"_tp_(\d+)") + int
+
+    rules = [
+        pppath.IsFileType("txt"),
+        ppstr.Contains("Momenta"),
+    ] + putils.as_list(extra_rules)
+
+    file_finder = pppath.FileFinder(
+        rules=rules,
+        as_list=True,
+    ) + ppdict.HashWithIncoming(key_step=Map(path_to_tp), key_sorter=lambda x: x)
+
+    if as_path:
+        return file_finder
+
+    pipe = file_finder + ppdict.DictMap(read_array)
+
+    if not as_array:
+        return pipe
+
+    return pipe + ppdict.DictToValuesList() + np.stack
 
 
 def get_deterministic_atlas_reconstruction_names(path, subset=None):
@@ -47,16 +121,16 @@ def get_deterministic_atlas_reconstruction_names(path, subset=None):
     # in DeterministicAtlas._write_model_predictions
     # name = self.name + '__Reconstruction__' + object_name + '__subject_' + subject_id + object_extension
 
-    file_finder = FileFinder(
-        rules=[IsFileType("vtk"), Contains("__Reconstruction__")],
+    file_finder = pppath.FileFinder(
+        rules=[pppath.IsFileType("vtk"), ppstr.Contains("__Reconstruction__")],
         as_list=True,
     )
 
-    path_to_id = RegexGroupFinder(r"__subject_([A-Za-z0-9]+)") + TryToInt()
+    path_to_id = ppstr.RegexGroupFinder(r"__subject_([A-Za-z0-9]+)") + ppstr.TryToInt()
 
     sorter = None
     if subset is not None:
-        sorter = custom_order(subset)
+        sorter = putils.custom_order(subset)
 
     file_finder += ppdict.HashWithIncoming(
         key_step=Map(path_to_id), key_sorter=sorter, key_subset=subset
@@ -72,12 +146,12 @@ def get_deterministic_atlas_flow_names(path, subset=None):
     # in DeterministicAtlas._write_model_predictions
     # name = self.name + '__flow__' + object_name + '__subject_' + subject_id + "__tp_" + str(j) + object_extension
 
-    file_finder = FileFinder(
-        rules=[IsFileType("vtk"), Contains("__flow__")],
+    file_finder = pppath.FileFinder(
+        rules=[pppath.IsFileType("vtk"), ppstr.Contains("__flow__")],
     )
 
-    path_to_id = RegexGroupFinder(r"__subject_([A-Za-z0-9]+)") + TryToInt()
-    path_to_tp = PathShortener() + DigitFinder(index=-1)
+    path_to_id = ppstr.RegexGroupFinder(r"__subject_([A-Za-z0-9]+)") + ppstr.TryToInt()
+    path_to_tp = pppath.PathShortener() + ppstr.DigitFinder(index=-1)
 
     # TODO: try to call path_to_id only once if no subset
     sorter = Sorter(path_to_id) if subset is None else None
@@ -95,12 +169,14 @@ def get_deterministic_atlas_flow_names(path, subset=None):
 def get_shooting_flow_names(path):
     # TODO: homogenize with get_deterministic_atlas_flow_names?
 
-    file_finder = FileFinder(
-        rules=[IsFileType("vtk"), Contains("__GeodesicFlow__")],
+    file_finder = pppath.FileFinder(
+        rules=[pppath.IsFileType("vtk"), ppstr.Contains("__GeodesicFlow__")],
     )
 
     path_to_tp = (
-        PathShortener() + RegexGroupFinder(pattern=r"__tp_(\d+)_") + (lambda x: int(x))
+        pppath.PathShortener()
+        + ppstr.RegexGroupFinder(pattern=r"__tp_(\d+)_")
+        + (lambda x: int(x))
     )
     file_finder += Sorter(path_to_tp)
 
@@ -109,12 +185,14 @@ def get_shooting_flow_names(path):
 
 
 def get_parallel_shooting_flow_names(path):
-    file_finder = FileFinder(
-        rules=[IsFileType("vtk"), Contains("parallel_curve")],
+    file_finder = pppath.FileFinder(
+        rules=[pppath.IsFileType("vtk"), ppstr.Contains("parallel_curve")],
     )
 
     path_to_tp = (
-        PathShortener() + RegexGroupFinder(pattern=r"_tp_(\d+)_") + (lambda x: int(x))
+        pppath.PathShortener()
+        + ppstr.RegexGroupFinder(pattern=r"_tp_(\d+)_")
+        + (lambda x: int(x))
     )
     file_finder += Sorter(path_to_tp)
 
@@ -125,8 +203,11 @@ def get_parallel_shooting_flow_names(path):
 def load_template(path, as_path=False, as_pv=False):
     # as_pv is ignored if as_path is True
 
-    file_finder = FileFinder(
-        rules=[IsFileType("vtk"), Contains("__EstimatedParameters__Template")],
+    file_finder = pppath.FileFinder(
+        rules=[
+            pppath.IsFileType("vtk"),
+            ppstr.Contains("__EstimatedParameters__Template"),
+        ],
     )
 
     filename = file_finder(path)
@@ -153,7 +234,7 @@ def load_cp(path, as_path=False):
     if as_path:
         return cp_name
 
-    return read_3D_array(cp_name)
+    return read_array(cp_name)
 
 
 def load_transported_cp(path, as_path=False):
@@ -166,17 +247,20 @@ def load_transported_cp(path, as_path=False):
     if as_path:
         return cp_name
 
-    return read_3D_array(cp_name)
+    return read_array(cp_name)
 
 
 def get_deterministic_atlas_momenta_names(path, subset=None):
     # NB: part of the way we split it now in polpo
 
-    file_finder = FileFinder(
-        rules=[IsFileType("txt"), ContainsAll(("__Momenta__", "__subject_"))],
+    file_finder = pppath.FileFinder(
+        rules=[
+            pppath.IsFileType("txt"),
+            ppstr.ContainsAll(("__Momenta__", "__subject_")),
+        ],
     )
 
-    path_to_id = RegexGroupFinder(r"__subject_([A-Za-z0-9]+)")
+    path_to_id = ppstr.RegexGroupFinder(r"__subject_([A-Za-z0-9]+)")
 
     sorter = Sorter(path_to_id) if subset is None else None
 
@@ -192,7 +276,7 @@ def load_deterministic_atlas_momenta(path, id_, as_path=False):
     if as_path:
         return mom_name
 
-    return read_3D_array(mom_name)
+    return read_array(mom_name)
 
 
 def load_momenta(path, as_path=False):
@@ -212,7 +296,7 @@ def load_momenta(path, as_path=False):
     if as_path:
         return mom_name
 
-    return read_3D_array(mom_name)
+    return read_array(mom_name)
 
 
 def load_transported_momenta(path, as_path=False):
@@ -220,15 +304,15 @@ def load_transported_momenta(path, as_path=False):
     # if pole ladder
     mom_name = path / "transported_momenta.txt"
     if not mom_name.exists():
-        mom_names = LoadMomentaFlow(as_path=True, extra_rules=Contains("Transported"))(
-            path
-        )
+        mom_names = LoadMomentaFlow(
+            as_path=True, extra_rules=ppstr.Contains("Transported")
+        )(path)
         mom_name = mom_names[list(mom_names.keys())[-1]]
 
     if as_path:
         return mom_name
 
-    return read_3D_array(mom_name)
+    return read_array(mom_name)
 
 
 def load_deterministic_atlas_reconstructions(

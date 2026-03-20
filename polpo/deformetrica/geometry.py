@@ -11,9 +11,9 @@ from launch.compute_parallel_transport import (
 from launch.compute_shooting import compute_shooting
 from support import utilities
 
-import polpo.lddmm.io as io
-import polpo.lddmm.registration as registration
-from polpo.lddmm.utils import move_data_device
+import polpo.deformetrica.io as io
+import polpo.deformetrica.registration as registration
+from polpo.deformetrica.utils import move_data_device
 
 logger = logging.getLogger(__name__)
 

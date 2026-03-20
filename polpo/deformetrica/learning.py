@@ -3,7 +3,7 @@ import os
 from api.deformetrica import Deformetrica
 
 import polpo.utils as putils
-from polpo.lddmm.io import load_template
+from polpo.deformetrica.io import load_template
 
 
 def estimate_deterministic_atlas(
