@@ -63,10 +63,13 @@ def extract_unique_key_nested(data):
     return {key: extract_unique_key_nested(value) for key, value in data.items()}
 
 
-def rekey_nested_dict(nested_dict, outer_map, inner_map_fn):
+def rekey_nested_dict(nested_dict, outer_map, inner_maps):
     return {
-        outer_map.get(k, k): {inner_map_fn(k).get(kk, kk): v for kk, v in inner.items()}
-        for k, inner in nested_dict.items()
+        outer_map.get(outer_key, outer_key): {
+            inner_maps[outer_key].get(inner_key, inner_key): inner_value
+            for inner_key, inner_value in inner.items()
+        }
+        for outer_key, inner in nested_dict.items()
     }
 
 

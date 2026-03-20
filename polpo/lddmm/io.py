@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from in_out.array_readers_and_writers import read_3D_array
 
 import polpo.preprocessing.dict as ppdict
@@ -130,7 +132,7 @@ def load_template(path, as_path=False, as_pv=False):
     filename = file_finder(path)
 
     if as_path:
-        return filename
+        return Path(filename)
 
     return _file2mesh(as_pv)(filename)
 
