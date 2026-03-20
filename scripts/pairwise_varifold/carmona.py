@@ -60,7 +60,8 @@ if __name__ == "__main__":
         results_dir = (
             putils.get_results_path()
             / "pairwise_varifold"
-            / f"{struct}_{derivative}_carmona"
+            / "carmona"
+            / f"{struct}_{derivative}"
         )
         if results_dir.exists():
             logging.info(f"Skipping {struct} because folder already exists")

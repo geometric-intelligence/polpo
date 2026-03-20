@@ -63,7 +63,10 @@ if __name__ == "__main__":
 
     for struct in structs:
         results_dir = (
-            putils.get_results_path() / "pairwise_varifold" / f"{struct}_{derivative}"
+            putils.get_results_path()
+            / "pairwise_varifold"
+            / "jacobs"
+            / f"{struct}_{derivative}"
         )
         if results_dir.exists():
             logging.info(f"Skipping {struct} because folder already exists")

@@ -2,7 +2,6 @@ import json
 
 import numpy as np
 
-import polpo.dict as pudict
 import polpo.preprocessing.dict as ppdict
 import polpo.utils as putils
 from polpo.mesh.surface import PvSurface
@@ -12,11 +11,8 @@ from polpo.time import Timer
 
 
 class PairwiseVarifold:
-    def __init__(self, known_correspondences, results_dir, timer=None):
-        if timer is None:
-            timer = Timer()
-
-        self.timer = timer
+    def __init__(self, known_correspondences, results_dir):
+        self.timer = Timer()
 
         self.known_correspondences = known_correspondences
         self.results_dir = results_dir
@@ -32,8 +28,8 @@ class PairwiseVarifold:
         # rigidly aligns all the meshes against a randomly chosen target
         self.timer.start("prep")
 
-        subj_key = pudict.extract_random_key(raw_meshes)
-        session_id = pudict.extract_random_key(raw_meshes[subj_key])
+        subj_key = putils.extract_random_key(raw_meshes)
+        session_id = putils.extract_random_key(raw_meshes[subj_key])
 
         align_pipe = RigidAlignment(
             target=raw_meshes[subj_key][session_id],
@@ -64,7 +60,7 @@ class PairwiseVarifold:
         mesh_per_subject = []
         subj_keys = {}
         for subj_key, subj_meshes in meshes.items():
-            session_id = pudict.extract_random_key(subj_meshes)
+            session_id = putils.extract_random_key(subj_meshes)
             mesh_per_subject.append(subj_meshes[session_id])
 
             subj_keys[subj_key] = session_id
@@ -85,7 +81,7 @@ class PairwiseVarifold:
         # flatten
         self.timer.start("dist")
 
-        meshes_flat = ppdict.UnnestDict(sep="-")(meshes)
+        meshes_flat = putils.unnest_dict(meshes, sep="-")
         self.results_["keys"] = list(meshes_flat.keys())
 
         # TODO: add tqdm? or timing per mesh?

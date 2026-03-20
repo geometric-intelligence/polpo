@@ -86,7 +86,6 @@ maternal_io = [
     "scikit-image", # NB: project dependent
 ]
 pairwise_varifold = [
-    "requests",                                                 # TODO: remove dependency
     "numpy",
     "geomstats@git+https://github.com/geomstats/geomstats.git",
     "pykeops",
