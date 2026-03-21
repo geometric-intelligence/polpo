@@ -22,14 +22,35 @@ def get_key_maps(results_data):
     return outer_key_map, inner_key_maps, inv_outer_key_map, inv_inner_key_maps
 
 
+def _rekey_meshes(
+    meshes,
+    outer_key_map,
+    inner_key_maps,
+    mapped_keys=True,
+    nested=False,
+):
+    if mapped_keys and not nested:
+        return meshes
+
+    if not mapped_keys:
+        nested_meshes = putils.nest_dict(meshes, sep="-")
+        meshes = putils.rekey_nested_dict(nested_meshes, outer_key_map, inner_key_maps)
+        if not nested:
+            meshes = putils.unnest_dict(meshes, sep="-")
+
+    return meshes
+
+
 def collect_meshes(
-    outer_keys,
+    outer_key_map,
     inner_key_maps,
     meshes_dir,
     as_pv=True,
+    mapped_keys=True,
+    nested=False,
 ):
     meshes = {}
-    for outer_key in outer_keys:
+    for outer_key in outer_key_map:
         for inner_key in inner_key_maps[outer_key]:
             point_id = f"{outer_key}-{inner_key}"
             point = Point(id_=point_id, dirname=meshes_dir)
@@ -39,17 +60,21 @@ def collect_meshes(
 
             meshes[point_id] = point
 
-    return meshes
+    return _rekey_meshes(
+        meshes, outer_key_map, inner_key_maps, mapped_keys=mapped_keys, nested=nested
+    )
 
 
 def collect_rec_meshes_local(
-    outer_keys,
+    outer_key_map,
     inner_key_maps,
     registration_dir,
     as_pv=True,
+    mapped_keys=True,
+    nested=False,
 ):
     meshes = {}
-    for outer_key in outer_keys:
+    for outer_key in outer_key_map:
         for inner_key in inner_key_maps[outer_key]:
             point_id = f"{outer_key}-{inner_key}"
 
@@ -64,18 +89,22 @@ def collect_rec_meshes_local(
 
             meshes[point_id] = out
 
-    return meshes
+    return _rekey_meshes(
+        meshes, outer_key_map, inner_key_maps, mapped_keys=mapped_keys, nested=nested
+    )
 
 
 def collect_rec_meshes_global(
-    outer_keys,
+    outer_key_map,
     inner_key_maps,
     shoot_dir,
     as_pv=True,
+    mapped_keys=True,
+    nested=False,
 ):
     meshes = {}
 
-    for outer_key in outer_keys:
+    for outer_key in outer_key_map:
         for inner_key in inner_key_maps[outer_key]:
             point_id = f"{outer_key}-{inner_key}"
 
@@ -95,4 +124,6 @@ def collect_rec_meshes_global(
 
             meshes[point_id] = shooted_point
 
-    return meshes
+    return _rekey_meshes(
+        meshes, outer_key_map, inner_key_maps, mapped_keys=mapped_keys, nested=nested
+    )
