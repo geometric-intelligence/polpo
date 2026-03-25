@@ -1,5 +1,7 @@
+import polpo.preprocessing.dict as ppdict
 import polpo.utils as putils
 from polpo.mesh.deformetrica.repr import (
+    DeterministicAtlasPoint,
     DummyPoint,
     DummyVec,
     Point,
@@ -82,10 +84,10 @@ def collect_rec_meshes_local(
                 base_point=DummyPoint(outer_key),
                 point=DummyPoint(point_id),
                 outputs_dir=registration_dir,
-            )
+            ).reconstructed()
 
             if as_pv:
-                out = PvSurface(out.reconstructed().as_pv())
+                out = PvSurface(out.as_pv())
 
             meshes[point_id] = out
 
@@ -102,6 +104,7 @@ def collect_rec_meshes_global(
     mapped_keys=True,
     nested=False,
 ):
+    # TODO: simplify rekey (i.e. simply move it out)
     meshes = {}
 
     for outer_key in outer_key_map:
@@ -127,3 +130,44 @@ def collect_rec_meshes_global(
     return _rekey_meshes(
         meshes, outer_key_map, inner_key_maps, mapped_keys=mapped_keys, nested=nested
     )
+
+
+def collect_appr_gl_atlas(registration_dir, as_pv=True):
+    atlas_registrations = ppdict.KeySorter()(
+        {
+            path.name.split("_")[0]: path
+            for path in registration_dir.iterdir()
+            if "_to_gl" in path.name
+        }
+    )
+
+    meshes = {}
+    for key, path in atlas_registrations.items():
+        tangent_vec = TangentVecFromRegistration(
+            base_point=DummyPoint(key),
+            point=DummyPoint("gl"),
+            outputs_dir=registration_dir,
+        )
+        point = tangent_vec.reconstructed()
+
+        if as_pv:
+            point = PvSurface(point.as_pv())
+
+        meshes[key] = point
+
+    return meshes
+
+
+def load_atlas(atlases_dir, id_="gl", as_pv=True):
+    # TODO: load points too?
+
+    point = DeterministicAtlasPoint(
+        id_=id_,
+        points=None,
+        outputs_dir=atlases_dir,
+    )
+
+    if as_pv:
+        point = PvSurface(point.as_pv())
+
+    return point

@@ -126,10 +126,10 @@ def get_deterministic_atlas_reconstruction_names(path, subset=None):
         as_list=True,
     )
 
-    path_to_id = ppstr.RegexGroupFinder(r"__subject_([A-Za-z0-9]+)") + ppstr.TryToInt()
+    path_to_id = ppstr.RegexGroupFinder(r"__subject_([A-Za-z0-9-]+)") + ppstr.TryToInt()
 
     sorter = None
-    if subset is not None:
+    if subset is not None and len(subset) > 1:
         sorter = putils.custom_order(subset)
 
     file_finder += ppdict.HashWithIncoming(
@@ -150,7 +150,7 @@ def get_deterministic_atlas_flow_names(path, subset=None):
         rules=[pppath.IsFileType("vtk"), ppstr.Contains("__flow__")],
     )
 
-    path_to_id = ppstr.RegexGroupFinder(r"__subject_([A-Za-z0-9]+)") + ppstr.TryToInt()
+    path_to_id = ppstr.RegexGroupFinder(r"__subject_([A-Za-z0-9-]+)") + ppstr.TryToInt()
     path_to_tp = pppath.PathShortener() + ppstr.DigitFinder(index=-1)
 
     # TODO: try to call path_to_id only once if no subset
@@ -260,7 +260,7 @@ def get_deterministic_atlas_momenta_names(path, subset=None):
         ],
     )
 
-    path_to_id = ppstr.RegexGroupFinder(r"__subject_([A-Za-z0-9]+)")
+    path_to_id = ppstr.RegexGroupFinder(r"__subject_([A-Za-z0-9-]+)")
 
     sorter = Sorter(path_to_id) if subset is None else None
 
@@ -328,10 +328,13 @@ def load_deterministic_atlas_reconstructions(
 
 def load_deterministic_atlas_reconstruction(path, as_pv=False, as_path=False, id_=None):
     # TODO: can do better
+    subset = None
+    if id_ is not None:
+        subset = (id_,)
 
     # NB: convenient
     meshes = load_deterministic_atlas_reconstructions(
-        path, as_pv=as_pv, as_path=as_path, subset=id_
+        path, as_pv=as_pv, as_path=as_path, subset=subset
     )
     return ppdict.ExtractUniqueKey()(meshes)
 
