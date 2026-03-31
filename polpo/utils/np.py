@@ -24,10 +24,12 @@ def pairwise_dists(points, dist_fnc, as_matrix=True):
     return dists
 
 
-def pairwise_dists_par(points, dist_fnc, as_matrix=True, n_jobs=None, verbose=0):
+def pairwise_dists_par(
+    points, dist_fnc, as_matrix=True, n_jobs=None, verbose=0, prefer="threads"
+):
     row_ind, col_ind = np.triu_indices(len(points), k=1)
 
-    dists = Parallel(n_jobs=n_jobs, verbose=verbose)(
+    dists = Parallel(n_jobs=n_jobs, verbose=verbose, prefer=prefer)(
         delayed(dist_fnc)(points[i], points[j]) for i, j in zip(row_ind, col_ind)
     )
 
