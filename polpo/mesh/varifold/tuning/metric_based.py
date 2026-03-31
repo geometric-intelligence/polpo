@@ -3,41 +3,13 @@ import itertools
 import warnings
 
 import geomstats.backend as gs
-from geomstats.varifold import (
-    BinetKernel,
-    GaussianKernel,
-    SurfacesKernel,
-    VarifoldMetric,
-)
+from geomstats.varifold import VarifoldMetric
 
 from polpo.mesh.qoi import centroid2farthest_vertex
 from polpo.mesh.surface import PvSurface
 from polpo.preprocessing import BranchingPipeline, Map
 
 from .geometry_based import SigmaFromLengths as _SigmaFromLengths
-
-
-class KernelFromSigma:
-    def __init__(self, PositionKernel=None, TangentKernel=None):
-        if PositionKernel is None:
-            PositionKernel = GaussianKernel
-
-        if TangentKernel is None:
-            TangentKernel = BinetKernel
-
-        self.PositionKernel = PositionKernel
-        self.TangentKernel = TangentKernel
-
-    def __call__(self, sigma):
-        position_kernel = self.PositionKernel(sigma=sigma, init_index=0)
-
-        tangent_kernel = self.TangentKernel(
-            init_index=position_kernel.new_variable_index()
-        )
-        return SurfacesKernel(
-            position_kernel,
-            tangent_kernel,
-        )
 
 
 def _default_decimator():
@@ -72,24 +44,17 @@ class GridFromMaxDist(abc.ABC):
 
 
 class _SigmaSearch(abc.ABC):
-    def __init__(self, kernel_builder=None):
-        if kernel_builder is None:
-            kernel_builder = KernelFromSigma()
-
-        self.kernel_builder = kernel_builder
-
+    def __init__(self):
         self.sigma_ = None
 
     @property
     def optimal_metric_(self):
-        kernel = self.kernel_builder(self.sigma_)
-
-        return VarifoldMetric(kernel)
+        return VarifoldMetric(sigma=self.sigma_)
 
 
 class _DecimationBasedSigmaSearch(_SigmaSearch, abc.ABC):
-    def __init__(self, kernel_builder=None, decimator=None):
-        super().__init__(kernel_builder)
+    def __init__(self, decimator=None):
+        super().__init__()
 
         if decimator is True:
             decimator = _default_decimator()
@@ -112,8 +77,7 @@ class _DecimationBasedSigmaSearch(_SigmaSearch, abc.ABC):
         return self.sdists_[self.idx_]
 
     def _compute_dists_given_sigma(self, sigma, surface_pairs):
-        kernel = self.kernel_builder(sigma)
-        metric = VarifoldMetric(kernel)
+        metric = VarifoldMetric(sigma=sigma)
         return gs.asarray([metric.squared_dist(*pair) for pair in surface_pairs])
 
     def _handle_decimation(self, surfaces):
@@ -141,13 +105,12 @@ class SigmaGridSearch(_DecimationBasedSigmaSearch):
 
     def __init__(
         self,
-        kernel_builder=None,
         elbow_finder=None,
         grid_generator=None,
         elbow_offset=1,
         decimator=None,
     ):
-        super().__init__(kernel_builder=kernel_builder, decimator=decimator)
+        super().__init__(decimator=decimator)
 
         if elbow_finder is None:
             from polpo.elbow import Rotor
@@ -201,12 +164,11 @@ class SigmaBisecSearch(_DecimationBasedSigmaSearch):
         self,
         ref_value=0.1,
         atol=1e-4,
-        kernel_builder=None,
         decimator=None,
         sigma_picker=None,
         max_iter=10,
     ):
-        super().__init__(kernel_builder=kernel_builder, decimator=decimator)
+        super().__init__(decimator=decimator)
 
         if sigma_picker is None:
             sigma_picker = SigmaPicker()
@@ -332,7 +294,6 @@ class SigmaFromLengths(_SigmaFromLengths, _SigmaSearch):
         ratio_charlen_mesh=2.0,
         ratio_charlen=0.25,
         charlen_fun=None,
-        kernel_builder=None,
     ):
         _SigmaFromLengths.__init__(
             self,
@@ -342,5 +303,4 @@ class SigmaFromLengths(_SigmaFromLengths, _SigmaSearch):
         )
         _SigmaSearch.__init__(
             self,
-            kernel_builder=kernel_builder,
         )
