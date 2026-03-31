@@ -17,7 +17,7 @@ class PairwiseVarifold:
         results_dir,
         ratio_charlen_mesh=2.0,
         ratio_charlen=0.25,
-        n_jobs=-2,
+        n_jobs=1,
     ):
         # TODO: add device too
 
@@ -127,6 +127,9 @@ class PairwiseVarifold:
         return dists
 
     def write(self):
+        with open(self.results_dir / "params.json", "w") as file:
+            json.dump(self.params_, file, indent=4)
+
         with open(self.results_dir / "results.json", "w") as file:
             json.dump(self.results_, file, indent=4)
 

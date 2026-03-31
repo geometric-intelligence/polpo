@@ -27,6 +27,9 @@ def pairwise_dists(points, dist_fnc, as_matrix=True):
 def pairwise_dists_par(
     points, dist_fnc, as_matrix=True, n_jobs=None, verbose=0, prefer="threads"
 ):
+    if n_jobs == 1:
+        return pairwise_dists(points, dist_fnc, as_matrix=as_matrix)
+
     row_ind, col_ind = np.triu_indices(len(points), k=1)
 
     dists = Parallel(n_jobs=n_jobs, verbose=verbose, prefer=prefer)(
