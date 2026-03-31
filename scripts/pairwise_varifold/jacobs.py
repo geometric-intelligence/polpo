@@ -13,7 +13,14 @@ from polpo.protocol.pairwise_varifold import PairwiseVarifold
 
 
 def protocol_per_struct(
-    struct, subject_ids, data_dir, results_dir, derivative="enigma", subsample=None
+    struct,
+    subject_ids,
+    data_dir,
+    results_dir,
+    derivative="enigma",
+    ratio_charlen_mesh=2.0,
+    ratio_charlen=0.25,
+    n_jobs=-2,
 ):
     # for serialization
     params = dict(
@@ -22,7 +29,7 @@ def protocol_per_struct(
         derivative=derivative,
         data_dir=data_dir,
     )
-    with open(results_dir / "params.json", "w") as file:
+    with open(results_dir / "extra_params.json", "w") as file:
         json.dump(params, file, indent=4)
 
     known_correspondences = True if derivative == "enigma" else False
@@ -36,10 +43,15 @@ def protocol_per_struct(
             as_mesh=True,
         )
         + ppdict.ExtractUniqueKey(nested=True)
-        + ppdict.DictMap(ppdict.Subsample(subsample))
     )()
 
-    protocol = PairwiseVarifold(known_correspondences, results_dir)
+    protocol = PairwiseVarifold(
+        known_correspondences,
+        results_dir,
+        ratio_charlen_mesh=ratio_charlen_mesh,
+        ratio_charlen=ratio_charlen,
+        n_jobs=n_jobs,
+    )
 
     protocol.run(dataset)
 
@@ -80,7 +92,9 @@ if __name__ == "__main__":
                 subject_ids=get_subject_ids(sort=True),
                 data_dir=data_dir,
                 results_dir=results_dir,
-                subsample=None,  # make None to run all
+                ratio_charlen_mesh=2.0,
+                ratio_charlen=0.25,
+                n_jobs=-2,
             )
         except Exception as e:
             logging.warning(f"Oops, something went wrong for {struct}: {e}")

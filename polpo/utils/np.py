@@ -1,18 +1,41 @@
 import numpy as np
 
+try:
+    # avoid making dependency joblib explicit
+    from joblib import Parallel, delayed
+except ImportError:
+    pass
+
 from polpo.auto_all import auto_all
 
-# TODO: rename to array later?
 
-
-def pairwise_dists(points, dist_fnc):
+def pairwise_dists(points, dist_fnc, as_matrix=True):
+    # TODO: add notion of backend?
     dists = []
     for index, point in enumerate(points):
         # TODO: do vectorize version of it?
         for cmp_point in points[index + 1 :]:
             dists.append(dist_fnc(point, cmp_point))
 
-    return triu_vec_to_sym(np.array(dists))
+    dists = np.array(dists)
+    if as_matrix:
+        return triu_vec_to_sym(dists)
+
+    return dists
+
+
+def pairwise_dists_par(points, dist_fnc, as_matrix=True, n_jobs=None, verbose=0):
+    row_ind, col_ind = np.triu_indices(len(points), k=1)
+
+    dists = Parallel(n_jobs=n_jobs, verbose=verbose)(
+        delayed(dist_fnc)(points[i], points[j]) for i, j in zip(row_ind, col_ind)
+    )
+
+    dists = np.array(dists)
+    if as_matrix:
+        return triu_vec_to_sym(dists)
+
+    return dists
 
 
 def sym_to_triu_vec(mat, k=1):

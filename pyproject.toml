@@ -90,6 +90,7 @@ pairwise_varifold = [
     "geomstats@git+https://github.com/geomstats/geomstats.git",
     "pykeops",
     "pyvista",
+    "joblib",
     "scikit-learn",                                             # TODO: remove dependency
 ]
 lddmm_to_global = [
