@@ -1,5 +1,6 @@
 import json
 
+import geomstats.backend as gs
 import numpy as np
 
 import polpo.preprocessing.dict as ppdict
@@ -122,6 +123,7 @@ class PairwiseVarifold:
         self.results_["dists"] = {
             "filename": "pair_dists.npy",
             "device": "cpu",
+            "geomstats_backend": gs.__name__,
         }
 
         return dists
