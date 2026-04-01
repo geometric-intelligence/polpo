@@ -44,17 +44,18 @@ class GridFromMaxDist(abc.ABC):
 
 
 class _SigmaSearch(abc.ABC):
-    def __init__(self):
+    def __init__(self, **metric_kwargs):
         self.sigma_ = None
+        self.metric_kwargs = metric_kwargs
 
     @property
     def optimal_metric_(self):
-        return VarifoldMetric(sigma=self.sigma_)
+        return VarifoldMetric(sigma=self.sigma_, **self.metric_kwargs)
 
 
 class _DecimationBasedSigmaSearch(_SigmaSearch, abc.ABC):
-    def __init__(self, decimator=None):
-        super().__init__()
+    def __init__(self, decimator=None, **metric_kwargs):
+        super().__init__(**metric_kwargs)
 
         if decimator is True:
             decimator = _default_decimator()
@@ -294,6 +295,7 @@ class SigmaFromLengths(_SigmaFromLengths, _SigmaSearch):
         ratio_charlen_mesh=2.0,
         ratio_charlen=0.25,
         charlen_fun=None,
+        **metric_kwargs,
     ):
         _SigmaFromLengths.__init__(
             self,
@@ -303,4 +305,5 @@ class SigmaFromLengths(_SigmaFromLengths, _SigmaSearch):
         )
         _SigmaSearch.__init__(
             self,
+            **metric_kwargs,
         )

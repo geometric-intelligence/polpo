@@ -19,6 +19,7 @@ class PairwiseVarifold:
         ratio_charlen_mesh=2.0,
         ratio_charlen=0.25,
         n_jobs=1,
+        backend="keops",
     ):
         # TODO: add device too
 
@@ -31,6 +32,7 @@ class PairwiseVarifold:
         self.ratio_charlen_mesh = ratio_charlen_mesh
 
         self.n_jobs = n_jobs
+        self.backend = backend
 
         self.reset()
 
@@ -76,6 +78,7 @@ class PairwiseVarifold:
         sigma_search = SigmaFromLengths(
             ratio_charlen_mesh=self.ratio_charlen_mesh,
             ratio_charlen=self.ratio_charlen,
+            backend=self.backend,
         )
 
         mesh_per_outer = []
@@ -118,12 +121,16 @@ class PairwiseVarifold:
 
         self.timer.stop("dists")
 
-        self.params_["dists"] = {"n_jobs": self.n_jobs}
+        self.params_["dists"] = {
+            "n_jobs": self.n_jobs,
+            "geomstats_backend": gs.__name__,
+            "backend": self.backend,
+        }
 
+        device = "gpu" if metric._gpu else "cpu"
         self.results_["dists"] = {
             "filename": "pair_dists.npy",
-            "device": "cpu",
-            "geomstats_backend": gs.__name__,
+            "device": device,
         }
 
         return dists

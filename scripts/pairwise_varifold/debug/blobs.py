@@ -28,6 +28,8 @@ if __name__ == "__main__":
     protocol = PairwiseVarifold(
         known_correspondences=True,
         results_dir=outputs_dir,
+        n_jobs=1,
+        backend="keops",
     )
 
     protocol.run(dataset)
