@@ -91,7 +91,7 @@ class PairwiseVarifold:
         self.timer.stop("tuning")
 
         self.results_["kernel_tuning"] = {
-            "sigma": sigma_search.sigma_,
+            "sigma": float(sigma_search.sigma_),  # for serialization
             "meshes": keys,
         }
 

@@ -2,7 +2,6 @@
 
 
 import geomstats.backend as gs
-import numpy as np
 
 from polpo.mesh.qoi import centroid2farthest_vertex
 
@@ -26,15 +25,15 @@ class SigmaFromLengths:
     def fit(self, surfaces):
         charlen = self.charlen_fun(surfaces)
         charlen_mesh = gs.array(
-            [np.median(surface.edge_lengths) for surface in surfaces]
+            [gs.median(surface.edge_lengths) for surface in surfaces]
         )
 
-        sigmas = np.maximum(
+        sigmas = gs.maximum(
             charlen * self.ratio_charlen,
             charlen_mesh * self.ratio_charlen_mesh,
         )
 
         # TODO: think about this
-        self.sigma_ = np.amax(sigmas)
+        self.sigma_ = gs.amax(sigmas)
 
         return self
