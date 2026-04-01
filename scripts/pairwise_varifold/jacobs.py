@@ -20,7 +20,8 @@ def protocol_per_struct(
     derivative="enigma",
     ratio_charlen_mesh=2.0,
     ratio_charlen=0.25,
-    n_jobs=-2,
+    n_jobs=1,
+    backend="keops",
 ):
     # for serialization
     params = dict(
@@ -51,6 +52,7 @@ def protocol_per_struct(
         ratio_charlen_mesh=ratio_charlen_mesh,
         ratio_charlen=ratio_charlen,
         n_jobs=n_jobs,
+        backend=backend,
     )
 
     protocol.run(dataset)
@@ -94,7 +96,8 @@ if __name__ == "__main__":
                 results_dir=results_dir,
                 ratio_charlen_mesh=2.0,
                 ratio_charlen=0.25,
-                n_jobs=-2,
+                n_jobs=1,
+                backend="keops",
             )
         except Exception as e:
             logging.warning(f"Oops, something went wrong for {struct}: {e}")
