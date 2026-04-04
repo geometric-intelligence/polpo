@@ -5,6 +5,7 @@ import logging
 import os
 import shutil
 import warnings
+from functools import wraps
 
 from joblib import Parallel, delayed
 from tqdm import tqdm
@@ -24,6 +25,14 @@ def _wrap_step(step=None):
         step = Pipeline(step)
 
     return step
+
+
+def pipe_to_func(pipe_cls):
+    @wraps(pipe_cls)
+    def func(*args, **kwargs):
+        return pipe_cls(*args, **kwargs)()
+
+    return func
 
 
 class StepWrappingPreprocessingStep(PreprocessingStep, abc.ABC):
@@ -51,6 +60,7 @@ class ExceptionToWarning(StepWrappingPreprocessingStep):
 class BranchingPipeline(PreprocessingStep):
     def __init__(self, branches, merger=None):
         if merger is None:
+            # TODO: default to identity?
             merger = NestingSwapper()
 
         super().__init__()
@@ -484,6 +494,10 @@ class Contains(PreprocessingStep):
     def __call__(self, collection):
         """Apply step.
 
+        Parameters
+        ----------
+        collection : iterable
+
         Returns
         -------
         membership : bool
@@ -506,6 +520,10 @@ class ContainsAll(PreprocessingStep):
 
     def __call__(self, collection):
         """Apply step.
+
+        Parameters
+        ----------
+        collection : iterable
 
         Returns
         -------

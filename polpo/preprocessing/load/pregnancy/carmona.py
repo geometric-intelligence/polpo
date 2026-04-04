@@ -3,7 +3,7 @@ import os
 import polpo.preprocessing.dict as ppdict
 import polpo.preprocessing.pd as pppd
 from polpo.preprocessing import Constant
-from polpo.preprocessing.load.bids import DerivativeFoldersSelector
+from polpo.preprocessing.load.bids import FoldersSelector as BidsFoldersSelector
 from polpo.preprocessing.load.fsl import MeshLoader as FslMeshLoader
 from polpo.preprocessing.path import ExpandUser, FileFinder
 from polpo.preprocessing.str import StartsWith
@@ -37,7 +37,7 @@ def FoldersSelector(
         (lambda x: os.path.join(x, "derivatives"))
         + ExpandUser()
         + FileFinder(rules=StartsWith(derivative))
-        + DerivativeFoldersSelector(
+        + BidsFoldersSelector(
             subject_subset, session_subset=session_subset, session_sorter=True
         )
     )

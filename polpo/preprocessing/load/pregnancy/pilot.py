@@ -9,8 +9,9 @@ Segmentations refer to hippocampal subfields.
 import os
 import re
 
+from jacobs.pilot.tabular import TabularDataLoader  # noqa: F401
+
 import polpo.preprocessing.dict as ppdict
-import polpo.preprocessing.pd as ppd
 from polpo.preprocessing import (
     Constant,
     Map,
@@ -252,25 +253,6 @@ def _FigsharePregnancyFolderLoader(
         + ppdict.HashWithIncoming(key_step=paths_to_ids)
         + ppdict.SelectKeySubset(subset)
     )
-
-
-def TabularDataLoader(
-    data_dir="~/.herbrain/data/pregnancy", use_cache=True, index_by_session=True
-):
-    loader = FigsharePregnancyDataLoader(
-        data_dir=data_dir,
-        remote_path="28Baby_Hormones.csv",
-        use_cache=use_cache,
-    )
-
-    prep_pipe = ppd.UpdateColumnValues(
-        column_name="sessionID", func=lambda entry: int(entry.split("-")[1])
-    ) + ppd.DfFilter(lambda df: df["sessionID"] == 27, negate=True)  # repeated
-
-    if index_by_session:
-        prep_pipe += ppd.IndexSetter("sessionID", drop=True)
-
-    return loader + ppd.CsvReader() + prep_pipe
 
 
 def MriLoader(
