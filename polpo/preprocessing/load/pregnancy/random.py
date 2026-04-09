@@ -1,11 +1,12 @@
 import random
 
 import polpo.preprocessing.dict as ppdict
+from polpo.jacobs.mesh import MeshDatasetLoader
+from polpo.jacobs.utils import get_subject_ids
 from polpo.mesh.surface import PvSurface
 from polpo.preprocessing import Map, Pipeline
-from polpo.preprocessing.load.pregnancy.jacobs import MeshLoader, get_subject_ids
-from polpo.preprocessing.mesh.decimation import PvDecimate
 from polpo.preprocessing.mesh.registration import RigidAlignment
+from polpo.pyvista.decimation import PvDecimate
 
 
 class TwoRandomMeshesPipe(Pipeline):
@@ -23,15 +24,15 @@ class TwoRandomMeshesPipe(Pipeline):
         subject_ids = random.sample(get_subject_ids(include_male=False, sort=True), 2)
 
         pipe = (
-            MeshLoader(
+            MeshDatasetLoader(
                 subject_subset=subject_ids,
                 struct_subset=[struct_name],
                 session_subset=None,
                 derivative="enigma",
-                as_mesh=True,
+                mesh_reader=None,
             )
             # TODO: split here when getting new dataset
-            + ppdict.DictMap(ppdict.ExtractRandomKey())
+            + ppdict.DictMap(ppdict.ExtractRandomValue())
             + ppdict.ExtractUniqueKey(nested=True)
             + ppdict.DictToValuesList()
             + (

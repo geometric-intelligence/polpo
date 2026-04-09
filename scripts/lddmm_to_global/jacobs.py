@@ -4,12 +4,10 @@ from pathlib import Path
 
 import polpo.preprocessing.dict as ppdict
 import polpo.utils as putils
-from polpo.preprocessing.load.fsl import get_all_first_structs
-from polpo.preprocessing.load.pregnancy.jacobs import (
-    MeshLoader,
-    get_key_to_week,
-    get_subject_ids,
-)
+from polpo.enigma.naming import get_all_structs
+from polpo.jacobs.mesh import MeshDatasetLoader
+from polpo.jacobs.tabular import get_key_to_week
+from polpo.jacobs.utils import get_subject_ids
 from polpo.protocol.lddmm_to_global import LddmmToGlobal
 
 
@@ -36,7 +34,7 @@ def protocol_per_struct(
     known_correspondences = True if derivative == "enigma" else False
 
     dataset = (
-        MeshLoader(
+        MeshDatasetLoader(
             data_dir=data_dir,
             subject_subset=subject_ids,
             struct_subset=[struct],
@@ -62,7 +60,7 @@ if __name__ == "__main__":
         force=True,
     )
 
-    # structs = get_all_first_structs(order=True, include_brstem=False)
+    # structs = get_all_structs(order=True)
     structs = ["L_Hipp", "R_Hipp", "L_Puta", "R_Puta"]
 
     subject_ids = get_subject_ids(sort=True)
@@ -109,3 +107,5 @@ if __name__ == "__main__":
             )
         except Exception as e:
             logging.warning(f"Oops, something went wrong for {struct}: {e}")
+
+    logging.info("Done")

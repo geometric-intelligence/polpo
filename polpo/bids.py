@@ -36,10 +36,6 @@ def FoldersSelector(
         Key represents participant id, nested key represents session,
         and value the corresponding folder names.
     """
-    # TODO: also for this for raw
-    if session_sorter is True:
-        session_sorter = lambda x: x
-
     folders_selector = ExpandUser() + FileFinder(
         rules=ContainsAll(["sub", "ses"]), as_list=True
     )

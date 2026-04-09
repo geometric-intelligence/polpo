@@ -4,14 +4,12 @@ from pathlib import Path
 
 import polpo.preprocessing.dict as ppdict
 import polpo.utils as putils
-from polpo.preprocessing.load.fsl import get_all_first_structs
+from polpo.preprocessing.load.enigma import get_all_structs
 from polpo.preprocessing.load.pregnancy.carmona import MeshLoader
 from polpo.protocol.pairwise_varifold import PairwiseVarifold
 
 
-def protocol_per_struct(
-    struct, data_dir, results_dir, derivative="enigma", subsample=None
-):
+def protocol_per_struct(struct, data_dir, results_dir, derivative="enigma"):
     # for serialization
     params = dict(
         struct=struct,
@@ -31,7 +29,6 @@ def protocol_per_struct(
             as_mesh=True,
         )
         + ppdict.ExtractUniqueKey(nested=True)
-        + ppdict.DictMap(ppdict.Subsample(subsample))
     )()
 
     protocol = PairwiseVarifold(known_correspondences, results_dir)
@@ -47,7 +44,7 @@ if __name__ == "__main__":
         force=True,
     )
 
-    structs = get_all_first_structs(order=True, include_brstem=False)
+    structs = get_all_structs(order=True)
     derivative = "enigma"
 
     data_dir = (
@@ -74,7 +71,6 @@ if __name__ == "__main__":
                 struct,
                 data_dir=data_dir,
                 results_dir=results_dir,
-                subsample=None,  # make None to run all
             )
         except Exception as e:
             logging.warning(f"Oops, something went wrong for {struct}: {e}")

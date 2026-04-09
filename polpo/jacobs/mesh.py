@@ -1,19 +1,17 @@
 import polpo.preprocessing.dict as ppdict
-from polpo.fsl.mesh import (
-    MeshLoader as FslMeshLoader,
-)
+from polpo.neuroi.mesh import MeshDatasetLoader as DerMeshDatasetLoader
 from polpo.preprocessing import Constant, pipe_to_func
 
 from .path import FoldersSelector
 
 
-def MeshLoader(
+def MeshDatasetLoader(
     derivative,
     data_dir="~/.herbrain/data/maternal",
     subject_subset=None,
     session_subset=None,
     struct_subset=None,
-    as_mesh=False,
+    mesh_reader=False,
 ):
     """Create pipeline to load maternal mesh filenames.
 
@@ -49,9 +47,11 @@ def MeshLoader(
         derivative=derivative,
     )
 
-    mesh_finder = FslMeshLoader(struct_subset, derivative, as_mesh=as_mesh)
+    mesh_finder = DerMeshDatasetLoader(
+        struct_subset, derivative, mesh_reader=mesh_reader
+    )
 
     return folders_selector + ppdict.NestedDictMap(mesh_finder)
 
 
-load_meshes = pipe_to_func(MeshLoader)
+load_meshes = pipe_to_func(MeshDatasetLoader)

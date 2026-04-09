@@ -204,7 +204,7 @@ class ExtractUniqueKey:
         return _ExtractUniqueOuterKey()
 
 
-class ExtractRandomKey(PreprocessingStep):
+class ExtractRandomValue(PreprocessingStep):
     def __call__(self, data):
         return random.choice(list(data.values()))
 

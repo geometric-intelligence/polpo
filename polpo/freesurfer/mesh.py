@@ -2,8 +2,14 @@ import nibabel
 
 from polpo.preprocessing.base import PreprocessingStep
 
+read = nibabel.freesurfer.read_geometry
+
 
 class FreeSurferReader(PreprocessingStep):
+    def __init__(self, read_metadata=False, read_stamp=False):
+        self.read_metadata = read_metadata
+        self.read_stamp = read_stamp
+
     def __call__(self, filename):
         """Apply step.
 
@@ -19,4 +25,8 @@ class FreeSurferReader(PreprocessingStep):
         faces : np.array
             Mesh faces.
         """
-        return nibabel.freesurfer.read_geometry(filename)
+        return read(
+            filename,
+            read_metadata=self.read_metadata,
+            read_stamp=self.read_stamp,
+        )

@@ -1,23 +1,29 @@
 import polpo.preprocessing.dict as ppdict
 import polpo.utils as putils
+from polpo.enigma.naming import enigma_id_to_first_struct, first_struct_to_enigma_id
+from polpo.freesurfer.mesh import FreeSurferReader
+from polpo.fsl.validation import validate_structs
 from polpo.preprocessing import Map
 from polpo.preprocessing.path import (
     FileFinder,
-    IsFileType,
     PathShortener,
 )
-from polpo.preprocessing.str import ContainsAny
-from polpo.pyvista.io import PvReader
+from polpo.preprocessing.str import (
+    DigitFinder,
+    EndsWithAny,
+)
+from polpo.pyvista.conversion import PvFromData
 
 from .naming import get_all_structs
-from .validation import validate_structs
 
-MeshReader = PvReader
+
+def MeshReader():
+    return FreeSurferReader() + PvFromData()
 
 
 def MeshDatasetLoader(struct_subset=None, mesh_reader=False):
+    # TODO: rename to MeshDatasetLoader
     # pipeline takes dirname
-
     if mesh_reader is None:
         mesh_reader = MeshReader()
     elif mesh_reader is False:
@@ -26,12 +32,15 @@ def MeshDatasetLoader(struct_subset=None, mesh_reader=False):
     if struct_subset is None:
         struct_subset = get_all_structs()
 
+    # TODO: use enigma version
     validate_structs(struct_subset)
 
-    rules = [IsFileType("vtk"), ContainsAny(struct_subset)]
-    # e.g. sub-01_ses-01-L_Hipp_first.vtk
-    path_to_struct_id = PathShortener() + (
-        lambda x: x.split("-")[-1].split(".")[0][:-6]
+    enigma_indices = [
+        f"_{first_struct_to_enigma_id(struct)}" for struct in struct_subset
+    ]
+    rules = EndsWithAny(enigma_indices)
+    path_to_struct_id = (
+        PathShortener() + DigitFinder(index=-1) + enigma_id_to_first_struct
     )
 
     return FileFinder(rules=rules, as_list=True) + ppdict.HashWithIncoming(

@@ -35,6 +35,7 @@ class LddmmToGlobal:
     def reset(self):
         self.results_ = {"version": "0.1.0"}
         self.params_ = {}
+        self.timer.reset()
 
     def map_keys(self, nested_dataset):
         # makes naming manageable
@@ -81,9 +82,6 @@ class LddmmToGlobal:
 
     def preprocess_meshes(self, nested_meshes):
         # rigidly aligns all the meshes against a randomly chosen target
-
-        # TODO: add decimation?
-
         self.timer.start("prep")
 
         outer_key = putils.extract_random_key(nested_meshes)

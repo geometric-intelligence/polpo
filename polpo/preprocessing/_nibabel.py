@@ -1,1 +1,1 @@
-from polpo.freesurfer import FreeSurferReader  # noqa: F401
+from polpo.freesurfer.mesh import FreeSurferReader  # noqa: F401
