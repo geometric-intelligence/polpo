@@ -14,7 +14,7 @@ except ImportError:
     pass
 
 try:
-    from polpo.preprocessing._nibabel import FreeSurferReader  # noqa:F401
+    from polpo.freesurfer.mesh import FreeSurferReader  # noqa:F401
 except ImportError:
     pass
 

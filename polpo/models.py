@@ -10,7 +10,6 @@ from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import FunctionTransformer, StandardScaler
 from sklearn.utils.validation import check_is_fitted
 
-from polpo.plot.mri import MriSlicer
 from polpo.preprocessing import IdentityStep
 from polpo.sklearn.adapter import AdapterPipeline, MapTransformer
 from polpo.sklearn.base import GetParamsMixin
@@ -21,6 +20,7 @@ from polpo.sklearn.np import BiFlattenButFirst, BiHstack
 from polpo.sklearn.point_cloud import (
     FittableRegisteredPointCloudSmoothing,
 )
+from polpo.volume.slicing import VolumeSlicer as MriSlicer
 
 
 def _to_list_with_false(obj):
@@ -109,7 +109,7 @@ class MriSlicesLookup(Model):
         index, *slice_indices = X
 
         datum = self.data[index - self.index_tar]
-        return self.slicer.slice(datum, slice_indices)
+        return self.slicer.take_slices(datum, slice_indices)
 
 
 def X2xPipeline(scaler=None, as_pipe=True):

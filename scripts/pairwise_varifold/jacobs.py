@@ -4,7 +4,7 @@ from pathlib import Path
 
 import polpo.preprocessing.dict as ppdict
 import polpo.utils as putils
-from polpo.enigma.naming import get_all_structs
+from polpo.enigma.naming import get_all_subcortical_structs
 from polpo.jacobs.mesh import MeshDatasetLoader
 from polpo.jacobs.utils import get_subject_ids
 from polpo.protocol.pairwise_varifold import PairwiseVarifold
@@ -64,7 +64,7 @@ if __name__ == "__main__":
         force=True,
     )
 
-    structs = get_all_structs(order=True, include_brstem=False)
+    structs = get_all_subcortical_structs(order=True, only_bilateral=True)
     derivative = "enigma"
 
     data_dir = (

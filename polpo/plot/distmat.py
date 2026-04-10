@@ -1,1 +1,1 @@
-from polpo.distmat.plot import plot_dist_mat
+from polpo.distmat.plot import plot_dist_mat  # noqa: F401

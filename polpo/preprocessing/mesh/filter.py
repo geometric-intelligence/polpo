@@ -1,4 +1,8 @@
 try:
-    from polpo.preprocessing._pyvista import PvExtractPoints, PvSelectColor  # noqa:F401
+    from polpo.preprocessing._pyvista import (  # noqa:F401
+        PvExtractPoints,
+        PvSelectSubset,
+        PvSubsetSplitter,
+    )
 except ImportError:
     pass

@@ -1,11 +1,12 @@
 import abc
 
-import numpy as np
 import plotly.graph_objects as go
 
 from polpo.utils import unnest_list
 
 from .base import Plotter
+
+# TODO: this is very dash
 
 
 class GoPlotter(Plotter, abc.ABC):

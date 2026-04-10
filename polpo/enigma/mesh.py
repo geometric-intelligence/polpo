@@ -1,8 +1,6 @@
 import polpo.preprocessing.dict as ppdict
 import polpo.utils as putils
-from polpo.enigma.naming import enigma_id_to_first_struct, first_struct_to_enigma_id
 from polpo.freesurfer.mesh import FreeSurferReader
-from polpo.fsl.validation import validate_structs
 from polpo.preprocessing import Map
 from polpo.preprocessing.path import (
     FileFinder,
@@ -14,7 +12,12 @@ from polpo.preprocessing.str import (
 )
 from polpo.pyvista.conversion import PvFromData
 
-from .naming import get_all_structs
+from .naming import (
+    aseg_id_to_name,
+    get_all_subcortical_structs,
+    name_to_aseg_id,
+)
+from .validation import validate_structs
 
 
 def MeshReader():
@@ -30,18 +33,13 @@ def MeshDatasetLoader(struct_subset=None, mesh_reader=False):
         mesh_reader = None
 
     if struct_subset is None:
-        struct_subset = get_all_structs()
+        struct_subset = get_all_subcortical_structs()
 
-    # TODO: use enigma version
     validate_structs(struct_subset)
 
-    enigma_indices = [
-        f"_{first_struct_to_enigma_id(struct)}" for struct in struct_subset
-    ]
+    enigma_indices = [f"_{name_to_aseg_id(struct)}" for struct in struct_subset]
     rules = EndsWithAny(enigma_indices)
-    path_to_struct_id = (
-        PathShortener() + DigitFinder(index=-1) + enigma_id_to_first_struct
-    )
+    path_to_struct_id = PathShortener() + DigitFinder(index=-1) + aseg_id_to_name
 
     return FileFinder(rules=rules, as_list=True) + ppdict.HashWithIncoming(
         key_step=Map(path_to_struct_id),

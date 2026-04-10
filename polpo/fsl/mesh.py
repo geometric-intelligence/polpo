@@ -9,7 +9,7 @@ from polpo.preprocessing.path import (
 from polpo.preprocessing.str import ContainsAny
 from polpo.pyvista.io import PvReader
 
-from .naming import get_all_structs
+from .naming import get_all_subcortical_structs
 from .validation import validate_structs
 
 MeshReader = PvReader
@@ -24,7 +24,7 @@ def MeshDatasetLoader(struct_subset=None, mesh_reader=False):
         mesh_reader = None
 
     if struct_subset is None:
-        struct_subset = get_all_structs()
+        struct_subset = get_all_subcortical_structs()
 
     validate_structs(struct_subset)
 

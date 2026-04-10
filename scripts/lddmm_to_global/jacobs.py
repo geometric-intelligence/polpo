@@ -4,7 +4,7 @@ from pathlib import Path
 
 import polpo.preprocessing.dict as ppdict
 import polpo.utils as putils
-from polpo.enigma.naming import get_all_structs
+from polpo.enigma.naming import get_all_subcortical_structs
 from polpo.jacobs.mesh import MeshDatasetLoader
 from polpo.jacobs.tabular import get_key_to_week
 from polpo.jacobs.utils import get_subject_ids
@@ -60,7 +60,7 @@ if __name__ == "__main__":
         force=True,
     )
 
-    # structs = get_all_structs(order=True)
+    # structs = get_all_subcortical_structs(order=True, only_bilateral=True)
     structs = ["L_Hipp", "R_Hipp", "L_Puta", "R_Puta"]
 
     subject_ids = get_subject_ids(sort=True)

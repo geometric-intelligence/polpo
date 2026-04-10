@@ -36,7 +36,7 @@ def _TabularDataLoader(
     pipe : Pipeline
         Pipeline to load maternal csv data without the pilot.
     """
-    filename = "SubjectData.csv"
+    filename = "SessionData.csv"
     loader = Constant(Path(data_dir).expanduser() / filename)
 
     prep_pipe = ppd.UpdateColumnValues(

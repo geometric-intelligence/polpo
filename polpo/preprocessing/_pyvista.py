@@ -8,6 +8,11 @@ from polpo.preprocessing.base import PreprocessingStep, RegistrationStep
 from polpo.preprocessing.mesh._register import register_vertices_attr
 from polpo.pyvista.conversion import DataFromPv, PvFromData  # noqa: F401
 from polpo.pyvista.decimation import PvDecimate  # noqa: F401
+from polpo.pyvista.filter import (  # noqa: F401
+    PvExtractPoints,
+    PvSelectSubset,
+    PvSubsetSplitter,
+)
 from polpo.pyvista.io import PvReader  # noqa: F401
 from polpo.utils import params_to_kwargs
 
@@ -209,78 +214,3 @@ class PvExtractLargest(PreprocessingStep):
             Largest mesh component.
         """
         return poly_data.extract_largest(**params_to_kwargs(self))
-
-
-class PvExtractPoints(PreprocessingStep):
-    """Get a subset of the grid (with cells).
-
-    Cells are added if contain any of the given point indices.
-
-    https://docs.pyvista.org/api/core/_autosummary/pyvista.datasetfilters.extract_points
-    """
-
-    def __init__(
-        self,
-        adjacent_cells=True,
-        include_cells=True,
-        progress_bar=False,
-        extract_surface=True,
-    ):
-        super().__init__()
-        self.adjacent_cells = adjacent_cells
-        self.include_cells = include_cells
-        self.progress_bar = progress_bar
-        self.extract_surface = extract_surface
-
-    def __call__(self, data):
-        """Apply step.
-
-        Parameters
-        ----------
-        data : tuple[pv.PolyData, indices]
-        """
-        mesh, indices = data
-        subset = mesh.extract_points(
-            indices, **params_to_kwargs(self, func=mesh.extract_points)
-        )
-        if self.extract_surface:
-            return subset.extract_surface()
-
-        return subset
-
-
-class PvSelectColor(PreprocessingStep):
-    """Get subset of a mesh with given color."""
-
-    def __init__(
-        self,
-        color=None,
-        adjacent_cells=True,
-        include_cells=True,
-        progress_bar=False,
-        extract_surface=True,
-    ):
-        super().__init__()
-        self.color = color
-        self._point_extractor = PvExtractPoints(
-            adjacent_cells=adjacent_cells,
-            include_cells=include_cells,
-            progress_bar=progress_bar,
-            extract_surface=extract_surface,
-        )
-
-    def __call__(self, data):
-        if isinstance(data, (list, tuple)):
-            mesh, color = data
-        else:
-            mesh = data
-            color = self.color
-
-        (ind,) = np.where(np.all(np.equal(mesh.get_array("colors"), color), axis=1))
-
-        mesh = self._point_extractor((mesh, ind))
-
-        if "colors" in mesh.array_names:
-            mesh.point_data.remove("colors")
-
-        return mesh
