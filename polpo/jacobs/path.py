@@ -110,7 +110,7 @@ def FoldersSelector(
         if pilot and remove_repeated:
             # same session metadata as 26
             pipe += ppdict.DictMap(
-                ExceptionToWarning(ppdict.RemoveKeys(keys=[27]), warn=False)
+                ExceptionToWarning(ppdict.RemoveKeys(keys=["27"]), warn=False)
             )
 
         pipes.append(pipe)
