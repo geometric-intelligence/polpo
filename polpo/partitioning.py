@@ -3,10 +3,14 @@ import itertools
 import numpy as np
 
 
-class IntervalBinarizer:
+class IntervalPartitioner:
     def __init__(self, lims):
         self.lims = lims
         self.n_bins = len(lims) - 1
+
+    @property
+    def interval_lims(self):
+        return [(min_, max_) for min_, max_ in zip(self.lims, self.lims[1:])]
 
     def _get_masks(self, X, recon=False):
         masks = [
@@ -74,7 +78,7 @@ class IntervalBinarizer:
         return out
 
 
-class TrimesterBinarizer(IntervalBinarizer):
+class TrimesterPartitioner(IntervalPartitioner):
     def __init__(self):
         self.bins = ("pre", "first", "second", "third", "post")
         lims = (-np.inf, 0, 14, 28, 42, np.inf)
@@ -82,7 +86,7 @@ class TrimesterBinarizer(IntervalBinarizer):
         super().__init__(lims=lims)
 
 
-class StageBinarizer(IntervalBinarizer):
+class PregnancyPartitioner(IntervalPartitioner):
     def __init__(self, merge_pre_preg=False):
         self.bins = ("pre", "preg", "post")
         lims = (-np.inf, 0, 42, np.inf)

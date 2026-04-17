@@ -157,24 +157,24 @@ class PostTransformingEstimator:
         return self.post_transform(objs)
 
 
-class BinarizedEstimator(BaseEstimator):
-    def __init__(self, estimators, binarizer):
+class PiecewiseEstimator(BaseEstimator):
+    def __init__(self, estimators, partitioner):
         if not isinstance(estimators, (list, tuple)):
-            estimators = [estimators] * binarizer.n_bins
+            estimators = [estimators] * partitioner.n_bins
 
         self.estimators = estimators
-        self.binarizer = binarizer
+        self.partitioner = partitioner
         self.estimators_ = None
 
     def __sklearn_clone__(self):
-        return BinarizedEstimator(
-            estimators=[clone(model) for model in self.estimators],
-            binarizer=self.binarizer,
+        return PiecewiseEstimator(
+            estimators=[model for model in self.estimators],
+            partitioner=self.partitioner,
         )
 
     def fit(self, X, y=None):
         args = [y] if y is not None else []
-        bin_out = self.binarizer(X, *args)
+        bin_out = self.partitioner(X, *args)
 
         if y is None:
             bin_X = bin_out
@@ -190,10 +190,10 @@ class BinarizedEstimator(BaseEstimator):
         return self
 
     def predict(self, X):
-        bin_X, indices = self.binarizer(X, recon=True)
+        bin_X, indices = self.partitioner(X, recon=True)
 
         pred = []
         for estimator_, X_ in zip(self.estimators_, bin_X):
             pred.append(estimator_.predict(X_))
 
-        return self.binarizer.reconstruct(indices, pred)
+        return self.partitioner.reconstruct(indices, pred)
