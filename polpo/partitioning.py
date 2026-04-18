@@ -3,7 +3,20 @@ import itertools
 import numpy as np
 
 
-class IntervalPartitioner:
+class BaseMaskPartitioner:
+    def _apply_mask(self, array, mask):
+        if isinstance(array, list):
+            return list(itertools.compress(array, mask))
+
+        return array[mask]
+
+    def _apply_masks(self, masks, *arrays):
+        return tuple(
+            [tuple(self._apply_mask(array, mask) for mask in masks) for array in arrays]
+        )
+
+
+class IntervalPartitioner(BaseMaskPartitioner):
     def __init__(self, lims):
         self.lims = lims
         self.n_bins = len(lims) - 1
@@ -26,21 +39,10 @@ class IntervalPartitioner:
         )
         return masks, inv_indices
 
-    def _apply_mask(self, array, mask):
-        if isinstance(array, list):
-            return list(itertools.compress(array, mask))
-
-        return array[mask]
-
-    def _apply_masks(self, masks, *args):
-        return tuple(
-            [tuple(self._apply_mask(array, mask) for mask in masks) for array in args]
-        )
-
-    def __call__(self, X, *args, recon=False):
+    def __call__(self, X, *arrays, recon=False):
         masks, indices = self._get_masks(X, recon=recon)
 
-        arrays = self._apply_masks(masks, X, *args)
+        arrays = self._apply_masks(masks, X, *arrays)
         if not recon:
             return arrays
 
@@ -68,9 +70,9 @@ class IntervalPartitioner:
 
         return array[indices]
 
-    def reconstruct(self, indices, *args):
+    def reconstruct(self, indices, *arrays):
         out = tuple(
-            self._sort(self._merge_bins(array_bins), indices) for array_bins in args
+            self._sort(self._merge_bins(array_bins), indices) for array_bins in arrays
         )
         if len(out) == 1:
             return out[0]
@@ -96,3 +98,10 @@ class PregnancyPartitioner(IntervalPartitioner):
             lims = lims[:1] + lims[2:]
 
         super().__init__(lims=lims)
+
+
+class LooPartitioner(BaseMaskPartitioner):
+    def __call__(self, X, *arrays):
+        masks = ~np.eye(X.shape[0], dtype=bool)
+
+        return self._apply_masks(masks, X, *arrays)
