@@ -9,6 +9,7 @@ from polpo.preprocessing.path import (
 from polpo.preprocessing.str import (
     DigitFinder,
     EndsWithAny,
+    StartsWith,
 )
 from polpo.pyvista.conversion import PvFromData
 
@@ -38,7 +39,7 @@ def MeshDatasetLoader(struct_subset=None, mesh_reader=False):
     validate_structs(struct_subset)
 
     enigma_indices = [f"_{name_to_aseg_id(struct)}" for struct in struct_subset]
-    rules = EndsWithAny(enigma_indices)
+    rules = [StartsWith("resliced_mesh"), EndsWithAny(enigma_indices)]
     path_to_struct_id = PathShortener() + DigitFinder(index=-1) + aseg_id_to_name
 
     return FileFinder(rules=rules, as_list=True) + ppdict.HashWithIncoming(

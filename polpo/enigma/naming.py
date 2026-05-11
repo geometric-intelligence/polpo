@@ -8,7 +8,6 @@ SUBCORTICAL_STRUCTS = {
     "Caud",
     "Puta",
     "Pall",
-    "BrStem",
     "Hipp",
     "Amyg",
     "Accu",
