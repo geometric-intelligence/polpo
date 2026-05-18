@@ -13,33 +13,35 @@ def MeshDatasetLoader(
     struct_subset=None,
     mesh_reader=False,
 ):
-    """Create pipeline to load maternal mesh filenames.
+    """Create pipeline to load derivative meshes.
 
-    Check out https://fsl.fmrib.ox.ac.uk/fsl/docs/#/structural/first.
+    The pipeline takes no input. It selects subject-session folders from
+    ``data_dir`` and returns a nested dictionary:
+
+    ``output[subject_id][session_id][struct_id] -> filename_or_mesh``
 
     Parameters
     ----------
     derivative : str
-        Derivative folder starting (e.g. "fsl_first", "fastsurfer-long").
-    data_dir : str
-        Directory where data is stored.
-    subject_id : str
-        Identification of the subject. If None, assumes pilot.
-    struct_subset : str
-        One of the following: 'Thal', 'Caud', 'Puta', 'Pall',
-        'BrStem', 'Hipp', 'Amyg', 'Accu'.
-        Suffixed with 'L_' or 'R_' (except 'BrStem').
-    left : bool
-        Whether to load left side. Not applicable to 'BrStem'.
-    subset : array-like
-        Subset of sessions to load. If `None`, loads all.
+        Name of the derivative folder (e.g. ``"fsl_first"``,
+        ``"fastsurfer-long"``).
+    data_dir : str, optional
+        Dataset root directory.
+    subject_subset : array-like, optional
+        Subject identifiers to select. If ``None``, all subjects are used.
+    session_subset : array-like, optional
+        Session identifiers to select. If ``None``, all sessions are used.
+    struct_subset : array-like, optional
+        Structure identifiers to select. If ``None``, all structures are used.
+    mesh_reader : callable or bool, optional
+        Mesh reader applied to each selected mesh filename. If ``False``,
+        filenames are returned instead of loaded meshes.
 
     Returns
     -------
     pipe : Pipeline
-        Pipeline whose output is a nested dict whose keys are
-        subject_id, session_id, struct_id.
-        Values are filename or mesh.
+        Pipeline returning a nested dictionary of mesh filenames or loaded
+        meshes indexed by subject, session, and structure identifiers.
     """
     folders_selector = Constant(data_dir) + FoldersSelector(
         subject_subset=subject_subset,

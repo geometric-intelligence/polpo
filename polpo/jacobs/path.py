@@ -26,37 +26,49 @@ def FoldersSelector(
     session_subset=None,
     remove_repeated=True,
 ):
-    """Create pipeline to load maternal sessions folder names.
+    """Create pipeline to select derivative session folders.
 
-    Assumes the following folder structure:
+    The pipeline takes a dataset root directory as input and returns
+    a nested dictionary indexed by subject and session identifiers:
+
+    ``output[subject_id][session_id] -> folder_path``
+
+    Assumes the following directory structure:
+
     - <data_dir>
         - maternal_brain_project
         - maternal_brain_project_pilot
 
-    For each of the projects folder assumes:
+    For each project folder:
+
     - <project_folder>
         - derivatives
             - <derivative_1>
             - <derivative_2>
 
-    For each of the tools folder assumes:
-    - <tool>
+    For each derivative folder:
+
+    - <derivative>
         - <session-folder>
         - ...
 
     Parameters
     ----------
     derivative : str
-        Derivative folder starting (e.g. "fsl_first", "fastsurfer-long").
-    subject_subset : array-like
-        Id of the subjects. If None, assumes all.
-    session_subset : array-like
-        Subset of sessions to load. If `None`, loads all.
+        Name of the derivative folder (e.g. ``"fsl_first"``,
+        ``"fastsurfer-long"``).
+    subject_subset : array-like, optional
+        Subject identifiers to select. If ``None``, all subjects are used.
+    session_subset : array-like, optional
+        Session identifiers to select. If ``None``, all sessions are used.
+    remove_repeated : bool, optional
+        Whether to remove repeated subject-session entries across projects.
 
     Returns
     -------
     pipe : Pipeline
-        Pipeline to load maternal sessions folder names.
+        Pipeline mapping a dataset root directory to a nested dictionary
+        of derivative session folder paths indexed by subject and session.
     """
     project_folder = "maternal_brain_project"
 

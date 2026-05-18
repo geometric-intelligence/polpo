@@ -6,14 +6,14 @@ import polpo.preprocessing.pd as ppd
 import polpo.utils as putils
 from polpo.preprocessing import BranchingPipeline, Constant, pipe_to_func
 
-from .pilot.tabular import TabularDataLoader as PilotTabularDataLoader
+from .pilot.tabular import SessionDataLoader as PilotSessionDataLoader
 
 
 def _remove_prefix(entry, sep="-"):
     return entry.split(sep)[1]
 
 
-def _TabularDataLoader(
+def _SessionDataLoader(
     data_dir="~/.herbrain/data/maternal/maternal_brain_project/rawdata",
     subject_subset=None,
     index_by_session=False,
@@ -57,7 +57,7 @@ def _TabularDataLoader(
     return loader + ppd.CsvReader() + prep_pipe
 
 
-def TabularDataLoader(
+def SessionDataLoader(
     data_dir="~/.herbrain/data/maternal",
     subject_subset=None,
     index_by_session=False,
@@ -88,7 +88,7 @@ def TabularDataLoader(
     if subject_subset is None or "01" in subject_subset:
         project_folder_pilot = f"{project_folder}_pilot"
 
-        pilot_pipe = PilotTabularDataLoader(
+        pilot_pipe = PilotSessionDataLoader(
             data_dir=data_dir / project_folder_pilot / "rawdata",
             index_by_session=index_by_session and len(subject_subset) == 1,
         )
@@ -100,7 +100,7 @@ def TabularDataLoader(
         subject_subset = subject_subset.copy()
         subject_subset.remove("01")
 
-    pipe = _TabularDataLoader(
+    pipe = _SessionDataLoader(
         data_dir=data_dir / project_folder / "rawdata",
         subject_subset=subject_subset,
         index_by_session=index_by_session and len(subject_subset) == 1,
@@ -121,11 +121,11 @@ def get_key_to_week(
     data_dir="~/.herbrain/data/maternal",
     subject_subset=None,
 ):
-    df = TabularDataLoader(data_dir=data_dir, subject_subset=subject_subset)()
+    df = SessionDataLoader(data_dir=data_dir, subject_subset=subject_subset)()
 
     return putils.df_to_nested_dict(
         df, outer_key="subject", inner_key="sessionID", value_col="gestWeek"
     )
 
 
-get_tabular_data = pipe_to_func(TabularDataLoader)
+get_session_data = pipe_to_func(SessionDataLoader)

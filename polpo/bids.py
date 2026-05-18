@@ -21,21 +21,38 @@ def FoldersSelector(
     subject_regex=r"sub-([A-Za-z0-9]+)",
     session_regex=r"ses-([A-Za-z0-9]+)",
 ):
-    """Create pipeline to load derivative mesh folders.
+    """Create pipeline to select BIDS subject-session folders.
+
+    The pipeline takes a directory as input, finds folders whose paths
+    contain both ``"sub"`` and ``"ses"``, and returns a nested dictionary:
+
+    ``output[subject_id][session_id] -> folder_path``
 
     Parameters
     ----------
-    session_sorter : callable
-        If ``True``, sorts using identity. If ``None``, skips sorting.
-        ``session_id`` is input.
+    subject_subset : array-like, optional
+        Subject identifiers to select. If ``None``, all subjects are used.
+    session_subset : array-like, optional
+        Session identifiers to select. If ``None``, all sessions are used.
+    session_sorter : callable or bool or None, optional
+        Function used to sort session identifiers. If ``True``, sessions are
+        sorted by their identifier. If ``None``, sorting is skipped.
+    subject_regex : str, optional
+        Regular expression used to extract the subject identifier from each
+        folder path. The first capture group is used.
+    session_regex : str, optional
+        Regular expression used to extract the session identifier from each
+        folder path. The first capture group is used.
 
     Returns
     -------
     pipe : Pipeline
-        Pipeline whose output is dict[dict[str, list[str]]].
-        Key represents participant id, nested key represents session,
-        and value the corresponding folder names.
+        Pipeline mapping an input directory to a nested dictionary of folder
+        paths indexed by subject and session identifiers.
     """
+    if session_sorter is True:
+        session_sorter = lambda x: x
+
     folders_selector = ExpandUser() + FileFinder(
         rules=ContainsAll(["sub", "ses"]), as_list=True
     )

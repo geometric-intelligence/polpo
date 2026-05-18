@@ -4,7 +4,7 @@ import polpo.preprocessing.pd as ppd
 from polpo.preprocessing import Constant, pipe_to_func
 
 
-def TabularDataLoader(
+def SessionDataLoader(
     data_dir="~/.herbrain/data/maternal/maternal_brain_project_pilot/rawdata",
     index_by_session=True,
     remove_repeated=True,
@@ -24,4 +24,4 @@ def TabularDataLoader(
     return loader + ppd.CsvReader() + prep_pipe
 
 
-get_tabular_data = pipe_to_func(TabularDataLoader)
+get_session_data = pipe_to_func(SessionDataLoader)
