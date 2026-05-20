@@ -413,6 +413,14 @@ class NestedDictMap:
         return step
 
 
+class TransformValues(StepWrappingPreprocessingStep):
+    # \left(V_1, \ldots, V_n\right) \mapsto\left(W_1, \ldots, W_n\right)
+    def __call__(self, data):
+        keys = list(data.keys())
+        out = self.step(data.values())
+        return dict(zip(keys, out))
+
+
 class RenameKeys(SerialDictMap):
     def __init__(self, key_map):
         if isinstance(key_map, dict):

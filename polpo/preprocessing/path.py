@@ -70,7 +70,7 @@ class FileFinder(PreprocessingStep):
         for rule in self.rules:
             files = filter(rule, files)
 
-        out = list(map(lambda name: os.path.join(data_dir, name), files))
+        out = list(map(lambda name: data_dir / name, files))
 
         if self.warn and len(out) == 0:
             warnings.warn(f"Couldn't find file in: {data_dir}")

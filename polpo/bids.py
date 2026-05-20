@@ -1,4 +1,4 @@
-import os
+from pathlib import Path
 
 import polpo.preprocessing.dict as ppdict
 from polpo.preprocessing import (
@@ -77,7 +77,7 @@ def FoldersSelector(
 
 def DerFolderSelector(derivative):
     return (
-        (lambda x: os.path.join(x, "derivatives"))
+        (lambda path: Path(path) / "derivatives")
         + ExpandUser()
         + FileFinder(rules=StartsWith(derivative))
     )

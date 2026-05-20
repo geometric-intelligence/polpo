@@ -17,16 +17,9 @@ def _session_sorter(session_id):
     )
 
 
-def _split_subject_subset(subject_subset, session_subset):
+def _split_subject_subset(subject_subset=None):
     if subject_subset is None:
         subject_subset = MATERNAL_IDS
-
-    if (
-        session_subset is not None
-        and len(subject_subset) > 1
-        and "01" in subject_subset
-    ):
-        raise ValueError("Can't filter sessions if pilot included")
 
     for subject_id in subject_subset:
         if subject_id not in MATERNAL_IDS:
@@ -44,6 +37,15 @@ def _split_subject_subset(subject_subset, session_subset):
     subject_subsets.append(subject_subset)
 
     return subject_subsets
+
+
+def _raise_session_subject(subject_subset, session_subset):
+    if (
+        session_subset is not None
+        and len(subject_subset) > 1
+        and "01" in subject_subset
+    ):
+        raise ValueError("Can't filter sessions if pilot included")
 
 
 def FoldersSelector(
@@ -96,7 +98,12 @@ def FoldersSelector(
         Pipeline mapping a dataset root directory to a nested dictionary
         of derivative session folder paths indexed by subject and session.
     """
-    pilot_subset, subject_subset = _split_subject_subset(subject_subset, session_subset)
+    if subject_subset is None:
+        subject_subset = MATERNAL_IDS
+
+    _raise_session_subject(subject_subset, session_subset)
+
+    pilot_subset, subject_subset = _split_subject_subset(subject_subset)
 
     pipes = []
     if len(pilot_subset):
@@ -120,6 +127,4 @@ def FoldersSelector(
     if len(pipes) == 1:
         return pipes[0]
 
-    pipe = BranchingPipeline(pipes, merger=lambda x: x[0] | x[1])
-
-    return pipe
+    return BranchingPipeline(pipes, merger=lambda x: x[0] | x[1])

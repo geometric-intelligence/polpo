@@ -58,6 +58,11 @@ class StartsWith(MethodApplier):
         super().__init__(value, method="startswith")
 
 
+class EndsWith(MethodApplier):
+    def __init__(self, value):
+        super().__init__(value, method="endswith")
+
+
 class EndsWithAny(PreprocessingStep):
     # TODO: generalize based on ContainsAny?
     def __init__(self, items, negate=False):
