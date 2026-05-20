@@ -1,3 +1,5 @@
+import os
+
 import polpo.preprocessing.dict as ppdict
 from polpo.preprocessing import (
     ContainsAll,
@@ -9,7 +11,7 @@ from polpo.preprocessing.path import (
     FileFinder,
     PathShortener,
 )
-from polpo.preprocessing.str import RegexGroupFinder
+from polpo.preprocessing.str import RegexGroupFinder, StartsWith
 
 # https://bids.neuroimaging.io/index.html
 
@@ -71,3 +73,52 @@ def FoldersSelector(
     )
 
     return folders_selector
+
+
+def DerFolderSelector(derivative):
+    return (
+        (lambda x: os.path.join(x, "derivatives"))
+        + ExpandUser()
+        + FileFinder(rules=StartsWith(derivative))
+    )
+
+
+def DerSessionFolderSelector(
+    derivative,
+    subject_subset=None,
+    session_subset=None,
+    session_sorter=True,
+    subject_regex=r"sub-([A-Za-z0-9]+)",
+    session_regex=r"ses-([A-Za-z0-9]+)",
+):
+    """Create pipeline to select derivative session folders.
+
+    The pipeline takes a dataset root directory as input and returns
+    a nested dictionary indexed by subject and session identifiers:
+
+    ``output[subject_id][session_id] -> folder_path``
+
+    Parameters
+    ----------
+    derivative : str
+        Name of the derivative folder (e.g. ``"fsl_first"``,
+        ``"fastsurfer-long"``).
+    subject_subset : array-like
+        Subject identifiers to select. If ``None``, all subjects are used.
+    session_subset : array-like
+        Session identifiers to select. If ``None``, all sessions are used.
+
+
+    Returns
+    -------
+    pipe : Pipeline
+        Pipeline mapping a dataset root directory to a nested dictionary
+        of derivative session folder paths indexed by subject and session.
+    """
+    return DerFolderSelector(derivative) + FoldersSelector(
+        subject_subset,
+        session_subset=session_subset,
+        session_sorter=session_sorter,
+        subject_regex=subject_regex,
+        session_regex=session_regex,
+    )

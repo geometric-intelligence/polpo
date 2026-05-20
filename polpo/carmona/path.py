@@ -1,9 +1,5 @@
-import os
-
 import polpo.preprocessing.dict as ppdict
-from polpo.preprocessing.load.bids import FoldersSelector as BidsFoldersSelector
-from polpo.preprocessing.path import ExpandUser, FileFinder
-from polpo.preprocessing.str import StartsWith
+from polpo.bids import DerSessionFolderSelector
 
 
 def FoldersSelector(
@@ -37,12 +33,7 @@ def FoldersSelector(
         Pipeline mapping a dataset root directory to a nested dictionary
         of derivative session folder paths indexed by subject and session.
     """
-    pipe = (
-        (lambda x: os.path.join(x, "derivatives"))
-        + ExpandUser()
-        + FileFinder(rules=StartsWith(derivative))
-        + BidsFoldersSelector(subject_subset, session_subset=session_subset)
-    )
+    pipe = DerSessionFolderSelector(derivative, subject_subset, session_subset)
 
     if remove_missing_sessions:
         pipe += ppdict.DictFilter(func=lambda x: len(x) == 2)

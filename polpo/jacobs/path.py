@@ -1,15 +1,12 @@
 import os
 import re
 
-import polpo.preprocessing.dict as ppdict
-from polpo.preprocessing import (
-    BranchingPipeline,
-    ExceptionToWarning,
-)
-from polpo.preprocessing.load.bids import FoldersSelector as BidsFoldersSelector
-from polpo.preprocessing.path import ExpandUser, FileFinder
-from polpo.preprocessing.str import DigitFinder, StartsWith
+from polpo.bids import DerSessionFolderSelector
+from polpo.preprocessing import BranchingPipeline
+from polpo.preprocessing.str import DigitFinder
 
+from .defaults import PILOT_PROJECT_FOLDER, PROJECT_FOLDER
+from .pilot.path import FoldersSelector as PilotFoldersSelector
 from .utils import MATERNAL_IDS
 
 
@@ -18,6 +15,35 @@ def _session_sorter(session_id):
         re.sub(r"\d+$", "", session_id),
         DigitFinder(index=-1)(session_id),
     )
+
+
+def _split_subject_subset(subject_subset, session_subset):
+    if subject_subset is None:
+        subject_subset = MATERNAL_IDS
+
+    if (
+        session_subset is not None
+        and len(subject_subset) > 1
+        and "01" in subject_subset
+    ):
+        raise ValueError("Can't filter sessions if pilot included")
+
+    for subject_id in subject_subset:
+        if subject_id not in MATERNAL_IDS:
+            raise ValueError(
+                f"Oops, `{subject_id}` is not available. Please, choose from: {','.join(MATERNAL_IDS)}"
+            )
+
+    if "01" in subject_subset:
+        subject_subsets = [{"01"}]
+        subject_subset = subject_subset = list(subject_subset)
+        subject_subset.remove("01")
+    else:
+        subject_subsets = [{}]
+
+    subject_subsets.append(subject_subset)
+
+    return subject_subsets
 
 
 def FoldersSelector(
@@ -70,61 +96,25 @@ def FoldersSelector(
         Pipeline mapping a dataset root directory to a nested dictionary
         of derivative session folder paths indexed by subject and session.
     """
-    project_folder = "maternal_brain_project"
-
-    if subject_subset is None:
-        subject_subset = MATERNAL_IDS
-
-    if (
-        session_subset is not None
-        and len(subject_subset) > 1
-        and "01" in subject_subset
-    ):
-        raise ValueError("Can't filter sessions if pilot included")
-
-    for subject_id in subject_subset:
-        if subject_id not in MATERNAL_IDS:
-            raise ValueError(
-                f"Oops, `{subject_id}` is not available. Please, choose from: {','.join(MATERNAL_IDS)}"
-            )
-
-    if "01" in subject_subset and len(subject_subset) > 1:
-        subject_subset = list(subject_subset)
-        subject_subset.remove("01")
-
-        subject_subsets = [["01"], subject_subset]
-
-    else:
-        subject_subsets = [subject_subset]
-
-    def _prepend_data_dir(project_folder):
-        return lambda x: os.path.join(x, project_folder, "derivatives")
+    pilot_subset, subject_subset = _split_subject_subset(subject_subset, session_subset)
 
     pipes = []
-    for subject_subset in subject_subsets:
-        pilot = True if "01" in subject_subset else False
-
-        project_folder_ = project_folder
-        if pilot:
-            project_folder_ += "_pilot"
-
-        pipe = (
-            _prepend_data_dir(project_folder_)
-            + ExpandUser()
-            + FileFinder(rules=StartsWith(derivative))
-            + BidsFoldersSelector(
-                subject_subset,
-                session_subset=session_subset,
-                session_sorter=_session_sorter,
-            )
+    if len(pilot_subset):
+        pipe = (lambda x: os.path.join(x, PILOT_PROJECT_FOLDER)) + PilotFoldersSelector(
+            derivative,
+            subject_subset=pilot_subset,
+            session_subset=session_subset,
+            remove_repeated=remove_repeated,
         )
+        pipes.append(pipe)
 
-        if pilot and remove_repeated:
-            # same session metadata as 26
-            pipe += ppdict.DictMap(
-                ExceptionToWarning(ppdict.RemoveKeys(keys=["27"]), warn=False)
-            )
-
+    if len(subject_subset):
+        pipe = (lambda x: os.path.join(x, PROJECT_FOLDER)) + DerSessionFolderSelector(
+            derivative,
+            subject_subset,
+            session_subset,
+            session_sorter=_session_sorter,
+        )
         pipes.append(pipe)
 
     if len(pipes) == 1:
