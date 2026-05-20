@@ -3,12 +3,13 @@ from polpo.neuroi.mri import SubcorticalSegmentationFinder
 from polpo.preprocessing import Constant, pipe_to_func
 from polpo.preprocessing.mri import MriImageLoader
 
+from .defaults import DATA_DIR
 from .path import FoldersSelector
 
 
 def SubcorticalSegmentationsLoader(
     derivative,
-    data_dir="~/.herbrain/data/maternal",
+    data_dir=None,
     subject_subset=None,
     session_subset=None,
     as_image=False,
@@ -34,6 +35,9 @@ def SubcorticalSegmentationsLoader(
     pipe : Pipeline
         Pipeline to load segmented mri filenames.
     """
+    if data_dir is None:
+        data_dir = DATA_DIR
+
     folders_selector = Constant(data_dir) + FoldersSelector(
         subject_subset=subject_subset,
         session_subset=session_subset,

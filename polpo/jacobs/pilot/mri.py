@@ -5,6 +5,8 @@ from polpo.preprocessing.mri import MriImageLoader
 from polpo.preprocessing.path import FileFinder, IsFileType
 from polpo.preprocessing.str import StartsWith
 
+from .defaults import DATA_DIR
+
 
 def AshsSegmentationFinder(left=True):
     prefix = "left_" if left else "right_"
@@ -17,7 +19,7 @@ def AshsSegmentationFinder(left=True):
 
 
 def AshsSegmentationsLoader(
-    data_dir="~/.herbrain/data/maternal",
+    data_dir=None,
     session_subset=None,
     left=True,
     as_image=False,
@@ -40,6 +42,9 @@ def AshsSegmentationsLoader(
     pipe : Pipeline
         Pipeline to load segmented mri filenames.
     """
+    if data_dir is None:
+        data_dir = DATA_DIR
+
     folders_selector = (
         Constant(data_dir)
         + FoldersSelector(

@@ -1,14 +1,18 @@
 from pathlib import Path
 
 import polpo.preprocessing.pd as ppd
+from polpo.jacobs.defaults import PILOT_DATA_DIR
 from polpo.preprocessing import Constant, pipe_to_func
 
 
 def SessionDataLoader(
-    data_dir="~/.herbrain/data/maternal/maternal_brain_project_pilot/rawdata",
+    data_dir=None,
     index_by_session=True,
     remove_repeated=True,
 ):
+    if data_dir is None:
+        data_dir = PILOT_DATA_DIR / "rawdata"
+
     filename = "SessionData.csv"
     loader = Constant(Path(data_dir).expanduser() / filename)
 

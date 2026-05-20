@@ -6,6 +6,7 @@ import polpo.preprocessing.pd as ppd
 import polpo.utils as putils
 from polpo.preprocessing import BranchingPipeline, Constant, pipe_to_func
 
+from .defaults import DATA_DIR, PILOT_PROJECT_FOLDER, PROJECT_FOLDER
 from .pilot.tabular import SessionDataLoader as PilotSessionDataLoader
 
 
@@ -14,7 +15,7 @@ def _remove_prefix(entry, sep="-"):
 
 
 def _SessionDataLoader(
-    data_dir="~/.herbrain/data/maternal/maternal_brain_project/rawdata",
+    data_dir=None,
     subject_subset=None,
     index_by_session=False,
 ):
@@ -36,6 +37,9 @@ def _SessionDataLoader(
     pipe : Pipeline
         Pipeline to load maternal csv data without the pilot.
     """
+    if data_dir is None:
+        data_dir = DATA_DIR / PROJECT_FOLDER / "rawdata"
+
     filename = "SessionData.csv"
     loader = Constant(Path(data_dir).expanduser() / filename)
 
@@ -58,7 +62,7 @@ def _SessionDataLoader(
 
 
 def SessionDataLoader(
-    data_dir="~/.herbrain/data/maternal",
+    data_dir=None,
     subject_subset=None,
     index_by_session=False,
 ):
@@ -81,15 +85,15 @@ def SessionDataLoader(
     pipe : Pipeline
         Pipeline to load maternal csv data.
     """
+    if data_dir is None:
+        data_dir = DATA_DIR
+
     data_dir = Path(data_dir).expanduser()
-    project_folder = "maternal_brain_project"
 
     pilot_pipe = None
     if subject_subset is None or "01" in subject_subset:
-        project_folder_pilot = f"{project_folder}_pilot"
-
         pilot_pipe = PilotSessionDataLoader(
-            data_dir=data_dir / project_folder_pilot / "rawdata",
+            data_dir=data_dir / PILOT_PROJECT_FOLDER / "rawdata",
             index_by_session=index_by_session and len(subject_subset) == 1,
         )
 
@@ -101,7 +105,7 @@ def SessionDataLoader(
         subject_subset.remove("01")
 
     pipe = _SessionDataLoader(
-        data_dir=data_dir / project_folder / "rawdata",
+        data_dir=data_dir / PROJECT_FOLDER / "rawdata",
         subject_subset=subject_subset,
         index_by_session=index_by_session and len(subject_subset) == 1,
     )
@@ -118,9 +122,12 @@ def SessionDataLoader(
 
 
 def get_key_to_week(
-    data_dir="~/.herbrain/data/maternal",
+    data_dir=None,
     subject_subset=None,
 ):
+    if data_dir is None:
+        data_dir = DATA_DIR
+
     df = SessionDataLoader(data_dir=data_dir, subject_subset=subject_subset)()
 
     return putils.df_to_nested_dict(

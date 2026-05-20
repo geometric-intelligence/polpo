@@ -5,18 +5,22 @@ from polpo.pyvista.conversion import PvFromData
 from polpo.pyvista.filter import PvSubsetSplitter
 from polpo.skimage import MarchingCubes
 
+from .defaults import DATA_DIR
 from .mri import SubcorticalSegmentationsLoader
 
 
 def MeshLoaderFromMri(
     derivative,
-    data_dir="~/.herbrain/data/maternal",
+    data_dir=None,
     subject_subset=None,
     session_subset=None,
     struct_subset=None,
     split_before_meshing=False,
     n_jobs=1,
 ):
+    if data_dir is None:
+        data_dir = DATA_DIR
+
     # two basic mri2mesh pipelines
 
     # subj, session

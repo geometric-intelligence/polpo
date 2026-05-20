@@ -2,12 +2,13 @@ import polpo.preprocessing.dict as ppdict
 from polpo.neuroi.mesh import MeshDatasetLoader as DerMeshDatasetLoader
 from polpo.preprocessing import Constant, pipe_to_func
 
+from .defaults import DATA_DIR
 from .path import FoldersSelector
 
 
 def MeshDatasetLoader(
     derivative,
-    data_dir="~/.herbrain/data/maternal",
+    data_dir=None,
     subject_subset=None,
     session_subset=None,
     struct_subset=None,
@@ -25,15 +26,15 @@ def MeshDatasetLoader(
     derivative : str
         Name of the derivative folder (e.g. ``"fsl_first"``,
         ``"fastsurfer-long"``).
-    data_dir : str, optional
+    data_dir : str
         Dataset root directory.
-    subject_subset : array-like, optional
+    subject_subset : array-like
         Subject identifiers to select. If ``None``, all subjects are used.
-    session_subset : array-like, optional
+    session_subset : array-like
         Session identifiers to select. If ``None``, all sessions are used.
-    struct_subset : array-like, optional
+    struct_subset : array-like
         Structure identifiers to select. If ``None``, all structures are used.
-    mesh_reader : callable or bool, optional
+    mesh_reader : callable or bool
         Mesh reader applied to each selected mesh filename. If ``False``,
         filenames are returned instead of loaded meshes.
 
@@ -43,6 +44,9 @@ def MeshDatasetLoader(
         Pipeline returning a nested dictionary of mesh filenames or loaded
         meshes indexed by subject, session, and structure identifiers.
     """
+    if data_dir is None:
+        data_dir = DATA_DIR
+
     folders_selector = Constant(data_dir) + FoldersSelector(
         subject_subset=subject_subset,
         session_subset=session_subset,

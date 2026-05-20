@@ -2,9 +2,11 @@ import os
 
 import polpo.preprocessing.pd as pppd
 
+from .defaults import DATA_DIR
+
 
 def SessionDataLoader(
-    data_dir="~/.herbrain/data/maternal/neuromaternal_madrid_2021",
+    data_dir=None,
     keep_mothers=True,
     keep_control=True,
     sessions_to_keep=(3, 4),
@@ -24,6 +26,9 @@ def SessionDataLoader(
     -------
     pipe : Pipeline
     """
+    if data_dir is None:
+        data_dir = DATA_DIR
+
     filename = os.path.join(data_dir, "rawdata", "participants_long_czi.tsv")
 
     load_pipe = pppd.CsvReader(filename, delimiter="\t")
