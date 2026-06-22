@@ -219,6 +219,39 @@ class UpdateColumnValues(PreprocessingStep):
         return df
 
 
+class SetColumnValueWhere(PreprocessingStep):
+    """Set a column value for rows matching a filter.
+
+    Parameters
+    ----------
+    row_filter : callable
+        Function taking a DataFrame and returning a boolean mask.
+    column_name : str
+        Name of the column to update.
+    value : Any
+        Value assigned to the selected rows.
+    """
+
+    def __init__(self, row_filter, column_name, value):
+        super().__init__()
+        self.row_filter = row_filter
+        self.column_name = column_name
+        self.value = value
+
+    def __call__(self, df):
+        """Apply step.
+
+        Parameters
+        ----------
+        df : pandas.DataFrame
+            Dataframe.
+        """
+        mask = self.row_filter(df)
+        df.loc[mask, self.column_name] = self.value
+
+        return df
+
+
 class SeriesToDict(PreprocessingStep):
     """Convert series into dict.
 
