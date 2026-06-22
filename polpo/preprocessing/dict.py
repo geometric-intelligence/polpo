@@ -430,6 +430,19 @@ class RenameKeys(SerialDictMap):
         super().__init__(key_step=key_map)
 
 
+class RenameNestedKeys(PreprocessingStep):
+    def __init__(self, key_map):
+        super().__init__()
+        self.key_map = key_map
+
+    def __call__(self, data):
+        new_data = {}
+        for key, dict_ in data.items():
+            new_data[key] = RenameKeys(self.key_map.get(key))(dict_)
+
+        return new_data
+
+
 class NestedDictToList(PreprocessingStep):
     def __init__(self, key_ids):
         super().__init__()
