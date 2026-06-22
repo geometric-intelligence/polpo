@@ -445,3 +445,35 @@ class ColumnsToDict(Pipeline):
                 DfToDict(orient="index"),
             ]
         )
+
+
+class ColumnPairToDict(PreprocessingStep):
+    """Convert two DataFrame columns into a dictionary.
+
+    Parameters
+    ----------
+    key_column : str
+        Column whose values become dictionary keys.
+    value_column : str
+        Column whose values become dictionary values.
+    """
+
+    def __init__(self, key_column, value_column):
+        super().__init__()
+        self.key_column = key_column
+        self.value_column = value_column
+
+    def __call__(self, df):
+        """Apply step.
+
+        Parameters
+        ----------
+        df : pandas.DataFrame
+            Dataframe.
+        """
+        return dict(
+            zip(
+                df[self.key_column],
+                df[self.value_column],
+            )
+        )
