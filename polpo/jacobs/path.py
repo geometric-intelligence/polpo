@@ -1,5 +1,5 @@
-import os
 import re
+from pathlib import Path
 
 from polpo.bids import DerSessionFolderSelector
 from polpo.preprocessing import BranchingPipeline
@@ -99,7 +99,7 @@ def FoldersSelector(
         of derivative session folder paths indexed by subject and session.
     """
     if subject_subset is None:
-        subject_subset = MATERNAL_IDS
+        subject_subset = sorted(MATERNAL_IDS)
 
     _raise_session_subject(subject_subset, session_subset)
 
@@ -107,7 +107,7 @@ def FoldersSelector(
 
     pipes = []
     if len(pilot_subset):
-        pipe = (lambda x: os.path.join(x, PILOT_PROJECT_FOLDER)) + PilotFoldersSelector(
+        pipe = (lambda path: Path(path) / PILOT_PROJECT_FOLDER) + PilotFoldersSelector(
             derivative,
             subject_subset=pilot_subset,
             session_subset=session_subset,
@@ -116,7 +116,7 @@ def FoldersSelector(
         pipes.append(pipe)
 
     if len(subject_subset):
-        pipe = (lambda x: os.path.join(x, PROJECT_FOLDER)) + DerSessionFolderSelector(
+        pipe = (lambda path: Path(path) / PROJECT_FOLDER) + DerSessionFolderSelector(
             derivative,
             subject_subset,
             session_subset,

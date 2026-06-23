@@ -119,8 +119,6 @@ def SessionDataLoader(
     if pilot_pipe is None:
         return pipe
 
-    pilot_pipe += ppd.DfInsert(column="subject", value="01")
-
     return BranchingPipeline(
         branches=[pilot_pipe, pipe],
         merger=lambda dfs: pd.concat(dfs, join="inner", ignore_index=True),

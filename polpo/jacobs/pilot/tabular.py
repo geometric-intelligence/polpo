@@ -25,6 +25,8 @@ def SessionDataLoader(
     if index_by_session:
         prep_pipe += ppd.IndexSetter("sessionID", drop=True)
 
+    prep_pipe += ppd.DfInsert(column="subject", value="01")
+
     return loader + ppd.CsvReader() + prep_pipe
 
 

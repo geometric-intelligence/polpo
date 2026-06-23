@@ -4,7 +4,7 @@ from polpo.preprocessing import Constant, pipe_to_func
 
 from .defaults import DATA_DIR
 from .path import FoldersSelector
-from .tabular import get_key_to_birth_week, get_key_to_week
+from .utils import _index_session_by_step
 
 
 def MeshDatasetLoader(
@@ -57,9 +57,6 @@ def MeshDatasetLoader(
     if data_dir is None:
         data_dir = DATA_DIR
 
-    if index_session_by not in ("id", "gest_week", "birth"):
-        raise ValueError("Can't handle indexing by ``{index_session_by}``")
-
     folders_selector = Constant(data_dir) + FoldersSelector(
         subject_subset=subject_subset,
         session_subset=session_subset,
@@ -70,15 +67,11 @@ def MeshDatasetLoader(
         struct_subset, derivative, mesh_reader=mesh_reader
     )
 
-    pipe = folders_selector + ppdict.NestedDictMap(mesh_finder)
-
-    if index_session_by == "gest_week":
-        keys_to_weeks = get_key_to_week(data_dir, subject_subset=subject_subset)
-        pipe += ppdict.RenameNestedKeys(keys_to_weeks)
-
-    elif index_session_by == "birth":
-        keys_to_weeks = get_key_to_birth_week(data_dir, subject_subset=subject_subset)
-        pipe += ppdict.RenameNestedKeys(keys_to_weeks)
+    pipe = (
+        folders_selector
+        + ppdict.NestedDictMap(mesh_finder)
+        + _index_session_by_step(index_session_by, data_dir, subject_subset)
+    )
 
     return pipe
 

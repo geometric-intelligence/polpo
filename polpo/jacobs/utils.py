@@ -1,3 +1,8 @@
+import polpo.preprocessing.dict as ppdict
+from polpo.preprocessing import IdentityStep
+
+from .tabular import get_key_to_birth_week, get_key_to_week
+
 MATERNAL_IDS = {
     "01",
     "1001B",
@@ -27,3 +32,18 @@ def get_subject_ids(
         ids = sorted(ids)
 
     return ids
+
+
+def _index_session_by_step(index_session_by="id", data_dir=None, subject_subset=None):
+    if index_session_by not in ("id", "gest_week", "birth"):
+        raise ValueError("Can't handle indexing by ``{index_session_by}``")
+
+    if index_session_by == "gest_week":
+        keys_to_weeks = get_key_to_week(data_dir, subject_subset=subject_subset)
+        return ppdict.RenameNestedKeys(keys_to_weeks)
+
+    if index_session_by == "birth":
+        keys_to_weeks = get_key_to_birth_week(data_dir, subject_subset=subject_subset)
+        return ppdict.RenameNestedKeys(keys_to_weeks)
+
+    return IdentityStep()
