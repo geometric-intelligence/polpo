@@ -6,11 +6,11 @@ import polpo.utils as putils
 from .naming import get_all_subcortical_structs, name_to_aseg_id
 
 
-def _index2cols(header, index):
-    return [c for c in header.columns if c.startswith(f"LogJacs_{index}_")]
+def _index2cols(header, index, output="LogJacs"):
+    return [c for c in header.columns if c.startswith(f"{output}_{index}_")]
 
 
-def _struct_subset2cols(header, struct_subset):
+def _struct_subset2cols(header, struct_subset, output="LogJacs"):
     if struct_subset is None:
         struct_subset = get_all_subcortical_structs(order=True)
 
@@ -18,14 +18,14 @@ def _struct_subset2cols(header, struct_subset):
 
     name2cols = {}
     for name, index in zip(struct_subset, enigma_indices):
-        name2cols[name] = _index2cols(header, index)
+        name2cols[name] = _index2cols(header, index, output=output)
 
     return name2cols
 
 
-def load_logjac_session(filename, struct_subset=None):
+def load_output_session(filename, struct_subset=None, output="LogJacs"):
     df = pl.read_csv(filename)
-    name2cols = _struct_subset2cols(df, struct_subset)
+    name2cols = _struct_subset2cols(df, struct_subset, output=output)
 
     data = {}
     for name, cols in name2cols.items():
@@ -34,7 +34,7 @@ def load_logjac_session(filename, struct_subset=None):
     return data
 
 
-def load_logjac_sessions(filenames, struct_subset=None):
+def load_output_sessions(filenames, struct_subset=None, output="LogJacs"):
     name2cols = None
     all_cols = None
 
@@ -42,7 +42,7 @@ def load_logjac_sessions(filenames, struct_subset=None):
     for filename in filenames:
         df = pl.read_csv(filename, columns=all_cols)
         if name2cols is None:
-            name2cols = _struct_subset2cols(df, struct_subset)
+            name2cols = _struct_subset2cols(df, struct_subset, output=output)
             all_cols = putils.unnest_list(name2cols.values())
 
         data_ = {}
@@ -54,14 +54,18 @@ def load_logjac_sessions(filenames, struct_subset=None):
     return data
 
 
-def load_logjac_group(
+def load_output_group(
     filename,
     subject_subset=None,
     session_subset=None,
     struct_subset=None,
+    output="LogJacs",
 ):
+    if output not in ("LogJacs", "thick"):
+        raise ValueError("Can't handle output ``{output}``")
+
     df = pl.read_csv(filename)
-    name2cols = _struct_subset2cols(df, struct_subset)
+    name2cols = _struct_subset2cols(df, struct_subset, output=output)
 
     df = df.with_columns(
         pl.col("SubjID").str.extract(r"sub-([^_]+)", 1).alias("subj_id"),

@@ -2,9 +2,7 @@ from pathlib import Path
 
 import polpo.preprocessing.dict as ppdict
 from polpo.bids import DerFolderSelector
-from polpo.enigma.logjac import load_logjac_group
-
-# TODO: expand this to enigma roi?
+from polpo.enigma.output import load_output_group
 from polpo.preprocessing import BranchingPipeline
 
 from .defaults import PILOT_PROJECT_FOLDER, PROJECT_FOLDER
@@ -12,12 +10,13 @@ from .path import _session_sorter, _split_subject_subset
 from .utils import _index_session_by_step
 
 
-def LogJacLoader(
+def OutputLoader(
     subject_subset=None,
     session_subset=None,
     struct_subset=None,
     index_session_by="id",
     remove_repeated=True,
+    output="LogJacs",
 ):
     """Log jacobian loader.
 
@@ -37,6 +36,7 @@ def LogJacLoader(
         weeks.
         - ``"birth"``: replace session identifiers with gestational weeks
         relative to birth (birth week corresponds to 0).
+    output : {"LogJacs", "thick"}
     """
     pilot_subset, subject_subset_ = _split_subject_subset(subject_subset)
     derivative = "enigma"
@@ -47,13 +47,14 @@ def LogJacLoader(
         pipe = (
             (lambda folder: Path(folder).expanduser() / PILOT_PROJECT_FOLDER)
             + DerFolderSelector(derivative)
-            + (lambda path: path / "data" / "subjects_file_LogJacs.csv")
+            + (lambda path: path / "data" / f"subjects_file_{output}.csv")
             + (
-                lambda filename: load_logjac_group(
+                lambda filename: load_output_group(
                     filename,
                     subject_subset=pilot_subset,
                     session_subset=session_subset,
                     struct_subset=struct_subset,
+                    output=output,
                 )
             )
             + (ppdict.DictMap(ppdict.RemoveKeys(["27"])) if remove_repeated else None)
@@ -64,13 +65,14 @@ def LogJacLoader(
         pipe = (
             (lambda folder: Path(folder).expanduser() / PROJECT_FOLDER)
             + DerFolderSelector(derivative)
-            + (lambda path: path / "data" / "subjects_file_LogJacs.csv")
+            + (lambda path: path / "data" / f"subjects_file_{output}.csv")
             + (
-                lambda filename: load_logjac_group(
+                lambda filename: load_output_group(
                     filename,
                     subject_subset=subject_subset_,
                     session_subset=session_subset,
                     struct_subset=struct_subset,
+                    output=output,
                 )
             )
             + ppdict.DictMap(ppdict.KeySorter(_session_sorter))
@@ -89,4 +91,20 @@ def LogJacLoader(
     return (
         BranchingPipeline(pipes, merger=lambda data: data[0] | data[1])
         + index_session_step
+    )
+
+
+def LogJacsLoader(
+    subject_subset=None,
+    session_subset=None,
+    struct_subset=None,
+    index_session_by="id",
+    remove_repeated=True,
+):
+    return OutputLoader(
+        subject_subset=subject_subset,
+        session_subset=session_subset,
+        struct_subset=struct_subset,
+        index_session_by=index_session_by,
+        remove_repeated=remove_repeated,
     )
