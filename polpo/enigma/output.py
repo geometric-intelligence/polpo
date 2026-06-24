@@ -23,7 +23,7 @@ def _struct_subset2cols(header, struct_subset, output="LogJacs"):
     return name2cols
 
 
-def load_output_session(filename, struct_subset=None, output="LogJacs"):
+def load_session_output(filename, struct_subset=None, output="LogJacs"):
     df = pl.read_csv(filename)
     name2cols = _struct_subset2cols(df, struct_subset, output=output)
 
@@ -34,7 +34,7 @@ def load_output_session(filename, struct_subset=None, output="LogJacs"):
     return data
 
 
-def load_output_sessions(filenames, struct_subset=None, output="LogJacs"):
+def load_session_outputs(filenames, struct_subset=None, output="LogJacs"):
     name2cols = None
     all_cols = None
 
@@ -54,7 +54,7 @@ def load_output_sessions(filenames, struct_subset=None, output="LogJacs"):
     return data
 
 
-def load_output_group(
+def load_output(
     filename,
     subject_subset=None,
     session_subset=None,

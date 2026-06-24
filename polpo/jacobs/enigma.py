@@ -2,7 +2,7 @@ from pathlib import Path
 
 import polpo.preprocessing.dict as ppdict
 from polpo.bids import DerFolderSelector
-from polpo.enigma.output import load_output_group
+from polpo.enigma.output import load_output
 from polpo.preprocessing import BranchingPipeline
 
 from .defaults import PILOT_PROJECT_FOLDER, PROJECT_FOLDER
@@ -43,13 +43,12 @@ def OutputLoader(
 
     pipes = []
     if len(pilot_subset):
-        # TODO: need to remove repeated?
         pipe = (
             (lambda folder: Path(folder).expanduser() / PILOT_PROJECT_FOLDER)
             + DerFolderSelector(derivative)
             + (lambda path: path / "data" / f"subjects_file_{output}.csv")
             + (
-                lambda filename: load_output_group(
+                lambda filename: load_output(
                     filename,
                     subject_subset=pilot_subset,
                     session_subset=session_subset,
@@ -67,7 +66,7 @@ def OutputLoader(
             + DerFolderSelector(derivative)
             + (lambda path: path / "data" / f"subjects_file_{output}.csv")
             + (
-                lambda filename: load_output_group(
+                lambda filename: load_output(
                     filename,
                     subject_subset=subject_subset_,
                     session_subset=session_subset,
