@@ -32,21 +32,25 @@ def add_subfigure(figure_name, width=1.0):
     )
 
 
-def add_subfigures(figure_names, width=None, n_cols=2, max_rows=None):
+def add_subfigures(figure_names, width=None, n_cols=2, max_rows=None, caption=None):
     if width is None:
         width = round(1 / n_cols, 2)
 
     if max_rows is None:
         max_rows = len(figure_names) + 1
 
+    caption = "" if caption is None else f"\\caption{{{caption}}}"
+
     template = r"""\begin{{figure}}[H]
 \centering
 {rows}
+{caption}
 \end{{figure}}"""
 
     template_float = r"""\begin{{figure}}[H]\ContinuedFloat
 \centering
 {rows}
+{caption}
 \end{{figure}}"""
 
     text = ""
@@ -59,9 +63,9 @@ def add_subfigures(figure_names, width=None, n_cols=2, max_rows=None):
             rows_str = "".join(rows)
             if n_figs > 0:
                 text += "\n\n"
-                text += template_float.format(rows=rows_str)
+                text += template_float.format(rows=rows_str, caption=caption)
             else:
-                text += template.format(rows=rows_str)
+                text += template.format(rows=rows_str, caption=caption)
 
             rows = []
             n_figs += 1
@@ -76,9 +80,9 @@ def add_subfigures(figure_names, width=None, n_cols=2, max_rows=None):
     rows_str = "".join(rows)
     if n_figs > 0:
         text += "\n\n"
-        text += template_float.format(rows=rows_str)
+        text += template_float.format(rows=rows_str, caption=caption)
     else:
-        text += template.format(rows=rows_str)
+        text += template.format(rows=rows_str, caption=caption)
 
     return text
 
