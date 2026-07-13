@@ -6,6 +6,7 @@ import importlib
 import inspect
 import itertools
 import socket
+import string
 from pathlib import Path
 
 from .dict_ import *  # noqa: F403
@@ -175,3 +176,155 @@ def has_package(package_name):
         Package name.
     """
     return importlib.util.find_spec(package_name) is not None
+
+
+def index_to_letters(index):
+    result = ""
+
+    while True:
+        index, remainder = divmod(index, 26)
+        result = string.ascii_uppercase[remainder] + result
+
+        if index == 0:
+            return result
+
+        index -= 1
+
+
+class NestedKeyCodec:
+    def __init__(self, outer, inner):
+        self.outer = outer
+        self.inner = inner
+
+        self._outer_inverse = {code: key for key, code in outer.items()}
+
+        self._inner_inverse = {
+            outer_key: {code: key for key, code in inner_map.items()}
+            for outer_key, inner_map in inner.items()
+        }
+
+    @classmethod
+    def from_dataset(
+        cls,
+        nested_dataset,
+        outer_encoder=None,
+        inner_encoder=None,
+    ):
+        if outer_encoder is None:
+            outer_encoder = lambda index, outer_key: index_to_letters(index)
+
+        if inner_encoder is None:
+            inner_encoder = lambda index, outer_key, inner_key: index
+
+        outer = {
+            outer_key: outer_encoder(index, outer_key)
+            for index, outer_key in enumerate(nested_dataset)
+        }
+
+        inner = {
+            outer_key: {
+                inner_key: inner_encoder(index, outer_key, inner_key)
+                for index, inner_key in enumerate(inner_dict)
+            }
+            for outer_key, inner_dict in nested_dataset.items()
+        }
+
+        return cls(outer, inner)
+
+    @classmethod
+    def from_key_map(cls, key_map):
+        return cls(
+            outer=key_map["outer"],
+            inner=key_map["inner"],
+        )
+
+    @staticmethod
+    def _encode_outer(index):
+        code = ""
+
+        while True:
+            index, remainder = divmod(index, 26)
+            code = string.ascii_uppercase[remainder] + code
+
+            if index == 0:
+                return code
+
+            index -= 1
+
+    @staticmethod
+    def _encode_inner(index):
+        return index
+
+    def encode_outer(self, outer_key):
+        return self.outer[outer_key]
+
+    def decode_outer(self, outer_code):
+        return self._outer_inverse[outer_code]
+
+    def encode_inner(self, outer_key, inner_key):
+        return self.inner[outer_key][inner_key]
+
+    def decode_inner(self, outer_key, inner_code):
+        return self._inner_inverse[outer_key][inner_code]
+
+    def encode(self, outer_key, inner_key):
+        return (
+            self.encode_outer(outer_key),
+            self.encode_inner(outer_key, inner_key),
+        )
+
+    def decode(self, outer_code, inner_code):
+        outer_key = self.decode_outer(outer_code)
+
+        return (
+            outer_key,
+            self.decode_inner(outer_key, inner_code),
+        )
+
+    def to_dict(self):
+        return {
+            "outer": self.outer,
+            "inner": self.inner,
+        }
+
+    def encode_dataset(self, nested_dataset):
+        return {
+            self.encode_outer(outer_key): {
+                self.encode_inner(outer_key, inner_key): value
+                for inner_key, value in inner_dict.items()
+            }
+            for outer_key, inner_dict in nested_dataset.items()
+        }
+
+    def decode_dataset(self, nested_dataset):
+        decoded = {}
+
+        for outer_code, inner_dict in nested_dataset.items():
+            outer_key = self.decode_outer(outer_code)
+
+            decoded[outer_key] = {
+                self.decode_inner(outer_key, inner_code): value
+                for inner_code, value in inner_dict.items()
+            }
+
+        return decoded
+
+    def encode_nested_keys(self, nested_keys):
+        return {
+            self.encode_outer(outer_key): [
+                self.encode_inner(outer_key, inner_key) for inner_key in inner_keys
+            ]
+            for outer_key, inner_keys in nested_keys.items()
+        }
+
+    def decode_nested_keys(self, nested_codes):
+        decoded_keys = {}
+
+        for outer_code, inner_codes in nested_codes.items():
+            outer_key = self.decode_outer(outer_code)
+
+            decoded_keys[outer_key] = [
+                self.decode_inner(outer_key, inner_code) for inner_code in inner_codes
+            ]
+
+        return decoded_keys

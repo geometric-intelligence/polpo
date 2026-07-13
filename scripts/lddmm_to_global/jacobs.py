@@ -9,6 +9,7 @@ from polpo.jacobs.mesh import MeshDatasetLoader
 from polpo.jacobs.tabular import get_key_to_week
 from polpo.jacobs.utils import get_subject_ids
 from polpo.protocol.lddmm_to_global import LddmmToGlobal
+from polpo.utils import NestedKeyCodec
 
 
 def protocol_per_struct(
@@ -16,7 +17,7 @@ def protocol_per_struct(
     subject_ids,
     data_dir,
     results_dir,
-    atlases_keys,
+    atlas_keys,
     derivative="enigma",
     ratio_charlen=0.25,
     ratio_kernel=1.5,
@@ -29,7 +30,7 @@ def protocol_per_struct(
         data_dir=data_dir,
     )
     with open(results_dir / "params_maternal.json", "w") as file:
-        json.dump(params, file, indent=4)
+        json.dump(params, file, indent=2)
 
     known_correspondences = True if derivative == "enigma" else False
 
@@ -44,12 +45,18 @@ def protocol_per_struct(
         + ppdict.ExtractUniqueKey(nested=True)
     )()
 
+    key_codec = NestedKeyCodec.from_dataset(dataset)
+    params["key_map"] = key_codec.to_dict()
+
+    mapped_atlas_keys = params["atlas_keys"] = key_codec.encode_nested_keys(atlas_keys)
+
     protocol = LddmmToGlobal(
         known_correspondences,
         results_dir=results_dir,
+        params=params,
     )
 
-    protocol.run(dataset, atlases_keys=atlases_keys)
+    protocol.run(key_codec.encode_dataset(dataset), atlas_keys=mapped_atlas_keys)
 
 
 if __name__ == "__main__":
@@ -76,9 +83,9 @@ if __name__ == "__main__":
 
     key2week = get_key_to_week(data_dir=data_dir)
     key_filter = ppdict.DictFilter(func=(lambda x: x < 0))
-    atlases_keys = {}
+    atlas_keys = {}
     for subject_id in subject_ids:
-        atlases_keys[subject_id] = keys = list(key_filter(key2week[subject_id]).keys())
+        atlas_keys[subject_id] = keys = list(key_filter(key2week[subject_id]).keys())
         if len(keys) < 1:
             raise ValueError(f"No pre meshes for {subject_id}")
 
@@ -101,7 +108,7 @@ if __name__ == "__main__":
                 subject_ids=subject_ids,
                 data_dir=data_dir,
                 results_dir=results_dir,
-                atlases_keys=atlases_keys,
+                atlas_keys=atlas_keys,
                 ratio_charlen=0.25,
                 ratio_kernel=1.5,
             )

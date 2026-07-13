@@ -1,7 +1,6 @@
 # TODO: create script to check registration time with no decimation
 
 import json
-import string
 
 import polpo.preprocessing.dict as ppdict
 import polpo.utils as putils
@@ -20,6 +19,7 @@ class LddmmToGlobal:
         ratio_kernel=1.5,
         ratio_charlen_mesh=2.0,
         ratio_charlen=0.25,
+        params=None,
     ):
         self.timer = Timer()
 
@@ -30,55 +30,16 @@ class LddmmToGlobal:
         self.ratio_charlen = ratio_charlen
         self.ratio_charlen_mesh = ratio_charlen_mesh
 
+        self._params = params or {}
         self.reset()
 
+        self.version = "0.2.0"
+
     def reset(self):
-        self.results_ = {"version": "0.1.0"}
-        self.params_ = {}
+        self.results_ = {"version": self.version}
+        self.params_ = {"version": self.version}
+        self.params_.update(self._params)
         self.timer.reset()
-
-    def map_keys(self, nested_dataset):
-        # makes naming manageable
-        outer_key_map = {
-            outer_key: string.ascii_uppercase[index]
-            for index, outer_key in enumerate(nested_dataset.keys())
-        }
-
-        inner_key_maps = {}
-        for outer_key, inner_dict in nested_dataset.items():
-            inner_key_maps[outer_key] = {
-                key: index for index, key in enumerate(inner_dict.keys())
-            }
-
-        self.results_["key_map"] = {
-            "outer": outer_key_map,
-            "inner": inner_key_maps,
-        }
-
-        mapped_nested_dataset = putils.rekey_nested_dict(
-            nested_dataset, outer_key_map, inner_key_maps
-        )
-        return (
-            mapped_nested_dataset,
-            outer_key_map,
-            inner_key_maps,
-        )
-
-    def map_atlases_keys(self, atlases_keys, outer_key_map, inner_key_maps):
-        mapped_atlases_keys = {}
-
-        for outer_key, atlas_keys in atlases_keys.items():
-            inner_map = inner_key_maps[outer_key]
-            mapped_atlases_keys[outer_key_map[outer_key]] = [
-                inner_map[inner_key] for inner_key in atlas_keys
-            ]
-
-        self.results_["atlases_keys"] = {
-            "original": atlases_keys,
-            "mapped": mapped_atlases_keys,
-        }
-
-        return mapped_atlases_keys
 
     def preprocess_meshes(self, nested_meshes):
         # rigidly aligns all the meshes against a randomly chosen target
@@ -175,7 +136,8 @@ class LddmmToGlobal:
 
         return nested_points
 
-    def build_local_atlases(self, metric, nested_points, atlases_keys):
+    def build_local_atlases(self, metric, nested_points, atlas_keys):
+        # TODO: parallelize?
         estimator = FrechetMean(
             metric,
             initial_step_size=1e-1,  # TODO: pass this? at least store in params
@@ -185,7 +147,7 @@ class LddmmToGlobal:
 
         atlases = {}
         for outer_key, points in nested_points.items():
-            filt_keys = atlases_keys[outer_key]
+            filt_keys = atlas_keys[outer_key]
             filt_points = ppdict.SelectKeySubset(filt_keys)(points)
 
             filt_points = list(filt_points.values())
@@ -242,25 +204,21 @@ class LddmmToGlobal:
 
     def write(self):
         with open(self.results_dir / "params.json", "w") as file:
-            json.dump(self.params_, file, indent=4)
+            json.dump(self.params_, file, indent=2)
 
         with open(self.results_dir / "results.json", "w") as file:
-            json.dump(self.results_, file, indent=4)
+            json.dump(self.results_, file, indent=2)
 
         with open(self.results_dir / "time.json", "w") as file:
-            json.dump(self.timer.as_dict(), file, indent=4)
+            json.dump(self.timer.as_dict(), file, indent=2)
 
-    def run(self, nested_meshes, atlases_keys):
+    def run(self, nested_meshes, atlas_keys):
         # dataset: subject, session
 
         self.reset()
 
         self.timer.start("run")
 
-        nested_meshes, outer_key_map, inner_key_maps = self.map_keys(nested_meshes)
-        mapped_atlases_keys = self.map_atlases_keys(
-            atlases_keys, outer_key_map, inner_key_maps
-        )
         nested_meshes_ = self.preprocess_meshes(nested_meshes)
 
         sigma_vel, sigma_var = self.tune_kernel(nested_meshes_)
@@ -268,9 +226,7 @@ class LddmmToGlobal:
 
         nested_points = self.meshes_as_points(metric, nested_meshes_)
 
-        local_atlases = self.build_local_atlases(
-            metric, nested_points, mapped_atlases_keys
-        )
+        local_atlases = self.build_local_atlases(metric, nested_points, atlas_keys)
         atlas = self.build_global_atlas(metric, local_atlases)
 
         _ = self.register_and_transport(
