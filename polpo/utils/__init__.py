@@ -328,3 +328,15 @@ class NestedKeyCodec:
             ]
 
         return decoded_keys
+
+    def keys(self, encoded=False):
+        if not encoded:
+            return {
+                outer_key: tuple(inner_map)
+                for outer_key, inner_map in self.inner.items()
+            }
+
+        return {
+            self.encode_outer(outer_key): tuple(inner_map.values())
+            for outer_key, inner_map in self.inner.items()
+        }
