@@ -1,5 +1,7 @@
+"""A filesystem-backed adapter around deformetrica."""
+
 import abc
-from pathlib import Path
+import json
 
 import pyvista as pv
 
@@ -13,6 +15,8 @@ class DummyPoint:
 
 
 DummyVec = DummyPoint
+
+# TODO: control_points and momenta as_pv, as_path
 
 
 class _Point(abc.ABC):
@@ -51,7 +55,7 @@ class _Point(abc.ABC):
 
 
 class Point(_Point):
-    # TODO: think about what's fundamental in Point
+    # TODO: merge with point?
 
     def __init__(self, id_, pv_surface=None, vtk_path=None, dirname=None):
         super().__init__(id_=id_, pv_surface=pv_surface)
@@ -68,176 +72,41 @@ class Point(_Point):
     def vtk_path(self):
         return self._vtk_path
 
+    def as_dict(self):
+        return dict(id=self.id, vtk_path=self.vtk_path.as_posix())
 
-class ShootedPoint(_Point):
-    def __init__(self, base_point, tangent_vec, outputs_dir=None):
-        id_ = f"{base_point.id}_shoot_{tangent_vec.id}"
-        super().__init__(id_=id_)
-
-        if outputs_dir is None:
-            outputs_dir = Path.cwd()
-
-        self.dirname = outputs_dir / id_
-
-        self.base_point = base_point
-        self.tangent_vec = tangent_vec
-
-        self._vkt_path = None
-
-    @property
-    def vtk_path(self):
-        if self._vkt_path is None:
-            self._vkt_path = pdefoio.load_shooted_point(self.dirname, as_path=True)
-
-        return self._vkt_path
-
-    def flow(self, as_path=False):
-        # TODO: this is fundamentally a geodesic (but here we do not have control_points)
-        # TODO: this should go in tangent vec only?
-        return pdefoio.load_shooting_flow(
-            self.dirname,
-            as_pv=True,
-            as_path=as_path,
-        )
+    @classmethod
+    def from_dict(cls, data):
+        return cls(id_=data["id"], vtk_path=data["vtk_path"])
 
 
-class ReconstructedPoint(_Point):
-    def __init__(self, tangent_vec):
-        # NB: point_id is required for DeterministicAtlas case
+class TangentVector:
+    def __init__(self, id_, dirname):
+        # TODO: allow id to be none?
+        self.id = id_
+        self.dirname = dirname
 
-        # TODO: think about id
-        super().__init__(id_=f"{tangent_vec.id}_r")
+    def control_points(self, as_path=True):
+        return pdefoio.load_cp(self.dirname, as_path=as_path)
 
-        self.tangent_vec = tangent_vec
-        self._vkt_path = None
-
-    @property
-    def base_point(self):
-        return self.tangent_vec.base_point
-
-    @property
-    def point(self):
-        return self.tangent_vec.point
-
-    @property
-    def dirname(self):
-        return self.tangent_vec.dirname
-
-    @property
-    def flow(self, as_path=False):
-        # TODO: call it associated Geodesic?
-        return self.tangent_vec.flow(as_path=as_path)
-
-    @property
-    def vtk_path(self):
-        if self._vkt_path is None:
-            self._vkt_path = pdefoio.load_deterministic_atlas_reconstruction(
-                self.dirname, as_path=True, id_=self.point.id
+    def momenta(self, as_path=True):
+        try:
+            return pdefoio.load_momenta(self.dirname, as_path=as_path)
+        except FileNotFoundError:
+            return pdefoio.load_deterministic_atlas_momenta(
+                self.dirname, as_path=as_path, id_=self.id.split("_to_")[-1]
             )
 
-        return self._vkt_path
+    def as_dict(self):
+        return dict(id=self.id, dirname=self.dirname.as_posix())
+
+    @classmethod
+    def from_dict(cls, data):
+        return cls(id_=data["id"], dirname=data["dirname"])
 
 
-class DeterministicAtlasPoint(_Point):
-    def __init__(self, id_, points, outputs_dir=None):
-        super().__init__(id_=id_)
-
-        if outputs_dir is None:
-            outputs_dir = Path.cwd()
-
-        self.dirname = outputs_dir / id_
-        self.points = points
-
-        # TODO: flows (as dict?)
-        # TODO: actually load them as a registration?
-
-        self._vkt_path = None
-
-    def control_points(self, as_path=True):
-        return pdefoio.load_cp(self.dirname, as_path=as_path)
-
-    @property
-    def vtk_path(self):
-        return pdefoio.load_template(self.dirname, as_path=True)
-
-    def tangent_vecs(self):
-        # TODO: allow specification of id?
-        return [TangentVecFromAtlas(self, point) for point in self.points]
-
-
-class TangentVecFromRegistration:
-    def __init__(self, base_point, point, outputs_dir=None):
-        self.id = f"{base_point.id}_to_{point.id}"
-
-        if outputs_dir is None:
-            outputs_dir = Path.cwd()
-
-        self.dirname = outputs_dir / self.id
-
-        self.base_point = base_point
-        self.point = point
-
-    def control_points(self, as_path=True):
-        return pdefoio.load_cp(self.dirname, as_path=as_path)
-
-    def momenta(self, as_path=True):
-        return pdefoio.load_momenta(self.dirname, as_path=as_path)
-
-    def reconstructed(self, as_path=False):
-        return ReconstructedPoint(tangent_vec=self)
-
-    def flow(self, as_path=False):
-        # TODO: geodesic, last
-        return pdefoio.load_deterministic_atlas_flow(
-            self.dirname, as_pv=True, as_path=as_path
-        )
-
-
-class TangentVecFromAtlas:
-    # TODO: create notion of TangentVector
-    # TODO: this is almost the same as TangentVecFromRegistration, merge?
-    def __init__(self, atlas, point):
-        self.id = f"{atlas.id}_to_{point.id}"
-
-        self.base_point = atlas
-        self.point = point
-
-    @property
-    def dirname(self):
-        return self.base_point.dirname
-
-    def reconstructed(self, as_path=False):
-        return ReconstructedPoint(tangent_vec=self)
-
-    def control_points(self, as_path=True):
-        return pdefoio.load_cp(self.dirname, as_path=as_path)
-
-    def momenta(self, as_path=True):
-        return pdefoio.load_deterministic_atlas_momenta(
-            self.dirname, as_path=as_path, id_=self.point.id
-        )
-
-    def flow(self, as_path=False):
-        return pdefoio.load_deterministic_atlas_flow(
-            self.dirname, as_pv=True, as_path=as_path, id_=self.point.id
-        )
-
-
-class _TransportedVec:
-    # TODO: think about need
-    # TODO: this is the pole_ladder thing
-    def __init__(self, vec, base_point, direction, outputs_dir=None, pole_ladder=True):
-        scheme = "ladder" if pole_ladder else "fan"
-        self.id = f"{vec.id}_along_{scheme}_{direction.id}"
-        if outputs_dir is None:
-            outputs_dir = Path.cwd()
-
-        self.dirname = outputs_dir / self.id
-
-        self.vec = vec
-        self.base_point = base_point
-        self.direction = direction
-
+class TransportedVector(TangentVector):
+    # TODO: controlled by type of momenta/control points?
     def control_points(self, as_path=True):
         return pdefoio.load_transported_cp(self.dirname, as_path=as_path)
 
@@ -245,22 +114,214 @@ class _TransportedVec:
         return pdefoio.load_transported_momenta(self.dirname, as_path=as_path)
 
 
-class TransportedVectorFan(_TransportedVec):
-    # TODO: parallel
-    # TODO: can load more stuff
-    # TODO: add shooted_reconstructed
+class RegistrationDir:
+    # TODO: disambiguate template_shape: confirm it is source
 
-    # NB: they choose to use the same control points for geodesic and pt
-    def __init__(self, tangent_vec, base_point, direction, outputs_dir=None):
-        super().__init__(
-            tangent_vec,
-            base_point,
-            direction,
-            outputs_dir=outputs_dir,
-            pole_ladder=False,
-        )
+    def __init__(self, dirname, base_point, point):
+        self.dirname = dirname
+
+        self.base_point = base_point
+        self.point = point
+
+    @classmethod
+    def from_dirname(cls, dirname):
+        # TODO: check if it exists
+
+        # TODO: check if file exists?
+        with open(dirname / "params.json", "r") as file:
+            data = json.load(file)
+
+        point = Point.from_dict(data["point"])
+        base_point = Point.from_dict(data["base_point"])
+
+        return cls(dirname, base_point, point)
+
+    def params(self):
+        return dict(base_point=self.base_point.as_dict(), point=self.point.as_dict())
+
+    def write_json(self):
+        with open(self.dirname / "params.json", "w") as file:
+            json.dump(self.params(), file, indent=2)
+
+    def tangent_vec(self):
+        return TangentVector(self.dirname.name, self.dirname)
 
     def reconstructed(self):
+        # TODO: same for template?
+
+        vkt_path = pdefoio.load_deterministic_atlas_reconstruction(
+            self.dirname, as_path=True, id_=self.point.id
+        )
+        return Point(
+            id_=f"{self.base_point.id}_shoot_{self.dirname.name}", vtk_path=vkt_path
+        )
+
+    def flow(self):
+        vtk_paths = pdefoio.load_deterministic_atlas_flow(
+            self.dirname, as_pv=True, as_path=True
+        )
+        return [
+            Point(f"{self.dirname.name}|tp{index}", vtk_path=vtk_path)
+            for index, vtk_path in enumerate(vtk_paths)
+        ]
+
+
+class ShootDir:
+    # TODO: add Dir
+    def __init__(self, dirname, tangent_vec, base_point):
+        self.dirname = dirname
+
+        self.tangent_vec = tangent_vec
+        self.base_point = base_point
+
+    @classmethod
+    def from_dirname(cls, dirname):
+        # TODO: check if it exists
+
+        # TODO: check if file exists?
+        with open(dirname / "params.json", "r") as file:
+            data = json.load(file)
+
+        tangent_vec = TangentVector.from_dict(data["tangent_vec"])
+        base_point = Point.from_dict(data["base_point"])
+
+        return cls(dirname, base_point, tangent_vec)
+
+    def params(self):
+        return dict(
+            tangent_vec=self.tangent_vec.as_dict(),
+            base_point=self.base_point.as_dict(),
+        )
+
+    def write_json(self):
+        with open(self.dirname / "params.json", "w") as file:
+            json.dump(self.params(), file, indent=2)
+
+    def point(self):
+        return Point(
+            self.dirname.name,
+            vtk_path=pdefoio.load_shooted_point(self.dirname, as_path=True),
+        )
+
+    def flow(self):
+        vtk_paths = pdefoio.load_shooting_flow(
+            self.dirname,
+            as_pv=True,
+            as_path=True,
+        )
+        return [
+            Point(f"{self.dirname.name}|tp{index}", vtk_path=vtk_path)
+            for index, vtk_path in enumerate(vtk_paths)
+        ]
+
+
+class DeterministicAtlasDir:
+    # TODO: add to_registrations
+    def __init__(self, dirname, points):
+        self.dirname = dirname
+        self.points = points
+
+    @classmethod
+    def from_dirname(cls, dirname):
+        # TODO: update
+
+        # TODO: check if it exists
+
+        # TODO: check if file exists?
+        with open(dirname / "params.json", "r") as file:
+            data = json.load(file)
+
+        points = [Point.from_dict(data_) for data_ in data["points"]]
+        return cls(dirname, points)
+
+    def params(self):
+        return dict(points=[pt.as_dict() for pt in self.points])
+
+    def write_json(self):
+        with open(self.dirname / "params.json", "w") as file:
+            json.dump(self.params(), file, indent=2)
+
+    def template(self):
+        return Point(
+            self.dirname.name,
+            vtk_path=pdefoio.load_template(self.dirname, as_path=True),
+        )
+
+    def control_points(self, as_path=True):
+        # shared for all tangent vectors
+        return pdefoio.load_cp(self.dirname, as_path=as_path)
+
+    def tangent_vecs(self):
+        atlas_id = self.dirname.name
+        return [
+            TangentVector(f"{atlas_id}_to_{pt.id}", self.dirname) for pt in self.points
+        ]
+
+    def flows(self):
+        atlas_id = self.dirname.name
+
+        flows = []
+        for point in self.points:
+            vtk_paths = pdefoio.load_deterministic_atlas_flow(
+                self.dirname, as_path=True, id_=point.id
+            )
+
+            flows.append(
+                [
+                    Point(f"{atlas_id}_to_{point.id}|tp{index}", vtk_path=vtk_path)
+                    for index, vtk_path in enumerate(vtk_paths)
+                ]
+            )
+
+        return flows
+
+    def reconstructed(self):
+        atlas_id = self.dirname.name
+
+        reconstructed = []
+        for point in self.points:
+            vkt_path = pdefoio.load_deterministic_atlas_reconstruction(
+                self.dirname, as_path=True, id_=point.id
+            )
+            reconstructed.append(
+                Point(
+                    id_=f"{atlas_id}_shoot_{atlas_id}_to_{point.id}", vtk_path=vkt_path
+                )
+            )
+
+        return reconstructed
+
+
+class _TransportDir:
+    def __init__(self, dirname, tangent_vec, base_point, direction):
+        # TODO: play with end_point and direction
+        self.dirname = dirname
+
+        self.tangent_vec = tangent_vec
+        self.base_point = base_point
+        self.direction = direction
+
+    def params(self):
+        return dict(
+            tangent_vec=self.tangent_vec.as_dict(),
+            base_point=self.base_point.as_dict(),
+            direction=self.direction.as_dict(),
+            pole_ladder=not isinstance(self, TransportDirFan),
+        )
+
+    def write_json(self):
+        with open(self.dirname / "params.json", "w") as file:
+            json.dump(self.params(), file, indent=2)
+
+    def transported(self):
+        return TransportedVector(self.dirname.name, self.dirname)
+
+
+class TransportDirFan(_TransportDir):
+    def reconstructed(self):
+        # TODO: update
+        # TODO: only if scheme is fan
+
         # NB: it reconstructs the end point of direction
 
         # TODO: control dirname? or maybe only point?
@@ -270,16 +331,36 @@ class TransportedVectorFan(_TransportedVec):
         return Point(id_=id_, vtk_path=vtk_path)
 
     def reconstructed_shooted(self):
+        # TODO: update
+
+        # TODO: only if schme is fan
         id_ = f"{self.direction.id}_rs"
         vtk_path = pdefoio.load_parallel_shooted_point(self.dirname, as_path=True)
         return Point(id_=id_, vtk_path=vtk_path)
 
 
-def TransportedVec(*args, pole_ladder=True, **kwargs):
-    if pole_ladder:
-        return _TransportedVec(*args, pole_ladder=True, **kwargs)
+class TransportDir:
+    def __new__(cls, *args, pole_ladder=True, **kwargs):
+        if pole_ladder:
+            return _TransportDir(*args, **kwargs)
 
-    return TransportedVectorFan(*args, **kwargs)
+        return TransportDirFan(*args, **kwargs)
+
+    @classmethod
+    def from_dirname(cls, dirname):
+        # TODO: check if it exists
+
+        # TODO: check if file exists?
+        with open(dirname / "params.json", "r") as file:
+            data = json.load(file)
+
+        tangent_vec = TangentVector.from_dict(data["tangent_vec"])
+        base_point = Point.from_dict(data["base_point"])
+        direction = TangentVector.from_dict(data["direction"])
+
+        return cls(
+            dirname, tangent_vec, base_point, direction, pole_ladder=data["pole_ladder"]
+        )
 
 
 __all__ = auto_all(globals())

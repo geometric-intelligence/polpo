@@ -5,10 +5,10 @@ from in_out.array_readers_and_writers import write_3D_array
 import polpo.deformetrica as pdefo
 
 from .repr import (
-    DeterministicAtlasPoint,
-    ShootedPoint,
-    TangentVecFromRegistration,
-    TransportedVec,
+    DeterministicAtlasDir,
+    RegistrationDir,
+    ShootDir,
+    TransportDir,
 )
 
 # TODO: put all deformetrica things in one place, and then play with imports
@@ -17,7 +17,7 @@ from .repr import (
 class LddmmMetric:
     def __init__(
         self,
-        outputs_dir,
+        outputs_dir,  # TODO: dir_config instead?
         meshes_dir=None,
         registration_dir=None,
         transport_dir=None,
@@ -56,6 +56,7 @@ class LddmmMetric:
         self.use_pole_ladder = use_pole_ladder
         self.registration_kwargs = registration_kwargs
 
+        # TODO: cache_policy: reuse, overwrite, validate, read_only
         self.recompute = recompute
 
         # TODO: create only when required?
@@ -81,30 +82,39 @@ class LddmmMetric:
     def log(self, point, base_point):
         # TODO: make _single and vectorize?
 
-        vec = TangentVecFromRegistration(
-            base_point, point, outputs_dir=self.registration_dir
+        # TODO: registration_dir
+
+        id_ = f"{base_point.id}_to_{point.id}"
+        dir_ = RegistrationDir(
+            self.registration_dir / id_,
+            base_point,
+            point,
         )
 
-        if not self._dir_exists(vec.dirname):
+        # TODO: make this part of RegistrationDir?
+        if not self._dir_exists(dir_.dirname):
             pdefo.registration.estimate_registration(
                 base_point.as_vtk_path(),
                 point.as_vtk_path(),
                 target_id=point.id,
-                output_dir=vec.dirname,
+                output_dir=dir_.dirname,
                 kernel_width=self.kernel_width,
                 **self.registration_kwargs,
             )
+            dir_.write_json()
 
-        return vec
+        # TODO: if exists, check if other meshes are being used?
+
+        return dir_.tangent_vec()
 
     def exp(self, tangent_vec, base_point):
-        point = ShootedPoint(
-            base_point,
+        dir_ = ShootDir(
+            self.shoot_dir / f"{base_point.id}_shoot_{tangent_vec.id}",
             tangent_vec,
-            outputs_dir=self.shoot_dir,
+            base_point,
         )
 
-        if not self._dir_exists(point.dirname):
+        if not self._dir_exists(dir_.dirname):
             pdefo.geometry.shoot(
                 source=base_point.as_vtk_path(),
                 control_points=tangent_vec.control_points(),
@@ -113,13 +123,14 @@ class LddmmMetric:
                 # TODO: add shoot params?
                 concentration_of_time_points=10,
                 kernel_type="torch",
-                output_dir=point.dirname,
+                output_dir=dir_.dirname,
                 # TODO: control it at init?
                 # TODO: compare geodesic with parallel transport fan one
                 write_adjoint_parameters=False,
             )
+            dir_.write_json()
 
-        return point
+        return dir_.point()
 
     def parallel_transport(
         self, tangent_vec, base_point, direction=None, end_point=None
@@ -128,16 +139,17 @@ class LddmmMetric:
             # TODO: implement? it is actually easy
             raise NotImplementedError("Need direction to compute parallel transport")
 
-        vec = TransportedVec(
+        scheme = "ladder" if self.use_pole_ladder else "fan"
+        dir_ = TransportDir(
+            self.transport_dir / f"{tangent_vec.id}_along_{scheme}_{direction.id}",
             tangent_vec,
             base_point,
             direction,
-            outputs_dir=self.transport_dir,
             pole_ladder=self.use_pole_ladder,
         )
 
         # TODO: control at init?
-        if not self._dir_exists(vec.dirname):
+        if not self._dir_exists(dir_.dirname):
             pdefo.geometry.parallel_transport(
                 source=base_point.as_vtk_path(),
                 control_points=direction.control_points(),
@@ -145,11 +157,12 @@ class LddmmMetric:
                 control_points_to_transport=tangent_vec.control_points(),
                 momenta_to_transport=tangent_vec.momenta(),
                 kernel_width=self.kernel_width,
-                output_dir=vec.dirname,
+                output_dir=dir_.dirname,
                 use_pole_ladder=self.use_pole_ladder,  # TODO: just use a different scheme?
             )
+            dir_.write_json()
 
-        return vec
+        return dir_.transported()
 
 
 class FrechetMean:
@@ -169,31 +182,27 @@ class FrechetMean:
         return dirname.exists()
 
     def fit(self, X, atlas_id):
-        # TODO: need output dir
-        # TODO: template
         self.estimate_ = None
 
-        template = DeterministicAtlasPoint(
-            atlas_id, points=X, outputs_dir=self.metric.atlas_dir
-        )
+        dir_ = DeterministicAtlasDir(self.metric.atlas_dir / atlas_id, points=X)
 
-        # TODO: might need to string it
-        dataset = {point.id: point.as_vtk_path() for point in X}
-
-        if not self._dir_exists(template.dirname):
+        if not self._dir_exists(dir_.dirname):
+            dataset = {point.id: point.as_vtk_path() for point in X}
             pdefo.learning.estimate_deterministic_atlas(
                 targets=dataset,
-                output_dir=template.dirname,
+                output_dir=dir_.dirname,
                 initial_step_size=self.initial_step_size,
                 kernel_width=self.metric.kernel_width,
                 **self.metric.registration_kwargs,
             )
 
-            momenta = pdefo.io.load_momenta(template.dirname, as_path=False)
+            momenta = pdefo.io.load_momenta(dir_.dirname, as_path=False)
             for momenta_, point in zip(momenta, X):
                 filename = f"DeterministicAtlas__EstimatedParameters__Momenta__subject_{point.id}.txt"
-                write_3D_array(momenta_, template.dirname, filename)
+                write_3D_array(momenta_, dir_.dirname, filename)
 
-        self.estimate_ = template
+            dir_.write_json()
+
+        self.estimate_ = dir_.template()
 
         return self
