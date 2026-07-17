@@ -117,8 +117,8 @@ class LddmmMetric:
         if not self._dir_exists(dir_.dirname):
             pdefo.geometry.shoot(
                 source=base_point.as_vtk_path(),
-                control_points=tangent_vec.control_points(),
-                momenta=tangent_vec.momenta(),
+                control_points=tangent_vec.control_points().as_path(),
+                momenta=tangent_vec.momenta().as_path(),
                 kernel_width=self.kernel_width,
                 # TODO: add shoot params?
                 concentration_of_time_points=10,
@@ -152,10 +152,10 @@ class LddmmMetric:
         if not self._dir_exists(dir_.dirname):
             pdefo.geometry.parallel_transport(
                 source=base_point.as_vtk_path(),
-                control_points=direction.control_points(),
-                momenta=direction.momenta(),
-                control_points_to_transport=tangent_vec.control_points(),
-                momenta_to_transport=tangent_vec.momenta(),
+                control_points=direction.control_points().as_path(),
+                momenta=direction.momenta().as_path(),
+                control_points_to_transport=tangent_vec.control_points().as_path(),
+                momenta_to_transport=tangent_vec.momenta().as_path(),
                 kernel_width=self.kernel_width,
                 output_dir=dir_.dirname,
                 use_pole_ladder=self.use_pole_ladder,  # TODO: just use a different scheme?

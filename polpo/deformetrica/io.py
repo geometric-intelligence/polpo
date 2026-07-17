@@ -67,7 +67,8 @@ def LoadMeshFlow(as_path=False, as_pv=True, extra_rules=()):
 def LoadControlPointsFlow(as_path=False, as_array=True, extra_rules=()):
     # as_path as precedence to as_array
 
-    path_to_tp = ppstr.RegexGroupFinder(r"_tp_(\d+)") + int
+    # TODO: check change
+    path_to_tp = (lambda x: x.as_posix()) + ppstr.RegexGroupFinder(r"_tp_(\d+)") + int
 
     rules = [
         pppath.IsFileType("txt"),
@@ -92,7 +93,8 @@ def LoadControlPointsFlow(as_path=False, as_array=True, extra_rules=()):
 def LoadMomentaFlow(as_path=False, as_array=True, extra_rules=()):
     # as_path as precedence to as_array
 
-    path_to_tp = ppstr.RegexGroupFinder(r"_tp_(\d+)") + int
+    # TODO: check change
+    path_to_tp = (lambda x: x.as_posix()) + ppstr.RegexGroupFinder(r"_tp_(\d+)") + int
 
     rules = [
         pppath.IsFileType("txt"),
@@ -126,7 +128,12 @@ def get_deterministic_atlas_reconstruction_names(path, subset=None):
         as_list=True,
     )
 
-    path_to_id = ppstr.RegexGroupFinder(r"__subject_([A-Za-z0-9-]+)") + ppstr.TryToInt()
+    # TODO: check change
+    path_to_id = (
+        (lambda x: x.as_posix())
+        + ppstr.RegexGroupFinder(r"__subject_([A-Za-z0-9-]+)")
+        + ppstr.TryToInt()
+    )
 
     sorter = None
     if subset is not None and len(subset) > 1:
@@ -150,8 +157,14 @@ def get_deterministic_atlas_flow_names(path, subset=None):
         rules=[pppath.IsFileType("vtk"), ppstr.Contains("__flow__")],
     )
 
-    path_to_id = ppstr.RegexGroupFinder(r"__subject_([A-Za-z0-9-]+)") + ppstr.TryToInt()
-    path_to_tp = pppath.PathShortener() + ppstr.DigitFinder(index=-1)
+    path_to_id = (
+        (lambda x: x.as_posix())
+        + ppstr.RegexGroupFinder(r"__subject_([A-Za-z0-9-]+)")
+        + ppstr.TryToInt()
+    )
+    path_to_tp = (
+        (lambda x: x.as_posix()) + pppath.PathShortener() + ppstr.DigitFinder(index=-1)
+    )
 
     # TODO: try to call path_to_id only once if no subset
     sorter = Sorter(path_to_id) if subset is None else None
@@ -348,11 +361,17 @@ def load_deterministic_atlas_flows(path, subset=None, as_pv=False, as_path=False
     return ppdict.NestedDictMap(_file2mesh(as_pv), inner_is_dict=False)(filenames)
 
 
-def load_deterministic_atlas_flow(path, as_pv=False, as_path=False):
+def load_deterministic_atlas_flow(path, as_pv=False, as_path=False, id_=None):
     # TODO: check use
     # TODO: improve if used
     # NB: convenient
-    meshes = load_deterministic_atlas_flows(path, as_pv=as_pv, as_path=as_path)
+    subset = None
+    if id_ is not None:
+        subset = (id_,)
+
+    meshes = load_deterministic_atlas_flows(
+        path, as_pv=as_pv, as_path=as_path, subset=subset
+    )
     return ppdict.ExtractUniqueKey()(meshes)
 
 

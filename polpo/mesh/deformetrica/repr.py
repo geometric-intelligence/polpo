@@ -1,6 +1,5 @@
 """A filesystem-backed adapter around deformetrica."""
 
-import abc
 import json
 
 import pyvista as pv
@@ -9,22 +8,22 @@ import polpo.deformetrica.io as pdefoio
 from polpo.auto_all import auto_all
 
 
-class DummyPoint:
-    def __init__(self, id_):
-        self.id = id_
-
-
-DummyVec = DummyPoint
-
-# TODO: control_points and momenta as_pv, as_path
-
-
-class _Point(abc.ABC):
-    # TODO: transform some of the variables into functions instead of properties?
-
-    def __init__(self, id_, pv_surface=None):
+class Point:
+    def __init__(self, id_, pv_surface=None, vtk_path=None, dirname=None):
         self.id = id_
         self.pv_surface = pv_surface
+
+        if vtk_path is None and dirname is None:
+            raise ValueError("Need to define ``vtk_path`` or ``dirname``")
+
+        if vtk_path is None:
+            vtk_path = dirname / f"{self.id}.vtk"
+
+        self._vtk_path = vtk_path
+
+    @property
+    def vtk_path(self):
+        return self._vtk_path
 
     def as_vtk_path(self):
         if self.vtk_path.exists():
@@ -48,30 +47,6 @@ class _Point(abc.ABC):
 
         return self.pv_surface
 
-    @property
-    @abc.abstractmethod
-    def vtk_path(self):
-        pass
-
-
-class Point(_Point):
-    # TODO: merge with point?
-
-    def __init__(self, id_, pv_surface=None, vtk_path=None, dirname=None):
-        super().__init__(id_=id_, pv_surface=pv_surface)
-
-        if vtk_path is None and dirname is None:
-            raise ValueError("Need to define ``vtk_path`` or ``dirname``")
-
-        if vtk_path is None:
-            vtk_path = dirname / f"{self.id}.vtk"
-
-        self._vtk_path = vtk_path
-
-    @property
-    def vtk_path(self):
-        return self._vtk_path
-
     def as_dict(self):
         return dict(id=self.id, vtk_path=self.vtk_path.as_posix())
 
@@ -80,22 +55,54 @@ class Point(_Point):
         return cls(id_=data["id"], vtk_path=data["vtk_path"])
 
 
+class ControlPoints:
+    def __init__(self, filename):
+        self.filename = filename
+
+    def as_path(self):
+        return self.filename
+
+    def as_array(self):
+        return pdefoio.read_array(self.filename)
+
+    def as_pv(self):
+        return pv.PolyData(self.as_array())
+
+
+class Momenta:
+    # TODO: homogenize with control points?
+    def __init__(self, filename):
+        self.filename = filename
+
+    def as_path(self):
+        return self.filename
+
+    def as_array(self):
+        return pdefoio.read_array(self.filename)
+
+    def as_pv(self):
+        # TODO: implement
+        pass
+
+
 class TangentVector:
     def __init__(self, id_, dirname):
         # TODO: allow id to be none?
         self.id = id_
         self.dirname = dirname
 
-    def control_points(self, as_path=True):
-        return pdefoio.load_cp(self.dirname, as_path=as_path)
+    def control_points(self):
+        return ControlPoints(pdefoio.load_cp(self.dirname, as_path=True))
 
-    def momenta(self, as_path=True):
+    def momenta(self):
         try:
-            return pdefoio.load_momenta(self.dirname, as_path=as_path)
+            filename = pdefoio.load_momenta(self.dirname, as_path=True)
         except FileNotFoundError:
-            return pdefoio.load_deterministic_atlas_momenta(
-                self.dirname, as_path=as_path, id_=self.id.split("_to_")[-1]
+            filename = pdefoio.load_deterministic_atlas_momenta(
+                self.dirname, as_path=True, id_=self.id.split("_to_")[-1]
             )
+
+        return Momenta(filename)
 
     def as_dict(self):
         return dict(id=self.id, dirname=self.dirname.as_posix())
@@ -106,12 +113,11 @@ class TangentVector:
 
 
 class TransportedVector(TangentVector):
-    # TODO: controlled by type of momenta/control points?
-    def control_points(self, as_path=True):
-        return pdefoio.load_transported_cp(self.dirname, as_path=as_path)
+    def control_points(self):
+        return ControlPoints(pdefoio.load_transported_cp(self.dirname, as_path=True))
 
-    def momenta(self, as_path=True):
-        return pdefoio.load_transported_momenta(self.dirname, as_path=as_path)
+    def momenta(self):
+        return Momenta(pdefoio.load_transported_momenta(self.dirname, as_path=True))
 
 
 class RegistrationDir:
@@ -247,9 +253,9 @@ class DeterministicAtlasDir:
             vtk_path=pdefoio.load_template(self.dirname, as_path=True),
         )
 
-    def control_points(self, as_path=True):
+    def control_points(self):
         # shared for all tangent vectors
-        return pdefoio.load_cp(self.dirname, as_path=as_path)
+        return ControlPoints(pdefoio.load_cp(self.dirname, as_path=True))
 
     def tangent_vecs(self):
         atlas_id = self.dirname.name
@@ -332,8 +338,6 @@ class TransportDirFan(_TransportDir):
 
     def reconstructed_shooted(self):
         # TODO: update
-
-        # TODO: only if schme is fan
         id_ = f"{self.direction.id}_rs"
         vtk_path = pdefoio.load_parallel_shooted_point(self.dirname, as_path=True)
         return Point(id_=id_, vtk_path=vtk_path)
