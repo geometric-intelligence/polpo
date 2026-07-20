@@ -1,9 +1,11 @@
 import shutil
+from pathlib import Path
 
 from in_out.array_readers_and_writers import write_3D_array
 
 import polpo.deformetrica as pdefo
 
+from .config import DirConfig
 from .repr import (
     DeterministicAtlasDir,
     RegistrationDir,
@@ -11,46 +13,19 @@ from .repr import (
     TransportDir,
 )
 
-# TODO: put all deformetrica things in one place, and then play with imports
-
 
 class LddmmMetric:
     def __init__(
         self,
-        outputs_dir,  # TODO: dir_config instead?
-        meshes_dir=None,
-        registration_dir=None,
-        transport_dir=None,
-        shoot_dir=None,
-        atlas_dir=None,
+        dir_config,
         kernel_width=10.0,
         recompute=False,
         use_pole_ladder=False,
         **registration_kwargs,
     ):
-        # TODO: create notion of dir configuration? and add functions there?
-
-        if meshes_dir is None:
-            meshes_dir = outputs_dir / "meshes"
-
-        if registration_dir is None:
-            registration_dir = outputs_dir / "registrations"
-
-        if transport_dir is None:
-            transport_dir = outputs_dir / "transports"
-
-        if shoot_dir is None:
-            shoot_dir = outputs_dir / "shoots"
-
-        if atlas_dir is None:
-            atlas_dir = outputs_dir / "atlases"
-
-        self.outputs_dir = outputs_dir
-        self.meshes_dir = meshes_dir
-        self.registration_dir = registration_dir
-        self.shoot_dir = shoot_dir
-        self.atlas_dir = atlas_dir
-        self.transport_dir = transport_dir
+        if isinstance(dir_config, Path):
+            dir_config = DirConfig(dir_config)
+        self.dir_config = dir_config
 
         self.kernel_width = kernel_width
         self.use_pole_ladder = use_pole_ladder
@@ -60,7 +35,6 @@ class LddmmMetric:
         self.recompute = recompute
 
         # TODO: create only when required?
-        self.meshes_dir.mkdir(parents=True, exist_ok=True)
 
     def _dir_exists(self, dirname):
         if self.recompute and dirname.exists():
@@ -68,25 +42,12 @@ class LddmmMetric:
 
         return dirname.exists()
 
-    def all_dirs(self):
-        return {
-            "meshes": self.meshes_dir.relative_to(self.outputs_dir).as_posix(),
-            "registrations": self.registration_dir.relative_to(
-                self.outputs_dir
-            ).as_posix(),
-            "transports": self.transport_dir.relative_to(self.outputs_dir).as_posix(),
-            "shoots": self.shoot_dir.relative_to(self.outputs_dir).as_posix(),
-            "atlases": self.atlas_dir.relative_to(self.outputs_dir).as_posix(),
-        }
-
     def log(self, point, base_point):
         # TODO: make _single and vectorize?
 
-        # TODO: registration_dir
-
         id_ = f"{base_point.id}_to_{point.id}"
         dir_ = RegistrationDir(
-            self.registration_dir / id_,
+            self.dir_config.registration_dir / id_,
             base_point,
             point,
         )
@@ -109,7 +70,7 @@ class LddmmMetric:
 
     def exp(self, tangent_vec, base_point):
         dir_ = ShootDir(
-            self.shoot_dir / f"{base_point.id}_shoot_{tangent_vec.id}",
+            self.dir_config.shoot_dir / f"{base_point.id}_shoot_{tangent_vec.id}",
             tangent_vec,
             base_point,
         )
@@ -141,7 +102,8 @@ class LddmmMetric:
 
         scheme = "ladder" if self.use_pole_ladder else "fan"
         dir_ = TransportDir(
-            self.transport_dir / f"{tangent_vec.id}_along_{scheme}_{direction.id}",
+            self.dir_config.transport_dir
+            / f"{tangent_vec.id}_along_{scheme}_{direction.id}",
             tangent_vec,
             base_point,
             direction,
@@ -184,22 +146,27 @@ class FrechetMean:
     def fit(self, X, atlas_id):
         self.estimate_ = None
 
-        dir_ = DeterministicAtlasDir(self.metric.atlas_dir / atlas_id, points=X)
+        dir_ = DeterministicAtlasDir(
+            self.metric.dir_config.atlas_dir / atlas_id, points=X
+        )
 
         if not self._dir_exists(dir_.dirname):
-            dataset = {point.id: point.as_vtk_path() for point in X}
-            pdefo.learning.estimate_deterministic_atlas(
-                targets=dataset,
-                output_dir=dir_.dirname,
-                initial_step_size=self.initial_step_size,
-                kernel_width=self.metric.kernel_width,
-                **self.metric.registration_kwargs,
-            )
+            if len(X) > 1:
+                dataset = {point.id: point.as_vtk_path() for point in X}
+                pdefo.learning.estimate_deterministic_atlas(
+                    targets=dataset,
+                    output_dir=dir_.dirname,
+                    initial_step_size=self.initial_step_size,
+                    kernel_width=self.metric.kernel_width,
+                    **self.metric.registration_kwargs,
+                )
 
-            momenta = pdefo.io.load_momenta(dir_.dirname, as_path=False)
-            for momenta_, point in zip(momenta, X):
-                filename = f"DeterministicAtlas__EstimatedParameters__Momenta__subject_{point.id}.txt"
-                write_3D_array(momenta_, dir_.dirname, filename)
+                momenta = pdefo.io.load_momenta(dir_.dirname, as_path=False)
+                for momenta_, point in zip(momenta, X):
+                    filename = f"DeterministicAtlas__EstimatedParameters__Momenta__subject_{point.id}.txt"
+                    write_3D_array(momenta_, dir_.dirname, filename)
+            else:
+                dir_.write_mesh()
 
             dir_.write_json()
 

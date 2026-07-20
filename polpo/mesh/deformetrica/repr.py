@@ -221,8 +221,7 @@ class ShootDir:
         ]
 
 
-class DeterministicAtlasDir:
-    # TODO: add to_registrations
+class _BaseDeterministicAtlasDir:
     def __init__(self, dirname, points):
         self.dirname = dirname
         self.points = points
@@ -246,6 +245,10 @@ class DeterministicAtlasDir:
     def write_json(self):
         with open(self.dirname / "params.json", "w") as file:
             json.dump(self.params(), file, indent=2)
+
+
+class DeterministicAtlasManyDir(_BaseDeterministicAtlasDir):
+    # TODO: add to_registrations
 
     def template(self):
         return Point(
@@ -296,6 +299,31 @@ class DeterministicAtlasDir:
             )
 
         return reconstructed
+
+
+class DeterministicAtlasOneDir(_BaseDeterministicAtlasDir):
+    def template(self):
+        name = self.dirname.name
+        return Point(
+            name,
+            vtk_path=self.dirname / f"{name}.vtk",
+        )
+
+    def reconstructed(self):
+        return self.template()
+
+    def write_mesh(self):
+        self.dirname.mkdir(parents=True)
+        point = self.points[0]
+        point.as_pv().save(self.template().vtk_path)
+
+
+class DeterministicAtlasDir(_BaseDeterministicAtlasDir):
+    def __new__(cls, dirname, points):
+        if len(points) == 1:
+            return DeterministicAtlasOneDir(dirname, points)
+
+        return DeterministicAtlasManyDir(dirname, points)
 
 
 class _TransportDir:
