@@ -3,10 +3,10 @@ import random
 import polpo.preprocessing.dict as ppdict
 from polpo.jacobs.mesh import MeshDatasetLoader
 from polpo.jacobs.utils import get_subject_ids
-from polpo.mesh.surface import PvSurface
 from polpo.preprocessing import Map, Pipeline
 from polpo.preprocessing.mesh.registration import RigidAlignment
 from polpo.pyvista.decimation import PvDecimate
+from polpo.surface_mesh.core import PvSurface
 
 
 class TwoRandomMeshesPipe(Pipeline):

@@ -31,6 +31,8 @@ class CacheableDataLoader(DataLoader, abc.ABC):
 class PreprocessingStep(abc.ABC):
     """Preprocessing step."""
 
+    # TODO: just call it step
+
     @abc.abstractmethod
     def __call__(self, data=None):
         """Apply step."""
