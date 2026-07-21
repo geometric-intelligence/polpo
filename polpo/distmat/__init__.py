@@ -1,1 +1,1 @@
-from ._distmat import sort_dist_mat
+from ._distmat import *
