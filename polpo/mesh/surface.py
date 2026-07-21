@@ -127,3 +127,22 @@ class PvSurface(_MeshDispatchMixins):
 
     def as_pv(self):
         return self._mesh
+
+
+def vertex_areas(vertices, faces):
+    """Compute barycentric vertex areas for a triangular mesh."""
+    # TODO: verify
+    tri_vertices = vertices[faces]
+
+    edge_01 = tri_vertices[:, 1] - tri_vertices[:, 0]
+    edge_02 = tri_vertices[:, 2] - tri_vertices[:, 0]
+
+    face_areas = 0.5 * np.linalg.norm(np.cross(edge_01, edge_02), axis=1)
+
+    areas = np.zeros(len(vertices), dtype=float)
+
+    np.add.at(areas, faces[:, 0], face_areas / 3.0)
+    np.add.at(areas, faces[:, 1], face_areas / 3.0)
+    np.add.at(areas, faces[:, 2], face_areas / 3.0)
+
+    return areas

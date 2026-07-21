@@ -6,11 +6,13 @@ import pyvista as pv
 
 import polpo.deformetrica.io as pdefoio
 from polpo.auto_all import auto_all
+from polpo.mesh.surface import PvSurface
 
 
 class Point:
     def __init__(self, id_, pv_surface=None, vtk_path=None, dirname=None):
         self.id = id_
+        # TODO: rename?
         self.pv_surface = pv_surface
 
         if vtk_path is None and dirname is None:
@@ -46,6 +48,9 @@ class Point:
         self.pv_surface = pv.read(self.vtk_path)
 
         return self.pv_surface
+
+    def as_pv_surface(self):
+        return PvSurface(self.as_pv(), id_=self.id)
 
     def as_dict(self):
         return dict(id=self.id, vtk_path=self.vtk_path.as_posix())
@@ -191,7 +196,7 @@ class ShootDir:
         tangent_vec = TangentVector.from_dict(data["tangent_vec"])
         base_point = Point.from_dict(data["base_point"])
 
-        return cls(dirname, base_point, tangent_vec)
+        return cls(dirname, tangent_vec, base_point)
 
     def params(self):
         return dict(
@@ -310,7 +315,7 @@ class DeterministicAtlasOneDir(_BaseDeterministicAtlasDir):
         )
 
     def reconstructed(self):
-        return self.template()
+        return [self.template()]
 
     def write_mesh(self):
         self.dirname.mkdir(parents=True)

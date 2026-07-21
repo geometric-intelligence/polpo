@@ -21,6 +21,8 @@ class LddmmToGlobal:
         ratio_charlen=0.25,
         params=None,
     ):
+        self.version = "0.2.0"
+
         self.timer = Timer()
 
         self.known_correspondences = known_correspondences
@@ -32,8 +34,6 @@ class LddmmToGlobal:
 
         self._params = params or {}
         self.reset()
-
-        self.version = "0.2.0"
 
     def reset(self):
         self.results_ = {"version": self.version}
@@ -119,7 +119,7 @@ class LddmmToGlobal:
 
         metric = LddmmMetric(self.results_dir, **registration_kwargs)
 
-        self.results_["dirs"] = metric.all_dirs()
+        self.params_["dirs"] = metric.dir_config.to_dict()
 
         return metric
 
@@ -131,7 +131,7 @@ class LddmmToGlobal:
                 points[inner_key] = Point(
                     id_=f"{outer_key}-{inner_key}",
                     pv_surface=mesh,
-                    dirname=metric.meshes_dir,
+                    dirname=metric.dir_config.meshes_dir,
                 )
 
         return nested_points
@@ -151,15 +151,8 @@ class LddmmToGlobal:
             filt_points = ppdict.SelectKeySubset(filt_keys)(points)
 
             filt_points = list(filt_points.values())
-            if len(filt_points) == 1:
-                atlas = Point(
-                    id_=outer_key,
-                    pv_surface=filt_points[0].as_pv(),
-                    dirname=metric.atlas_dir,
-                )
-            else:
-                estimator.fit(filt_points, atlas_id=outer_key)
-                atlas = estimator.estimate_
+            estimator.fit(filt_points, atlas_id=outer_key)
+            atlas = estimator.estimate_
 
             atlases[outer_key] = atlas
 

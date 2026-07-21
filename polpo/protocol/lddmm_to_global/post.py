@@ -1,173 +1,242 @@
-import polpo.preprocessing.dict as ppdict
-import polpo.utils as putils
+import json
+
+from polpo.dataset import Dataset, NestedDataset
+from polpo.distmat import PairwiseDistances
+from polpo.mesh.deformetrica.config import DirConfig
 from polpo.mesh.deformetrica.repr import (
-    DeterministicAtlasPoint,
-    DummyPoint,
-    DummyVec,
+    DeterministicAtlasDir,
     Point,
-    ShootedPoint,
-    TangentVecFromRegistration,
+    RegistrationDir,
+    ShootDir,
+    TransportDir,
 )
-from polpo.mesh.surface import PvSurface
+from polpo.mesh.varifold import VarifoldMetric
+from polpo.utils import NestedKeyCodec
+from polpo.utils.np import pairwise_dists, save_indexed_array
 
 
-def get_key_maps(results_data):
-    outer_key_map = results_data["key_map"]["outer"]
-    inner_key_maps = results_data["key_map"]["inner"]
-
-    inv_outer_key_map = putils.invert_dict(outer_key_map)
-
-    inv_inner_key_maps = {}
-    for m_key, key in inv_outer_key_map.items():
-        inv_inner_key_maps[m_key] = putils.invert_dict(inner_key_maps[key])
-
-    return outer_key_map, inner_key_maps, inv_outer_key_map, inv_inner_key_maps
+def varifold_metric_from_results(data, backend="auto"):
+    sigma = data["kernel_tuning"]["sigma_var"]
+    return VarifoldMetric(sigma=sigma, backend=backend)
 
 
-def _rekey_meshes(
-    meshes,
-    outer_key_map,
-    inner_key_maps,
-    mapped_keys=True,
-    nested=False,
-):
-    if mapped_keys and not nested:
-        return meshes
-
-    if not mapped_keys:
-        nested_meshes = putils.nest_dict(meshes, sep="-")
-        meshes = putils.rekey_nested_dict(nested_meshes, outer_key_map, inner_key_maps)
-        if not nested:
-            meshes = putils.unnest_dict(meshes, sep="-")
-
-    return meshes
-
-
-def collect_meshes(
-    outer_key_map,
-    inner_key_maps,
-    meshes_dir,
-    as_pv=True,
-    mapped_keys=True,
-    nested=False,
-):
+def collect_dataset(meshes_dir, dataset_keys):
     meshes = {}
-    for outer_key in outer_key_map:
-        for inner_key in inner_key_maps[outer_key]:
-            point_id = f"{outer_key}-{inner_key}"
-            point = Point(id_=point_id, dirname=meshes_dir)
-
-            if as_pv:
-                point = PvSurface(point.as_pv())
-
-            meshes[point_id] = point
-
-    return _rekey_meshes(
-        meshes, outer_key_map, inner_key_maps, mapped_keys=mapped_keys, nested=nested
-    )
-
-
-def collect_rec_meshes_local(
-    outer_key_map,
-    inner_key_maps,
-    registration_dir,
-    as_pv=True,
-    mapped_keys=True,
-    nested=False,
-):
-    meshes = {}
-    for outer_key in outer_key_map:
-        for inner_key in inner_key_maps[outer_key]:
-            point_id = f"{outer_key}-{inner_key}"
-
-            out = TangentVecFromRegistration(
-                base_point=DummyPoint(outer_key),
-                point=DummyPoint(point_id),
-                outputs_dir=registration_dir,
-            ).reconstructed()
-
-            if as_pv:
-                out = PvSurface(out.as_pv())
-
-            meshes[point_id] = out
-
-    return _rekey_meshes(
-        meshes, outer_key_map, inner_key_maps, mapped_keys=mapped_keys, nested=nested
-    )
-
-
-def collect_rec_meshes_global(
-    outer_key_map,
-    inner_key_maps,
-    shoot_dir,
-    as_pv=True,
-    mapped_keys=True,
-    nested=False,
-):
-    # TODO: simplify rekey (i.e. simply move it out)
-    meshes = {}
-
-    for outer_key in outer_key_map:
-        for inner_key in inner_key_maps[outer_key]:
-            point_id = f"{outer_key}-{inner_key}"
-
-            # TODO: assuming fan
-            vec_id = (
-                f"{outer_key}_to_{outer_key}-{inner_key}_along_fan_{outer_key}_to_gl"
+    for outer_key, inner_keys in dataset_keys.items():
+        meshes[outer_key] = {
+            inner_key: Point(
+                id_=f"{outer_key}-{inner_key}",
+                dirname=meshes_dir,
             )
+            for inner_key in inner_keys
+        }
 
-            shooted_point = ShootedPoint(
-                base_point=DummyPoint("gl"),
-                tangent_vec=DummyVec(vec_id),
-                outputs_dir=shoot_dir,
+    return NestedDataset(meshes)
+
+
+def collect_local_registrations(registration_dir, dataset_keys):
+    dirs = {}
+    for outer_key, inner_keys in dataset_keys.items():
+        dirs[outer_key] = {
+            inner_key: RegistrationDir.from_dirname(
+                registration_dir / f"{outer_key}_to_{outer_key}-{inner_key}"
             )
+            for inner_key in inner_keys
+        }
 
-            if as_pv:
-                shooted_point = PvSurface(shooted_point.as_pv())
-
-            meshes[point_id] = shooted_point
-
-    return _rekey_meshes(
-        meshes, outer_key_map, inner_key_maps, mapped_keys=mapped_keys, nested=nested
-    )
+    return NestedDataset(dirs)
 
 
-def collect_appr_gl_atlas(registration_dir, as_pv=True):
-    atlas_registrations = ppdict.KeySorter()(
+def collect_global_shoots(shoot_dir, dataset_keys, atlas_id="gl", pole_ladder=False):
+    dirs = {}
+    pt_str = "pole" if pole_ladder else "fan"
+    for outer_key, inner_keys in dataset_keys.items():
+        dirs[outer_key] = {
+            inner_key: ShootDir.from_dirname(
+                shoot_dir
+                / f"{atlas_id}_shoot_{outer_key}_to_{outer_key}-{inner_key}_along_{pt_str}_{outer_key}_to_{atlas_id}"
+            )
+            for inner_key in inner_keys
+        }
+
+    return NestedDataset(dirs)
+
+
+def collect_atlases(atlas_dir, dataset_keys):
+    return Dataset(
         {
-            path.name.split("_")[0]: path
-            for path in registration_dir.iterdir()
-            if "_to_gl" in path.name
+            key: DeterministicAtlasDir.from_dirname(atlas_dir / key)
+            for key in dataset_keys
         }
     )
 
-    meshes = {}
-    for key, path in atlas_registrations.items():
-        tangent_vec = TangentVecFromRegistration(
-            base_point=DummyPoint(key),
-            point=DummyPoint("gl"),
-            outputs_dir=registration_dir,
-        )
-        point = tangent_vec.reconstructed()
 
-        if as_pv:
-            point = PvSurface(point.as_pv())
-
-        meshes[key] = point
-
-    return meshes
+def get_global_atlas(atlas_dir, atlas_id="gl"):
+    return DeterministicAtlasDir.from_dirname(atlas_dir / atlas_id)
 
 
-def load_atlas(atlases_dir, id_="gl", as_pv=True):
-    # TODO: load points too?
+def collect_transports(transport_dir, dataset_keys, atlas_id="gl", pole_ladder=False):
+    dirs = {}
 
-    point = DeterministicAtlasPoint(
-        id_=id_,
-        points=None,
-        outputs_dir=atlases_dir,
+    pt_str = "pole" if pole_ladder else "fan"
+    for outer_key, inner_keys in dataset_keys.items():
+        dirs[outer_key] = {
+            inner_key: TransportDir.from_dirname(
+                transport_dir
+                / f"{outer_key}_to_{outer_key}-{inner_key}_along_{pt_str}_{outer_key}_to_{atlas_id}"
+            )
+            for inner_key in inner_keys
+        }
+
+    return NestedDataset(dirs)
+
+
+def reconstruction_error(registration_dir, dist_fnc):
+    return dist_fnc(
+        registration_dir.point.as_pv_surface(),
+        registration_dir.reconstructed().as_pv_surface(),
     )
 
-    if as_pv:
-        point = PvSurface(point.as_pv())
 
-    return point
+def atlas_reconstruction_error(atlas_dir, dist_fnc):
+    return {
+        point.id: dist_fnc(point.as_pv_surface(), cmp_point.as_pv_surface())
+        for point, cmp_point in zip(atlas_dir.points, atlas_dir.reconstructed())
+    }
+
+
+def parallel_transport_dir_error(transport_dir, atlas, dist_fnc):
+    return dist_fnc(
+        transport_dir.reconstructed().as_pv_surface(),
+        atlas,
+    )
+
+
+def pairwise_dist(dataset, dist_fnc):
+    meshes = dataset.map_values(lambda x: x.as_pv_surface())
+    flat = meshes.flatten()
+    return PairwiseDistances(
+        flat.keys_list(),
+        pairwise_dists(flat.values_list(), dist_fnc, as_matrix=False),
+    )
+
+
+def local_pairwise_dist(registration_dirs, dist_fnc):
+    local_rec_meshes = registration_dirs.map_values(
+        lambda x: x.reconstructed().as_pv_surface()
+    )
+    flat = local_rec_meshes.flatten()
+    return PairwiseDistances(
+        flat.keys_list(),
+        pairwise_dists(flat.values_list(), dist_fnc, as_matrix=False),
+    )
+
+
+def global_pairwise_dist(shoot_dir, dist_fnc):
+    global_meshes = shoot_dir.map_values(
+        lambda x: x.point().as_pv_surface(),
+    )
+    flat = global_meshes.flatten()
+    return PairwiseDistances(
+        flat.keys_list(),
+        pairwise_dists(flat.values_list(), dist_fnc, as_matrix=False),
+    )
+
+
+def post_dists(
+    outputs_dir,
+    dists_folder="post_dists",
+    backend="auto",
+    include_local_rec_error=True,
+    include_atlas_rec_error=True,
+    include_global_atlas_rec_error=True,
+    include_transport_error=True,
+    include_local_pairwise=True,
+    include_rec_local_pairwise=True,
+    include_global_pairwise=True,
+):
+    if isinstance(dists_folder, str):
+        dists_folder = outputs_dir / dists_folder
+
+    dists_folder.mkdir(parents=True, exist_ok=True)
+
+    # load experiment data
+    with open(outputs_dir / "params.json", "r") as file:
+        params = json.load(file)
+
+    with open(outputs_dir / "results.json", "r") as file:
+        results = json.load(file)
+
+    dir_config = DirConfig(
+        outputs_dir=outputs_dir,
+        **{key: outputs_dir / value for key, value in params["dirs"].items()},
+    )
+
+    key_map = NestedKeyCodec.from_key_map(params["key_map"])
+
+    metric = varifold_metric_from_results(results, backend=backend)
+
+    # get relevant dirs
+    dataset = collect_dataset(dir_config.meshes_dir, key_map.keys(encoded=True))
+    local_regs = collect_local_registrations(
+        dir_config.registration_dir, key_map.keys(encoded=True)
+    )
+    global_shoots = collect_global_shoots(
+        dir_config.shoot_dir, key_map.keys(encoded=True)
+    )
+    transports = collect_transports(
+        dir_config.transport_dir, key_map.keys(encoded=True)
+    )
+
+    atlases = collect_atlases(dir_config.atlas_dir, key_map.keys(encoded=True))
+    global_atlas = get_global_atlas(dir_config.atlas_dir)
+
+    # compute errors
+    if include_local_rec_error:
+        local_errors = local_regs.map_values(
+            reconstruction_error,
+            dist_fnc=metric.dist,
+        )
+        save_indexed_array(dists_folder / "rec_local.npz", local_errors.flatten())
+
+    if include_atlas_rec_error:
+        atlases_errors = atlases.map_values(
+            atlas_reconstruction_error,
+            dist_fnc=metric.dist,
+        )
+        save_indexed_array(
+            dists_folder / "rec_atlas.npz", NestedDataset(atlases_errors.data).flatten()
+        )
+
+    if include_global_atlas_rec_error:
+        atlas_errors = atlas_reconstruction_error(
+            global_atlas,
+            dist_fnc=metric.dist,
+        )
+        save_indexed_array(
+            dists_folder / "rec_global_atlas.npz",
+            atlas_errors,
+        )
+
+    if include_transport_error:
+        transport_error = transports.map_values(
+            parallel_transport_dir_error,
+            atlas=global_atlas.template().as_pv_surface(),
+            dist_fnc=metric.dist,
+        )
+        save_indexed_array(
+            dists_folder / "rec_transport.npz", transport_error.flatten()
+        )
+
+    # pairwise distances
+    if include_local_pairwise:
+        dists = pairwise_dist(dataset, metric.dist)
+        dists.save(dists_folder / "local_pairwise")
+
+    if include_rec_local_pairwise:
+        dists = local_pairwise_dist(local_regs, metric.dist)
+        dists.save(dists_folder / "rec_local_pairwise")
+
+    if include_global_pairwise:
+        dists = global_pairwise_dist(global_shoots, metric.dist)
+        dists.save(dists_folder / "global_pairwise")
