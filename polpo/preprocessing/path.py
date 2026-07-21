@@ -108,7 +108,8 @@ class PathShortener(PreprocessingStep):
         -------
         str
         """
-        path_ls = path.split(os.path.sep)
+        path_ = path if isinstance(path, str) else path.as_posix()
+        path_ls = path_.split(os.path.sep)
         return f"{os.path.sep}".join(path_ls[self.init_index : self.last_index])
 
 
