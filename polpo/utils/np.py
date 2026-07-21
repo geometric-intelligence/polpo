@@ -80,4 +80,34 @@ def get_diag_blocks_by_size(mat, sizes):
     ]
 
 
+def save_indexed_array(path, data):
+    """Save a key-indexed dictionary as an array and ordered keys.
+
+    Parameters
+    ----------
+    path : path-like
+        Output ``.npz`` path.
+    data : mapping
+        Mapping from keys to values. All values must have compatible shapes.
+        Dictionary insertion order determines the array indexing.
+    """
+    keys = list(data)
+    array = np.asarray(list(data.values()))
+
+    np.savez_compressed(
+        path,
+        array=array,
+        keys=np.asarray(keys, dtype=str),
+        format_version=1,
+    )
+
+
+def load_indexed_array(path):
+    with np.load(path, allow_pickle=False) as data:
+        array = data["array"]
+        keys = data["keys"].tolist()
+
+    return dict(zip(keys, array))
+
+
 __all__ = auto_all(globals())
