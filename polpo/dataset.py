@@ -26,8 +26,6 @@ class Dataset(DatasetMapping):
     def __init__(self, data):
         self.data = data
 
-        self._sep = "-"
-
     def _new(self, data):
         return type(self)(data)
 
@@ -46,7 +44,7 @@ class Dataset(DatasetMapping):
         return Dataset(data)
 
     def nest(self):
-        data = nest_dict(self.data, sep=self._sep)
+        data = nest_dict(self.data)
         return NestedDataset(data)
 
     def map_values(self, func, /, *args, **kwargs):
@@ -103,11 +101,13 @@ class Dataset(DatasetMapping):
 
         rng = np.random.default_rng(random_state)
 
-        sampled_keys = rng.choice(
-            self.keys_list(),
+        keys = self.keys_list()
+        indices = rng.choice(
+            len(keys),
             size=n_samples,
             replace=False,
         )
+        sampled_keys = [keys[index] for index in indices]
 
         return self._new({key: self[key] for key in sampled_keys})
 
@@ -116,8 +116,6 @@ class NestedDataset(DatasetMapping):
     def __init__(self, data):
         self.data = data
 
-        self._sep = "-"
-
     def _new(self, data):
         return type(self)(data)
 
@@ -125,7 +123,7 @@ class NestedDataset(DatasetMapping):
         return self.data
 
     def flatten(self):
-        data = unnest_dict(self.data, sep=self._sep)
+        data = unnest_dict(self.data, sep=None)
         return Dataset(data)
 
     def transform(self, func, /, *args, **kwargs):
@@ -236,11 +234,12 @@ class NestedDataset(DatasetMapping):
                     f"{outer_key!r}, which contains {len(inner_keys)}."
                 )
 
-            sampled_keys = rng.choice(
-                inner_keys,
+            indices = rng.choice(
+                len(inner_keys),
                 size=n_samples,
                 replace=False,
             )
+            sampled_keys = [inner_keys[index] for index in indices]
 
             data[outer_key] = {
                 inner_key: inner_data[inner_key] for inner_key in sampled_keys
