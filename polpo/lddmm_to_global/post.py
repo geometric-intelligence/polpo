@@ -2,6 +2,7 @@ import json
 
 from polpo.dataset import Dataset, NestedDataset
 from polpo.distmat import PairwiseDistances
+from polpo.numpy.io import save_dict_as_array
 from polpo.surface_mesh.deformetrica.core import (
     DeterministicAtlasDir,
     Point,
@@ -12,7 +13,7 @@ from polpo.surface_mesh.deformetrica.core import (
 from polpo.surface_mesh.deformetrica.utils import DirConfig
 from polpo.surface_mesh.varifold import VarifoldMetric
 from polpo.utils import NestedKeyCodec
-from polpo.utils.np import pairwise_dists, save_indexed_array
+from polpo.utils.np import pairwise_dists
 
 
 def varifold_metric_from_results(data, backend="auto"):
@@ -197,15 +198,15 @@ def post_dists(
             reconstruction_error,
             dist_fnc=metric.dist,
         )
-        save_indexed_array(dists_folder / "rec_local.npz", local_errors.flatten())
+        save_dict_as_array(dists_folder / "rec_local", local_errors.flatten())
 
     if include_atlas_rec_error:
         atlases_errors = atlases.map_values(
             atlas_reconstruction_error,
             dist_fnc=metric.dist,
         )
-        save_indexed_array(
-            dists_folder / "rec_atlas.npz", NestedDataset(atlases_errors.data).flatten()
+        save_dict_as_array(
+            dists_folder / "rec_atlas", NestedDataset(atlases_errors.data).flatten()
         )
 
     if include_global_atlas_rec_error:
@@ -213,8 +214,8 @@ def post_dists(
             global_atlas,
             dist_fnc=metric.dist,
         )
-        save_indexed_array(
-            dists_folder / "rec_global_atlas.npz",
+        save_dict_as_array(
+            dists_folder / "rec_global_atlas",
             atlas_errors,
         )
 
@@ -224,9 +225,7 @@ def post_dists(
             atlas=global_atlas.template().as_pv_surface(),
             dist_fnc=metric.dist,
         )
-        save_indexed_array(
-            dists_folder / "rec_transport.npz", transport_error.flatten()
-        )
+        save_dict_as_array(dists_folder / "rec_transport", transport_error.flatten())
 
     # pairwise distances
     if include_local_pairwise:
