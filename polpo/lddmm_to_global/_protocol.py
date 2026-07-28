@@ -3,17 +3,17 @@
 import json
 
 import polpo.preprocessing.dict as ppdict
-import polpo.utils as putils
-from polpo.preprocessing.mesh.registration import RigidAlignment
-from polpo.surface_mesh.core import PvSurface
+from polpo.dataset import Dataset, NestedDataset
+from polpo.protocol.mixin import MeshPreprocessorMixin
 from polpo.surface_mesh.deformetrica import FrechetMean, LddmmMetric, Point
 from polpo.surface_mesh.varifold.tuning.geometry_based import SigmaFromLengths
 from polpo.time import Timer
 
 # TODO: add script to collect times
+# TODO: use JsonDict?
 
 
-class LddmmToGlobal:
+class LddmmToGlobal(MeshPreprocessorMixin):
     def __init__(
         self,
         known_correspondences,
@@ -43,34 +43,6 @@ class LddmmToGlobal:
         self.params_.update(self._params)
         self.timer.reset()
 
-    def preprocess_meshes(self, nested_meshes):
-        # rigidly aligns all the meshes against a randomly chosen target
-        self.timer.start("prep")
-
-        outer_key = putils.extract_random_key(nested_meshes)
-        inner_key = putils.extract_random_key(nested_meshes[outer_key])
-
-        align_pipe = RigidAlignment(
-            target=nested_meshes[outer_key][inner_key],
-            known_correspondences=self.known_correspondences,
-        )
-
-        nested_meshes_ = (ppdict.DictMap(align_pipe + ppdict.DictMap(PvSurface)))(
-            nested_meshes
-        )
-
-        self.timer.stop("prep")
-
-        self.results_["rigid_alignment"] = {
-            "outer_key": outer_key,
-            "inner_key": inner_key,
-        }
-        self.params_["rigid_alignment"] = {
-            "known_correspondences": self.known_correspondences,
-        }
-
-        return nested_meshes_
-
     def tune_kernel(self, nested_meshes):
         # select varifold kernel using a randomly selected mesh per subject
         self.timer.start("tuning")
@@ -80,31 +52,25 @@ class LddmmToGlobal:
             ratio_charlen=self.ratio_charlen,
         )
 
-        mesh_per_outer = []
-        keys = []
-        for outer_key, meshes in nested_meshes.items():
-            inner_key = putils.extract_random_key(meshes)
-            mesh_per_outer.append(meshes[inner_key])
-
-            keys.append(f"{outer_key}-{inner_key}")
-
-        sigma_search.fit(mesh_per_outer)
+        # TODO: add random_state?
+        selected_meshes = nested_meshes.sample_inner()
+        sigma_search.fit(selected_meshes.flatten().values_list())
 
         self.timer.stop("tuning")
 
         sigma_var = sigma_search.sigma_
         sigma_vel = self.ratio_kernel * sigma_var
 
-        self.results_["kernel_tuning"] = {
-            "sigma_vel": sigma_vel,
-            "sigma_var": sigma_var,
-            "meshes": keys,
-        }
         # TODO: also add registration kwargs
         self.params_["kernel_tuning"] = {
             "ratio_kernel": self.ratio_kernel,
             "ratio_charlen_mesh": self.ratio_charlen_mesh,
             "ratio_charlen": self.ratio_charlen,
+        }
+        self.results_["kernel_tuning"] = {
+            "sigma_vel": sigma_vel,
+            "sigma_var": sigma_var,
+            "meshes": selected_meshes.flatten().keys_list(),
         }
 
         return sigma_vel, sigma_var
@@ -126,20 +92,16 @@ class LddmmToGlobal:
 
         return metric
 
-    def meshes_as_points(self, metric, nested_meshes):
-        nested_points = {}
-        for outer_key, meshes in nested_meshes.items():
-            points = nested_points[outer_key] = {}
-            for inner_key, mesh in meshes.items():
-                points[inner_key] = Point(
-                    id_=f"{outer_key}-{inner_key}",
-                    pv_surface=mesh,
-                    dirname=metric.dir_config.meshes_dir,
-                )
+    def meshes_as_points(self, nested_meshes, metric):
+        return nested_meshes.map_items(
+            lambda outer_key, inner_key, mesh: Point(
+                id_=f"{outer_key}-{inner_key}",
+                pv_surface=mesh,
+                dirname=metric.dir_config.meshes_dir,
+            )
+        )
 
-        return nested_points
-
-    def build_local_atlases(self, metric, nested_points, atlas_keys):
+    def build_local_atlases(self, nested_points, metric, atlas_keys):
         # TODO: parallelize?
         estimator = FrechetMean(
             metric,
@@ -161,20 +123,20 @@ class LddmmToGlobal:
 
         self.timer.stop("local_atlases")
 
-        return atlases
+        return Dataset(atlases)
 
-    def build_global_atlas(self, metric, local_atlases):
+    def build_global_atlas(self, local_atlases, metric):
         estimator = FrechetMean(
             metric,
             initial_step_size=1e-1,  # TODO: pass this? at least store in params
         )
 
         with self.timer("global_atlas"):
-            estimator.fit(list(local_atlases.values()), "gl")
+            estimator.fit(local_atlases.values_list(), "gl")
 
         return estimator.estimate_
 
-    def register_and_transport(self, metric, nested_points, atlas, local_atlases):
+    def register_and_transport(self, nested_points, metric, atlas, local_atlases):
         # TODO: parallelize
         self.timer.start("register_and_transport")
 
@@ -197,7 +159,7 @@ class LddmmToGlobal:
 
         self.timer.stop("register_and_transport")
 
-        return global_reprs
+        return NestedDataset(global_reprs)
 
     def write(self):
         with open(self.results_dir / "params.json", "w") as file:
@@ -210,25 +172,27 @@ class LddmmToGlobal:
             json.dump(self.timer.as_dict(), file, indent=2)
 
     def run(self, nested_meshes, atlas_keys):
-        # dataset: subject, session
+        # nested_meshes: dict or polpo.dataset.NestedDataset
+        if isinstance(nested_meshes, dict):
+            nested_meshes = NestedDataset(nested_meshes)
 
         self.reset()
 
         self.timer.start("run")
 
-        nested_meshes_ = self.preprocess_meshes(nested_meshes)
+        nested_meshes_ = self.preprocess_meshes(nested_meshes.flatten()).nest()
 
         sigma_vel, sigma_var = self.tune_kernel(nested_meshes_)
         metric = self.instantiate_metric(sigma_vel, sigma_var)
 
-        nested_points = self.meshes_as_points(metric, nested_meshes_)
+        nested_points = self.meshes_as_points(nested_meshes_, metric)
 
-        local_atlases = self.build_local_atlases(metric, nested_points, atlas_keys)
-        atlas = self.build_global_atlas(metric, local_atlases)
+        local_atlases = self.build_local_atlases(nested_points, metric, atlas_keys)
+        atlas = self.build_global_atlas(local_atlases, metric)
 
         _ = self.register_and_transport(
-            metric,
             nested_points,
+            metric,
             atlas,
             local_atlases,
         )

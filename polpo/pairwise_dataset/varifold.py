@@ -3,15 +3,13 @@ import json
 import geomstats.backend as gs
 import numpy as np
 
-import polpo.preprocessing.dict as ppdict
 import polpo.utils as putils
-from polpo.mesh.surface import PvSurface
-from polpo.mesh.varifold.tuning.metric_based import SigmaFromLengths
-from polpo.preprocessing.mesh.registration import RigidAlignment
+from polpo.protocol.mixin import MeshPreprocessorMixin
+from polpo.surface_mesh.varifold.tuning.metric_based import SigmaFromLengths
 from polpo.time import Timer
 
 
-class PairwiseVarifold:
+class PairwiseVarifold(MeshPreprocessorMixin):
     def __init__(
         self,
         known_correspondences,
@@ -21,8 +19,8 @@ class PairwiseVarifold:
         n_jobs=1,
         backend="keops",
     ):
-        # TODO: add device too
-
+        # TODO: add longitudinal param? affects tune
+        # TODO: worth creating
         self.timer = Timer()
 
         self.known_correspondences = known_correspondences
@@ -43,34 +41,6 @@ class PairwiseVarifold:
 
         self.dists_ = None
 
-    def preprocess_meshes(self, nested_meshes):
-        # rigidly aligns all the meshes against a randomly chosen target
-        self.timer.start("prep")
-
-        outer_key = putils.extract_random_key(nested_meshes)
-        inner_key = putils.extract_random_key(nested_meshes[outer_key])
-
-        align_pipe = RigidAlignment(
-            target=nested_meshes[outer_key][inner_key],
-            known_correspondences=self.known_correspondences,
-        )
-
-        nested_meshes_ = (ppdict.DictMap(align_pipe + ppdict.DictMap(PvSurface)))(
-            nested_meshes
-        )
-
-        self.timer.stop("prep")
-
-        self.results_["rigid_alignment"] = {
-            "outer_key": outer_key,
-            "inner_key": inner_key,
-        }
-        self.params_["rigid_alignment"] = {
-            "known_correspondences": self.known_correspondences,
-        }
-
-        return nested_meshes_
-
     def tune_kernel(self, nested_meshes):
         # select varifold kernel using a randomly selected mesh per subject
         self.timer.start("tuning")
@@ -81,6 +51,7 @@ class PairwiseVarifold:
             backend=self.backend,
         )
 
+        # TODO: update if longitudinal
         mesh_per_outer = []
         keys = []
         for outer_key, meshes in nested_meshes.items():
@@ -127,30 +98,28 @@ class PairwiseVarifold:
             "backend": self.backend,
         }
 
-        device = "gpu" if metric._gpu else "cpu"
         self.results_["dists"] = {
-            "filename": "pair_dists.npy",
-            "device": device,
+            "device": "gpu" if metric._gpu else "cpu",
         }
 
         return dists
 
     def write(self):
         with open(self.results_dir / "params.json", "w") as file:
-            json.dump(self.params_, file, indent=4)
+            json.dump(self.params_, file, indent=2)
 
         with open(self.results_dir / "results.json", "w") as file:
-            json.dump(self.results_, file, indent=4)
+            json.dump(self.results_, file, indent=2)
 
         # TODO: can dump only upper triangular?
-        np.save(self.results_dir / "pair_dists.npy", self.dists_)
+        # TODO: PairwiseDistances save
+        self.dists_.save(self.results_dir / "pairwise_dists")
 
         with open(self.results_dir / "time.json", "w") as file:
-            json.dump(self.timer.as_dict(), file, indent=4)
+            json.dump(self.timer.as_dict(), file, indent=2)
 
     def run(self, nested_meshes):
-        # dataset: subject, session
-
+        # nested_meshes: NestedDataset
         self.reset()
 
         self.timer.start("run")
