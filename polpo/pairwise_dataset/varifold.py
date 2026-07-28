@@ -1,15 +1,14 @@
 import json
 
 import geomstats.backend as gs
-import numpy as np
 
-import polpo.utils as putils
-from polpo.protocol.mixin import MeshPreprocessorMixin
+from polpo.dataset import NestedDataset
+from polpo.protocol.mixin import PairwiseDistancesMixin, RigidAlignmentMixin
 from polpo.surface_mesh.varifold.tuning.metric_based import SigmaFromLengths
 from polpo.time import Timer
 
 
-class PairwiseVarifold(MeshPreprocessorMixin):
+class PairwiseVarifold(RigidAlignmentMixin, PairwiseDistancesMixin):
     def __init__(
         self,
         known_correspondences,
@@ -52,57 +51,32 @@ class PairwiseVarifold(MeshPreprocessorMixin):
         )
 
         # TODO: update if longitudinal
-        mesh_per_outer = []
-        keys = []
-        for outer_key, meshes in nested_meshes.items():
-            inner_key = putils.extract_random_key(meshes)
-            mesh_per_outer.append(meshes[inner_key])
+        # TODO: add random_state?
+        selected_meshes = nested_meshes.sample_inner()
+        sigma_search.fit(selected_meshes.flatten().values_list())
 
-            keys.append(f"{outer_key}-{inner_key}")
-
-        sigma_search.fit(mesh_per_outer)
-
-        metric = sigma_search.optimal_metric_
         self.timer.stop("tuning")
-
-        self.results_["kernel_tuning"] = {
-            "sigma": float(sigma_search.sigma_),  # for serialization
-            "meshes": keys,
-        }
+        metric = sigma_search.optimal_metric_
 
         self.params_["kernel_tuning"] = {
             "ratio_charlen_mesh": self.ratio_charlen_mesh,
             "ratio_charlen": self.ratio_charlen,
         }
 
-        return metric
-
-    def compute_dists(self, meshes, metric):
-        # flatten
-        self.timer.start("dists")
-
-        meshes_flat = putils.unnest_dict(meshes, sep="-")
-        self.results_["keys"] = list(meshes_flat.keys())
-
-        dists = putils.pairwise_dists_par(
-            list(meshes_flat.values()),
-            metric.dist,
-            n_jobs=self.n_jobs,
-        )
-
-        self.timer.stop("dists")
-
-        self.params_["dists"] = {
-            "n_jobs": self.n_jobs,
+        self.params_["metric"] = {
+            "metric": "varifold",
             "geomstats_backend": gs.__name__,
             "backend": self.backend,
         }
 
-        self.results_["dists"] = {
+        self.results_["kernel_tuning"] = {
+            "sigma": float(sigma_search.sigma_),  # for serialization
+            "meshes": selected_meshes.flatten().keys_list(),
+        }
+        self.results_["metric"] = {
             "device": "gpu" if metric._gpu else "cpu",
         }
-
-        return dists
+        return metric
 
     def write(self):
         with open(self.results_dir / "params.json", "w") as file:
@@ -111,22 +85,23 @@ class PairwiseVarifold(MeshPreprocessorMixin):
         with open(self.results_dir / "results.json", "w") as file:
             json.dump(self.results_, file, indent=2)
 
-        # TODO: can dump only upper triangular?
-        # TODO: PairwiseDistances save
         self.dists_.save(self.results_dir / "pairwise_dists")
 
         with open(self.results_dir / "time.json", "w") as file:
             json.dump(self.timer.as_dict(), file, indent=2)
 
     def run(self, nested_meshes):
-        # nested_meshes: NestedDataset
+        # nested_meshes: dict or polpo.dataset.NestedDataset
+        if isinstance(nested_meshes, dict):
+            nested_meshes = NestedDataset(nested_meshes)
+
         self.reset()
 
         self.timer.start("run")
+        nested_meshes = self.preprocess_meshes(nested_meshes.flatten()).nest()
 
-        nested_meshes = self.preprocess_meshes(nested_meshes)
         metric = self.tune_kernel(nested_meshes)
-        self.dists_ = self.compute_dists(nested_meshes, metric)
+        self.dists_ = self.compute_pairwise_dists(nested_meshes.flatten(), metric)
 
         self.timer.stop("run")
 

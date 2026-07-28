@@ -4,7 +4,7 @@ import json
 
 import polpo.preprocessing.dict as ppdict
 from polpo.dataset import Dataset, NestedDataset
-from polpo.protocol.mixin import MeshPreprocessorMixin
+from polpo.protocol.mixin import RigidAlignmentMixin
 from polpo.surface_mesh.deformetrica import FrechetMean, LddmmMetric, Point
 from polpo.surface_mesh.varifold.tuning.geometry_based import SigmaFromLengths
 from polpo.time import Timer
@@ -13,7 +13,7 @@ from polpo.time import Timer
 # TODO: use JsonDict?
 
 
-class LddmmToGlobal(MeshPreprocessorMixin):
+class LddmmToGlobal(RigidAlignmentMixin):
     def __init__(
         self,
         known_correspondences,

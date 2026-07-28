@@ -1,12 +1,10 @@
 import polpo.utils as putils
+from polpo.distmat import PairwiseDistances
 from polpo.preprocessing.mesh.registration import RigidAlignment
 from polpo.surface_mesh.core import PvSurface
 
-# TODO: create Protocol metaclass: timer, results_, params_
 
-
-class MeshPreprocessorMixin:
-    # TODO: use composition instead of mixin
+class RigidAlignmentMixin:
     def preprocess_meshes(self, data):
         # data : polpo.dataset.Dataset
 
@@ -31,3 +29,27 @@ class MeshPreprocessorMixin:
         }
 
         return data_
+
+
+class PairwiseDistancesMixin:
+    def compute_pairwise_dists(self, meshes, metric):
+        # data : polpo.dataset.Dataset
+
+        self.timer.start("dists")
+
+        dists = PairwiseDistances(
+            meshes.keys_list(),
+            putils.pairwise_dists_par(
+                meshes.values_list(),
+                metric.dist,
+                as_matrix=False,
+                n_jobs=self.n_jobs,
+            ),
+        )
+
+        self.params_["dists"] = {
+            "n_jobs": self.n_jobs,
+        }
+        self.timer.stop("dists")
+
+        return dists
