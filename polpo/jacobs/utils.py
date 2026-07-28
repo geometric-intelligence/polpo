@@ -6,10 +6,18 @@ from .tabular import get_key_to_birth_week, get_key_to_week
 MATERNAL_IDS = {
     "01",
     "1001B",
+    "1003B",
     "1004B",
     "1009B",
+    "1011B",
+    "1012B",
+    "2003B",
     "2004B",
+    "2011B",
+    "2012B",
+    "3003B",
     "3004B",
+    "4001B",
 }
 
 
@@ -25,7 +33,7 @@ def get_subject_ids(
         if not include_male and id_.startswith("2"):
             ids.remove(id_)
 
-        if not include_control and id_.startswith("3"):
+        if not include_control and (id_.startswith("3") or id_.startswith("4")):
             ids.remove(id_)
 
     if sort:
