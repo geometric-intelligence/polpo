@@ -138,6 +138,19 @@ class NestedDataset(DatasetMapping):
     def _new(self, data):
         return type(self)(data)
 
+    def keys_list(self):
+        return list(self.data.keys())
+
+    def inner_keys(self):
+        return {outer_key: list(inner) for outer_key, inner in self.items()}
+
+    def nested_keys(self):
+        return [
+            (outer_key, inner_key)
+            for outer_key, inner in self.items()
+            for inner_key in inner
+        ]
+
     def as_dict(self):
         return self.data
 
@@ -265,3 +278,48 @@ class NestedDataset(DatasetMapping):
             }
 
         return self._new(data)
+
+    def filter_keys(self, predicate, /, *args, **kwargs):
+        """Filter entries according to their outer and inner keys.
+
+        Parameters
+        ----------
+        predicate : callable
+            Function called as ``predicate(outer_key, inner_key, *args, **kwargs)``.
+            Entries for which it returns ``True`` are retained.
+        *args
+            Additional positional arguments passed to ``predicate``.
+        **kwargs
+            Additional keyword arguments passed to ``predicate``.
+
+        Returns
+        -------
+        NestedDataset
+            Dataset containing the selected entries.
+        """
+        data = {
+            outer_key: {
+                inner_key: value
+                for inner_key, value in inner_data.items()
+                if predicate(outer_key, inner_key, *args, **kwargs)
+            }
+            for outer_key, inner_data in self.items()
+        }
+
+        return self._new(
+            {
+                outer_key: inner_data
+                for outer_key, inner_data in data.items()
+                if inner_data
+            }
+        )
+
+    def drop_outer(self, keys):
+        keys = set(keys)
+        return self._new(
+            {
+                outer_key: inner
+                for outer_key, inner in self.items()
+                if outer_key not in keys
+            }
+        )

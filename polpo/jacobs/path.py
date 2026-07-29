@@ -116,11 +116,27 @@ def FoldersSelector(
         pipes.append(pipe)
 
     if len(subject_subset):
-        pipe = (lambda path: Path(path) / PROJECT_FOLDER) + DerSessionFolderSelector(
-            derivative,
-            subject_subset,
-            session_subset,
-            session_sorter=_session_sorter,
+        excluded_sessions = {
+            "1011B": {"pre1", "pre2"},
+        }
+        pipe = (
+            (lambda path: Path(path) / PROJECT_FOLDER)
+            + DerSessionFolderSelector(
+                derivative,
+                subject_subset,
+                session_subset,
+                session_sorter=_session_sorter,
+            )
+            + (
+                lambda data: {
+                    subject: {
+                        session: value
+                        for session, value in sessions.items()
+                        if session not in excluded_sessions.get(subject, ())
+                    }
+                    for subject, sessions in data.items()
+                }
+            )
         )
         pipes.append(pipe)
 
