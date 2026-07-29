@@ -36,11 +36,11 @@ if __name__ == "__main__":
 
     mapped_atlas_keys = key_codec.encode_nested_keys(atlas_keys)
 
-    params = {"key_map": key_codec.to_dict(), "atlas_keys": mapped_atlas_keys}
+    metadata = {"key_map": key_codec.to_dict(), "atlas_keys": mapped_atlas_keys}
     protocol = LddmmToGlobal(
         known_correspondences=True,
         results_dir=outputs_dir,
-        params=params,
+        metadata=metadata,
     )
 
     protocol.run(key_codec.encode_dataset(dataset), atlas_keys=mapped_atlas_keys)

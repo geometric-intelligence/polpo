@@ -111,6 +111,25 @@ class Dataset(DatasetMapping):
 
         return self._new({key: self[key] for key in sampled_keys})
 
+    def select(self, keys, *, ignore_missing=False):
+        """Return a dataset restricted to the given keys.
+
+        Parameters
+        ----------
+        keys : iterable
+            Keys to select. Their order determines the order of the returned
+            dataset.
+
+        Returns
+        -------
+        Dataset
+            Dataset containing the selected entries.
+        """
+        if ignore_missing:
+            return self._new({key: self[key] for key in keys if key in self})
+
+        return self._new({key: self[key] for key in keys})
+
 
 class NestedDataset(DatasetMapping):
     def __init__(self, data):

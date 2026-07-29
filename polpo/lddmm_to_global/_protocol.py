@@ -1,19 +1,34 @@
 # TODO: create script to check registration time with no decimation
 
 import json
+import traceback
+from datetime import datetime, timezone
 
-import polpo.preprocessing.dict as ppdict
+import numpy as np
+
 from polpo.dataset import Dataset, NestedDataset
-from polpo.protocol.mixin import RigidAlignmentMixin
+from polpo.preprocessing.mesh.registration import RigidAlignment
+from polpo.surface_mesh.core import PvSurface
 from polpo.surface_mesh.deformetrica import FrechetMean, LddmmMetric, Point
 from polpo.surface_mesh.varifold.tuning.geometry_based import SigmaFromLengths
 from polpo.time import Timer
 
-# TODO: add script to collect times
-# TODO: use JsonDict?
 
+class LddmmToGlobal:
+    PROTOCOL_VERSION = "0.2.0"
 
-class LddmmToGlobal(RigidAlignmentMixin):
+    DEFAULT_REGISTRATION_KWARGS = {
+        "regularisation": 1.0,
+        "max_iter": 2000,
+        "freeze_control_points": False,
+        "metric": "varifold",
+        "tol": 1e-16,
+    }
+
+    DEFAULT_FRECHET_MEAN_KWARGS = {
+        "initial_step_size": 1e-1,
+    }
+
     def __init__(
         self,
         known_correspondences,
@@ -21,10 +36,11 @@ class LddmmToGlobal(RigidAlignmentMixin):
         ratio_kernel=1.5,
         ratio_charlen_mesh=2.0,
         ratio_charlen=0.25,
-        params=None,
+        registration_kwargs=None,
+        frechet_mean_kwargs=None,
+        random_state=None,
+        metadata=None,
     ):
-        self.version = "0.2.0"
-
         self.timer = Timer()
 
         self.known_correspondences = known_correspondences
@@ -34,39 +50,80 @@ class LddmmToGlobal(RigidAlignmentMixin):
         self.ratio_charlen = ratio_charlen
         self.ratio_charlen_mesh = ratio_charlen_mesh
 
-        self._params = params or {}
+        self.registration_kwargs = {
+            **self.DEFAULT_REGISTRATION_KWARGS,
+            **(registration_kwargs or {}),
+        }
+        self.frechet_mean_kwargs = {
+            **self.DEFAULT_FRECHET_MEAN_KWARGS,
+            **(frechet_mean_kwargs or {}),
+        }
+
+        self.metadata = metadata or {}
+        self.random_state = random_state
+
         self.reset()
 
     def reset(self):
-        self.results_ = {"version": self.version}
-        self.params_ = {"version": self.version}
-        self.params_.update(self._params)
         self.timer.reset()
+
+        seed_sequence = np.random.SeedSequence(self.random_state)
+        self.rng_ = np.random.default_rng(seed_sequence)
+
+        self.params_ = {
+            "version": self.PROTOCOL_VERSION,
+            "metadata": self.metadata,
+            "random_state": self.random_state,
+            "rigid_alignment": {
+                "known_correspondences": self.known_correspondences,
+            },
+            "kernel_tuning": {
+                "ratio_kernel": self.ratio_kernel,
+                "ratio_charlen_mesh": self.ratio_charlen_mesh,
+                "ratio_charlen": self.ratio_charlen,
+            },
+            "registration": self.registration_kwargs,
+            "frechet_mean": self.frechet_mean_kwargs,
+        }
+
+        self.results_ = {
+            "started_at": datetime.now(timezone.utc).isoformat(),
+            "random_state": int(seed_sequence.entropy),
+        }
+
+    def preprocess_meshes(self, data):  # TODO: update it in varifold
+        # data : polpo.dataset.Dataset
+
+        # rigidly aligns all the meshes against a randomly chosen target
+        with self.timer("prep"):
+            selected_mesh = data.sample(random_state=self.rng_)
+            aligner = RigidAlignment(
+                target=selected_mesh.values_list()[0],
+                known_correspondences=self.known_correspondences,
+            )
+
+            data_ = data.transform(aligner).map_values(PvSurface)
+
+        self.results_["rigid_alignment"] = {
+            "key": selected_mesh.keys_list()[0],
+        }
+
+        return data_
 
     def tune_kernel(self, nested_meshes):
         # select varifold kernel using a randomly selected mesh per subject
-        self.timer.start("tuning")
+        with self.timer("tuning"):
+            sigma_search = SigmaFromLengths(
+                ratio_charlen_mesh=self.ratio_charlen_mesh,
+                ratio_charlen=self.ratio_charlen,
+            )
 
-        sigma_search = SigmaFromLengths(
-            ratio_charlen_mesh=self.ratio_charlen_mesh,
-            ratio_charlen=self.ratio_charlen,
-        )
-
-        # TODO: add random_state?
-        selected_meshes = nested_meshes.sample_inner()
-        sigma_search.fit(selected_meshes.flatten().values_list())
-
-        self.timer.stop("tuning")
+            selected_meshes = nested_meshes.sample_inner(random_state=self.rng_)
+            sigma_search.fit(selected_meshes.flatten().values_list())
 
         sigma_var = sigma_search.sigma_
         sigma_vel = self.ratio_kernel * sigma_var
 
-        # TODO: also add registration kwargs
-        self.params_["kernel_tuning"] = {
-            "ratio_kernel": self.ratio_kernel,
-            "ratio_charlen_mesh": self.ratio_charlen_mesh,
-            "ratio_charlen": self.ratio_charlen,
-        }
         self.results_["kernel_tuning"] = {
             "sigma_vel": sigma_vel,
             "sigma_var": sigma_var,
@@ -76,17 +133,13 @@ class LddmmToGlobal(RigidAlignmentMixin):
         return sigma_vel, sigma_var
 
     def instantiate_metric(self, sigma_vel, sigma_var):
-        registration_kwargs = dict(
-            kernel_width=sigma_vel,
-            regularisation=1.0,
-            max_iter=2000,
-            freeze_control_points=False,
-            metric="varifold",
-            tol=1e-16,
-            attachment_kernel_width=sigma_var,
-        )
+        kwargs = {
+            **self.registration_kwargs,
+            "kernel_width": sigma_vel,
+            "attachment_kernel_width": sigma_var,
+        }
 
-        metric = LddmmMetric(self.results_dir, **registration_kwargs)
+        metric = LddmmMetric(self.results_dir, **kwargs)
 
         self.params_["dirs"] = metric.dir_config.to_dict()
 
@@ -102,34 +155,21 @@ class LddmmToGlobal(RigidAlignmentMixin):
         )
 
     def build_local_atlases(self, nested_points, metric, atlas_keys):
-        # TODO: parallelize?
-        estimator = FrechetMean(
-            metric,
-            initial_step_size=1e-1,  # TODO: pass this? at least store in params
-        )
+        estimator = FrechetMean(metric, **self.frechet_mean_kwargs)
 
-        self.timer.start("local_atlases")
+        with self.timer("local_atlases"):
+            atlases = {}
+            for outer_key, points in nested_points.items():
+                subset = Dataset(points).select(atlas_keys[outer_key]).values_list()
+                estimator.fit(subset, atlas_id=outer_key)
+                atlas = estimator.estimate_
 
-        atlases = {}
-        for outer_key, points in nested_points.items():
-            filt_keys = atlas_keys[outer_key]
-            filt_points = ppdict.SelectKeySubset(filt_keys)(points)
-
-            filt_points = list(filt_points.values())
-            estimator.fit(filt_points, atlas_id=outer_key)
-            atlas = estimator.estimate_
-
-            atlases[outer_key] = atlas
-
-        self.timer.stop("local_atlases")
+                atlases[outer_key] = atlas
 
         return Dataset(atlases)
 
     def build_global_atlas(self, local_atlases, metric):
-        estimator = FrechetMean(
-            metric,
-            initial_step_size=1e-1,  # TODO: pass this? at least store in params
-        )
+        estimator = FrechetMean(metric, **self.frechet_mean_kwargs)
 
         with self.timer("global_atlas"):
             estimator.fit(local_atlases.values_list(), "gl")
@@ -137,7 +177,6 @@ class LddmmToGlobal(RigidAlignmentMixin):
         return estimator.estimate_
 
     def register_and_transport(self, nested_points, metric, atlas, local_atlases):
-        # TODO: parallelize
         self.timer.start("register_and_transport")
 
         global_reprs = {}
@@ -171,6 +210,20 @@ class LddmmToGlobal(RigidAlignmentMixin):
         with open(self.results_dir / "time.json", "w") as file:
             json.dump(self.timer.as_dict(), file, indent=2)
 
+    def _record_failure(self, error):
+        self.results_.update(
+            {
+                "status": "failed",
+                "failed_stage": self.current_stage_,
+                "finished_at": datetime.now(timezone.utc).isoformat(),
+                "error": {
+                    "type": type(error).__name__,
+                    "message": str(error),
+                    "traceback": traceback.format_exc(),
+                },
+            }
+        )
+
     def run(self, nested_meshes, atlas_keys):
         # nested_meshes: dict or polpo.dataset.NestedDataset
         if isinstance(nested_meshes, dict):
@@ -178,25 +231,50 @@ class LddmmToGlobal(RigidAlignmentMixin):
 
         self.reset()
 
-        self.timer.start("run")
+        self.results_dir.mkdir(parents=True, exist_ok=True)
+        self.results_["status"] = "running"
 
-        nested_meshes_ = self.preprocess_meshes(nested_meshes.flatten()).nest()
+        try:
+            with self.timer("run"):
+                self.current_stage_ = "preprocessing"
+                nested_meshes_ = self.preprocess_meshes(nested_meshes.flatten()).nest()
 
-        sigma_vel, sigma_var = self.tune_kernel(nested_meshes_)
-        metric = self.instantiate_metric(sigma_vel, sigma_var)
+                self.current_stage_ = "metric_instantiation"
+                sigma_vel, sigma_var = self.tune_kernel(nested_meshes_)
+                metric = self.instantiate_metric(sigma_vel, sigma_var)
 
-        nested_points = self.meshes_as_points(nested_meshes_, metric)
+                nested_points = self.meshes_as_points(nested_meshes_, metric)
 
-        local_atlases = self.build_local_atlases(nested_points, metric, atlas_keys)
-        atlas = self.build_global_atlas(local_atlases, metric)
+                self.current_stage_ = "local_atlases"
+                local_atlases = self.build_local_atlases(
+                    nested_points, metric, atlas_keys
+                )
 
-        _ = self.register_and_transport(
-            nested_points,
-            metric,
-            atlas,
-            local_atlases,
-        )
+                self.current_stage_ = "global_atlas"
+                atlas = self.build_global_atlas(local_atlases, metric)
 
-        self.timer.stop("run")
+                self.current_stage_ = "registration_and_transport"
+                global_reprs = self.register_and_transport(
+                    nested_points,
+                    metric,
+                    atlas,
+                    local_atlases,
+                )
+
+                self.current_stage_ = "completed"
+        except Exception as error:
+            self._record_failure(error)
+            self.write()
+            raise
+
+        self.results_["finished_at"] = datetime.now(timezone.utc).isoformat()
+        self.results_["status"] = "completed"
 
         self.write()
+
+        self.metric_ = metric
+        self.local_atlases_ = local_atlases
+        self.atlas_ = atlas
+        self.global_reprs_ = global_reprs
+
+        return self
