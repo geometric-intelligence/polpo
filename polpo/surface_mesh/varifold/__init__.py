@@ -1,1 +1,4 @@
-from geomstats.varifold import VarifoldMetric
+try:
+    from geomstats.varifold import VarifoldMetric
+except ImportError:
+    pass
