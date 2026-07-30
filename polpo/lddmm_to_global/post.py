@@ -1,7 +1,11 @@
-import json
+from functools import cached_property
+from pathlib import Path
+
+import geomstats.backend as gs
 
 from polpo.dataset import Dataset, NestedDataset
 from polpo.distmat import PairwiseDistances
+from polpo.io.json import load_json
 from polpo.numpy.io import save_dict_as_array
 from polpo.surface_mesh.deformetrica.core import (
     DeterministicAtlasDir,
@@ -11,9 +15,10 @@ from polpo.surface_mesh.deformetrica.core import (
     TransportDir,
 )
 from polpo.surface_mesh.deformetrica.utils import DirConfig
-from polpo.surface_mesh.varifold import VarifoldMetric
+from polpo.surface_mesh.varifold.geometry import VarifoldMetric
 from polpo.utils import NestedKeyCodec
 from polpo.utils.np import pairwise_dists
+from polpo.workflow.task import TaskRunner
 
 
 def varifold_metric_from_results(data, backend="auto"):
@@ -144,98 +149,176 @@ def global_pairwise_dist(shoot_dir, dist_fnc):
     )
 
 
-def post_dists(
-    outputs_dir,
-    dists_folder="post_dists",
-    backend="auto",
-    include_local_rec_error=True,
-    include_atlas_rec_error=True,
-    include_global_atlas_rec_error=True,
-    include_transport_error=True,
-    include_local_pairwise=True,
-    include_rec_local_pairwise=True,
-    include_global_pairwise=True,
-):
-    if isinstance(dists_folder, str):
-        dists_folder = outputs_dir / dists_folder
+class PostDistances(TaskRunner):
+    def __init__(
+        self,
+        experiment_dir,
+        results_dir="post_dists",
+        backend="auto",
+    ):
+        self.experiment_dir = Path(experiment_dir)
 
-    dists_folder.mkdir(parents=True, exist_ok=True)
+        results_dir = Path(results_dir)
+        if not results_dir.is_absolute():
+            results_dir = self.experiment_dir / results_dir
 
-    # load experiment data
-    with open(outputs_dir / "params.json", "r") as file:
-        params = json.load(file)
+        self.backend = backend
+        super().__init__(
+            results_dir,
+            metadata={
+                "backend": backend,
+                "experiment_dir": str(self.experiment_dir),
+            },
+        )
 
-    with open(outputs_dir / "results.json", "r") as file:
-        results = json.load(file)
+    def tasks(self):
+        return {
+            "local_rec_error": self.local_rec_error,
+            "atlas_rec_error": self.atlas_rec_error,
+            "global_atlas_rec_error": self.global_atlas_rec_error,
+            "transport_error": self.transport_error,
+            "local_pairwise": self.local_pairwise,
+            "rec_local_pairwise": self.rec_local_pairwise,
+            "global_pairwise": self.global_pairwise,
+        }
 
-    dir_config = DirConfig(
-        outputs_dir=outputs_dir,
-        **{key: outputs_dir / value for key, value in params["dirs"].items()},
-    )
+    @cached_property
+    def params(self):
+        return load_json(self.experiment_dir / "params.json")
 
-    key_map = NestedKeyCodec.from_key_map(params["key_map"])
+    @cached_property
+    def results(self):
+        return load_json(self.experiment_dir / "results.json")
 
-    metric = varifold_metric_from_results(results, backend=backend)
+    @cached_property
+    def dir_config(self):
+        return DirConfig(
+            outputs_dir=self.experiment_dir,
+            **{
+                key: self.experiment_dir / value
+                for key, value in self.params["dirs"].items()
+            },
+        )
 
-    # get relevant dirs
-    dataset = collect_dataset(dir_config.meshes_dir, key_map.keys(encoded=True))
-    local_regs = collect_local_registrations(
-        dir_config.registration_dir, key_map.keys(encoded=True)
-    )
-    global_shoots = collect_global_shoots(
-        dir_config.shoot_dir, key_map.keys(encoded=True)
-    )
-    transports = collect_transports(
-        dir_config.transport_dir, key_map.keys(encoded=True)
-    )
+    @cached_property
+    def key_map(self):
+        return NestedKeyCodec.from_key_map(self.params["metadata"]["key_map"])
 
-    atlases = collect_atlases(dir_config.atlas_dir, key_map.keys(encoded=True))
-    global_atlas = get_global_atlas(dir_config.atlas_dir)
+    @cached_property
+    def encoded_keys(self):
+        return self.key_map.keys(encoded=True)
 
-    # compute errors
-    if include_local_rec_error:
-        local_errors = local_regs.map_values(
+    @cached_property
+    def metric(self):
+        metric = varifold_metric_from_results(
+            self.results,
+            backend=self.backend,
+        )
+
+        self.set_resolved(
+            geomstats_backend=gs.__name__,
+            device="gpu" if metric._gpu else "cpu",
+        )
+
+        return metric
+
+    @cached_property
+    def dataset(self):
+        return collect_dataset(
+            self.dir_config.meshes_dir,
+            self.encoded_keys,
+        )
+
+    @cached_property
+    def local_regs(self):
+        return collect_local_registrations(
+            self.dir_config.registration_dir,
+            self.encoded_keys,
+        )
+
+    @cached_property
+    def global_shoots(self):
+        return collect_global_shoots(
+            self.dir_config.shoot_dir,
+            self.encoded_keys,
+        )
+
+    @cached_property
+    def transports(self):
+        return collect_transports(
+            self.dir_config.transport_dir,
+            self.encoded_keys,
+        )
+
+    @cached_property
+    def atlases(self):
+        return collect_atlases(
+            self.dir_config.atlas_dir,
+            self.encoded_keys,
+        )
+
+    @cached_property
+    def global_atlas(self):
+        return get_global_atlas(self.dir_config.atlas_dir)
+
+    def local_rec_error(self):
+        errors = self.local_regs.map_values(
             reconstruction_error,
-            dist_fnc=metric.dist,
+            dist_fnc=self.metric.dist,
         )
-        save_dict_as_array(dists_folder / "rec_local", local_errors.flatten())
+        save_dict_as_array(
+            self.results_dir / "rec_local",
+            errors.flatten(),
+        )
 
-    if include_atlas_rec_error:
-        atlases_errors = atlases.map_values(
+    def atlas_rec_error(self):
+        errors = self.atlases.map_values(
             atlas_reconstruction_error,
-            dist_fnc=metric.dist,
+            dist_fnc=self.metric.dist,
         )
         save_dict_as_array(
-            dists_folder / "rec_atlas", NestedDataset(atlases_errors.data).flatten()
+            self.results_dir / "rec_atlas",
+            NestedDataset(errors.data).flatten(),
         )
 
-    if include_global_atlas_rec_error:
-        atlas_errors = atlas_reconstruction_error(
-            global_atlas,
-            dist_fnc=metric.dist,
+    def global_atlas_rec_error(self):
+        errors = atlas_reconstruction_error(
+            self.global_atlas,
+            dist_fnc=self.metric.dist,
         )
         save_dict_as_array(
-            dists_folder / "rec_global_atlas",
-            atlas_errors,
+            self.results_dir / "rec_global_atlas",
+            errors,
         )
 
-    if include_transport_error:
-        transport_error = transports.map_values(
+    def transport_error(self):
+        errors = self.transports.map_values(
             parallel_transport_dir_error,
-            atlas=global_atlas.template().as_pv_surface(),
-            dist_fnc=metric.dist,
+            atlas=self.global_atlas.template().as_pv_surface(),
+            dist_fnc=self.metric.dist,
         )
-        save_dict_as_array(dists_folder / "rec_transport", transport_error.flatten())
+        save_dict_as_array(
+            self.results_dir / "rec_transport",
+            errors.flatten(),
+        )
 
-    # pairwise distances
-    if include_local_pairwise:
-        dists = pairwise_dist(dataset, metric.dist)
-        dists.save(dists_folder / "local_pairwise")
+    def local_pairwise(self):
+        distances = pairwise_dist(
+            self.dataset,
+            self.metric.dist,
+        )
+        distances.save(self.results_dir / "local_pairwise")
 
-    if include_rec_local_pairwise:
-        dists = local_pairwise_dist(local_regs, metric.dist)
-        dists.save(dists_folder / "rec_local_pairwise")
+    def rec_local_pairwise(self):
+        distances = local_pairwise_dist(
+            self.local_regs,
+            self.metric.dist,
+        )
+        distances.save(self.results_dir / "rec_local_pairwise")
 
-    if include_global_pairwise:
-        dists = global_pairwise_dist(global_shoots, metric.dist)
-        dists.save(dists_folder / "global_pairwise")
+    def global_pairwise(self):
+        distances = global_pairwise_dist(
+            self.global_shoots,
+            self.metric.dist,
+        )
+        distances.save(self.results_dir / "global_pairwise")
