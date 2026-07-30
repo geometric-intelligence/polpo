@@ -238,6 +238,15 @@ class NestedKeyCodec:
             inner=key_map["inner"],
         )
 
+    @classmethod
+    def from_inner_key_map(cls, inner):
+        outer = {outer_key: outer_key for outer_key in inner}
+
+        return cls(
+            outer=outer,
+            inner=inner,
+        )
+
     @staticmethod
     def _encode_outer(index):
         code = ""

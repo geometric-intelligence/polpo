@@ -67,6 +67,29 @@ class Dataset(DatasetMapping):
         data = {key: func(value, *args, **kwargs) for key, value in self.data.items()}
         return self._new(data)
 
+    def map_keys(self, func, /, *args, on_collision="raise", **kwargs):
+        """Apply ``func`` to each key while preserving values."""
+        data = {}
+
+        for key, value in self.items():
+            new_key = func(key, *args, **kwargs)
+
+            if new_key in data:
+                if on_collision == "raise":
+                    raise ValueError(
+                        f"Key transformation produced duplicate key {new_key!r}."
+                    )
+                if on_collision == "keep_first":
+                    continue
+                if on_collision != "keep_last":
+                    raise ValueError(
+                        "on_collision must be 'raise', 'keep_first', or 'keep_last'."
+                    )
+
+            data[new_key] = value
+
+        return self._new(data)
+
     def apply(self, func, /, *args, **kwargs):
         """Apply ``func`` once to the ordered dataset values."""
         return func(self.values_list(), *args, **kwargs)
@@ -226,6 +249,21 @@ class NestedDataset(DatasetMapping):
         }
         return self._new(data)
 
+    def map_keys(self, func, /, *args, **kwargs):
+        data = {}
+
+        for outer_key, inner_data in self.items():
+            for inner_key, value in inner_data.items():
+                new_outer_key, new_inner_key = func(
+                    outer_key,
+                    inner_key,
+                    *args,
+                    **kwargs,
+                )
+                data.setdefault(new_outer_key, {})[new_inner_key] = value
+
+        return self._new(data)
+
     def reduce_outer(self, func, /, *args, **kwargs):
         """Apply ``func`` to each outer dataset and return one result per key."""
         return Dataset(
@@ -323,3 +361,15 @@ class NestedDataset(DatasetMapping):
                 if outer_key not in keys
             }
         )
+
+    def split_outer(self):
+        """Split into one Dataset per outer key."""
+        return {outer_key: self.get_outer(outer_key) for outer_key in self}
+
+    def iter_outer(self):
+        for outer_key in self:
+            yield outer_key, self.get_outer(outer_key)
+
+    def get_outer(self, outer_key):
+        """Return the inner dataset associated with an outer key."""
+        return Dataset(self.data[outer_key])
