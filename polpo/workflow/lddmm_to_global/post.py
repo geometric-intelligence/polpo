@@ -237,10 +237,22 @@ class PostDistances(TaskRunner):
         )
 
     @cached_property
+    def local_rec_points(self):
+        # TODO: use to compute distances
+        return self.local_regs.map_values(lambda x: x.reconstructed())
+
+    @cached_property
     def global_shoots(self):
         return collect_global_shoots(
             self.dir_config.shoot_dir,
             self.encoded_keys,
+        )
+
+    @cached_property
+    def global_points(self):
+        # TODO: use to compute distances
+        return self.global_shoots.map_values(
+            lambda x: x.point(),
         )
 
     @cached_property
