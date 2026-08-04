@@ -2,6 +2,7 @@
 
 import json
 
+import numpy as np
 import pyvista as pv
 
 import polpo.deformetrica.io as pdefoio
@@ -38,7 +39,7 @@ class Point:
 
         return self.vtk_path
 
-    def as_pv(self):
+    def as_polydata(self):
         if self.pv_surface is not None:
             return self.pv_surface
 
@@ -50,7 +51,7 @@ class Point:
         return self.pv_surface
 
     def as_pv_surface(self):
-        return PvSurface(self.as_pv(), id_=self.id)
+        return PvSurface(self.as_polydata(), id_=self.id)
 
     def as_dict(self):
         return dict(id=self.id, vtk_path=self.vtk_path.as_posix())
@@ -125,7 +126,43 @@ class TransportedVector(TangentVector):
         return Momenta(pdefoio.load_transported_momenta(self.dirname, as_path=True))
 
 
-class RegistrationDir:
+class Flow:
+    def __init__(self, points, times=None):
+        if times is None:
+            times = np.linspace(0.0, 1.0, len(points))
+
+        self.points = points
+        self.times = times
+
+    def __len__(self):
+        return len(self.points)
+
+    def __getitem__(self, index):
+        return self.points[index]
+
+    @property
+    def initial_point(self):
+        return self.points[0]
+
+    @property
+    def end_point(self):
+        return self.points[0]
+
+    def as_polydata(self):
+        return [point.as_polydata() for point in self.points]
+
+    def nearest(self, time):
+        index = np.argmin(np.abs(self.times - time))
+        return self.points[index]
+
+    def at_sampled_time(self, time):
+        indices = np.flatnonzero(np.isclose(self.times, time))
+        if len(indices) == 0:
+            raise ValueError(f"No flow point sampled at time {time}")
+        return self.points[indices[0]]
+
+
+class RegistrationResult:
     # TODO: disambiguate template_shape: confirm it is source
 
     def __init__(self, dirname, base_point, point):
@@ -171,13 +208,15 @@ class RegistrationDir:
         vtk_paths = pdefoio.load_deterministic_atlas_flow(
             self.dirname, as_pv=True, as_path=True
         )
-        return [
-            Point(f"{self.dirname.name}|tp{index}", vtk_path=vtk_path)
-            for index, vtk_path in enumerate(vtk_paths)
-        ]
+        return Flow(
+            [
+                Point(f"{self.dirname.name}|tp{index}", vtk_path=vtk_path)
+                for index, vtk_path in enumerate(vtk_paths)
+            ]
+        )
 
 
-class ShootDir:
+class ShootResult:
     # TODO: add Dir
     def __init__(self, dirname, tangent_vec, base_point):
         self.dirname = dirname
@@ -220,13 +259,15 @@ class ShootDir:
             as_pv=True,
             as_path=True,
         )
-        return [
-            Point(f"{self.dirname.name}|tp{index}", vtk_path=vtk_path)
-            for index, vtk_path in enumerate(vtk_paths)
-        ]
+        return Flow(
+            [
+                Point(f"{self.dirname.name}|tp{index}", vtk_path=vtk_path)
+                for index, vtk_path in enumerate(vtk_paths)
+            ]
+        )
 
 
-class _BaseDeterministicAtlasDir:
+class _BaseDeterministicAtlasResult:
     def __init__(self, dirname, points):
         self.dirname = dirname
         self.points = points
@@ -252,7 +293,7 @@ class _BaseDeterministicAtlasDir:
             json.dump(self.params(), file, indent=2)
 
 
-class DeterministicAtlasManyDir(_BaseDeterministicAtlasDir):
+class DeterministicAtlasManyResult(_BaseDeterministicAtlasResult):
     # TODO: add to_registrations
 
     def template(self):
@@ -274,13 +315,13 @@ class DeterministicAtlasManyDir(_BaseDeterministicAtlasDir):
     def flows(self):
         atlas_id = self.dirname.name
 
-        flows = []
+        flows = {}
         for point in self.points:
             vtk_paths = pdefoio.load_deterministic_atlas_flow(
                 self.dirname, as_path=True, id_=point.id
             )
 
-            flows.append(
+            flows[point.id] = Flow(
                 [
                     Point(f"{atlas_id}_to_{point.id}|tp{index}", vtk_path=vtk_path)
                     for index, vtk_path in enumerate(vtk_paths)
@@ -306,7 +347,7 @@ class DeterministicAtlasManyDir(_BaseDeterministicAtlasDir):
         return reconstructed
 
 
-class DeterministicAtlasOneDir(_BaseDeterministicAtlasDir):
+class DeterministicAtlasOneDir(_BaseDeterministicAtlasResult):
     def template(self):
         name = self.dirname.name
         return Point(
@@ -320,18 +361,18 @@ class DeterministicAtlasOneDir(_BaseDeterministicAtlasDir):
     def write_mesh(self):
         self.dirname.mkdir(parents=True)
         point = self.points[0]
-        point.as_pv().save(self.template().vtk_path)
+        point.as_polydata().save(self.template().vtk_path)
 
 
-class DeterministicAtlasDir(_BaseDeterministicAtlasDir):
+class DeterministicAtlasResult(_BaseDeterministicAtlasResult):
     def __new__(cls, dirname, points):
         if len(points) == 1:
             return DeterministicAtlasOneDir(dirname, points)
 
-        return DeterministicAtlasManyDir(dirname, points)
+        return DeterministicAtlasManyResult(dirname, points)
 
 
-class _TransportDir:
+class _TransportResult:
     def __init__(self, dirname, tangent_vec, base_point, direction):
         # TODO: play with end_point and direction
         self.dirname = dirname
@@ -345,7 +386,7 @@ class _TransportDir:
             tangent_vec=self.tangent_vec.as_dict(),
             base_point=self.base_point.as_dict(),
             direction=self.direction.as_dict(),
-            pole_ladder=not isinstance(self, TransportDirFan),
+            pole_ladder=not isinstance(self, TransportResultFan),
         )
 
     def write_json(self):
@@ -356,7 +397,7 @@ class _TransportDir:
         return TransportedVector(self.dirname.name, self.dirname)
 
 
-class TransportDirFan(_TransportDir):
+class TransportResultFan(_TransportResult):
     def reconstructed(self):
         # TODO: update
         # NB: it reconstructs the end point of direction
@@ -374,12 +415,12 @@ class TransportDirFan(_TransportDir):
         return Point(id_=id_, vtk_path=vtk_path)
 
 
-class TransportDir:
+class TransportResult:
     def __new__(cls, *args, pole_ladder=True, **kwargs):
         if pole_ladder:
-            return _TransportDir(*args, **kwargs)
+            return _TransportResult(*args, **kwargs)
 
-        return TransportDirFan(*args, **kwargs)
+        return TransportResultFan(*args, **kwargs)
 
     @classmethod
     def from_dirname(cls, dirname):

@@ -4,9 +4,9 @@ from pathlib import Path
 import polpo.deformetrica as pdefo
 
 from .core import (
-    RegistrationDir,
-    ShootDir,
-    TransportDir,
+    RegistrationResult,
+    ShootResult,
+    TransportResult,
 )
 from .utils import DirConfig
 
@@ -43,7 +43,7 @@ class LddmmMetric:
         # TODO: make _single and vectorize?
 
         id_ = f"{base_point.id}_to_{point.id}"
-        dir_ = RegistrationDir(
+        dir_ = RegistrationResult(
             self.dir_config.registration_dir / id_,
             base_point,
             point,
@@ -66,7 +66,7 @@ class LddmmMetric:
         return dir_.tangent_vec()
 
     def exp(self, tangent_vec, base_point):
-        dir_ = ShootDir(
+        dir_ = ShootResult(
             self.dir_config.shoot_dir / f"{base_point.id}_shoot_{tangent_vec.id}",
             tangent_vec,
             base_point,
@@ -98,7 +98,7 @@ class LddmmMetric:
             raise NotImplementedError("Need direction to compute parallel transport")
 
         scheme = "ladder" if self.use_pole_ladder else "fan"
-        dir_ = TransportDir(
+        dir_ = TransportResult(
             self.dir_config.transport_dir
             / f"{tangent_vec.id}_along_{scheme}_{direction.id}",
             tangent_vec,

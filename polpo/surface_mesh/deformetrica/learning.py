@@ -4,7 +4,7 @@ from in_out.array_readers_and_writers import write_3D_array
 
 import polpo.deformetrica as pdefo
 
-from .core import DeterministicAtlasDir
+from .core import DeterministicAtlasResult
 
 
 class FrechetMean:
@@ -26,7 +26,7 @@ class FrechetMean:
     def fit(self, X, atlas_id):
         self.estimate_ = None
 
-        dir_ = DeterministicAtlasDir(
+        dir_ = DeterministicAtlasResult(
             self.metric.dir_config.atlas_dir / atlas_id, points=X
         )
 
