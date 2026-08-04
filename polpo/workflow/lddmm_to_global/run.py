@@ -1,0 +1,144 @@
+from functools import cached_property
+from pathlib import Path
+
+from polpo.dataset import Dataset, NestedDataset
+from polpo.io.json import load_json
+from polpo.surface_mesh.deformetrica.utils import DirConfig
+from polpo.utils import NestedKeyCodec
+
+from .collect import (
+    collect_atlases,
+    collect_dataset,
+    collect_global_shoots,
+    collect_local_registrations,
+    collect_transports,
+    get_global_atlas,
+)
+
+
+class LddmmToGlobalRunView:
+    def __init__(self, run, decode):
+        # TODO: add possibility to set decoder in run? i.e. decode directly to time
+        self._run = run
+        self.decode = decode
+
+    def _transform(self, data):
+        if not self.decode:
+            return data
+
+        if isinstance(data, NestedDataset):
+            return data.map_keys(self._run.key_map.decode)
+
+        return data.map_keys(self._run.key_map.decode_outer)
+
+    @cached_property
+    def dataset(self):
+        data = collect_dataset(
+            self._run.dir_config.meshes_dir,
+            self._run.encoded_keys,
+        )
+        return self._transform(data)
+
+    @cached_property
+    def local_registrations(self):
+        data = collect_local_registrations(
+            self._run.dir_config.registration_dir,
+            self._run.encoded_keys,
+        )
+        return self._transform(data)
+
+    @cached_property
+    def local_reconstructed_points(self):
+        # TODO: use to compute distances
+        return self.local_registrations.map_values(lambda x: x.reconstructed())
+
+    @cached_property
+    def global_shoots(self):
+        data = collect_global_shoots(
+            self._run.dir_config.shoot_dir,
+            self._run.encoded_keys,
+        )
+        return self._transform(data)
+
+    @cached_property
+    def global_points(self):
+        # TODO: use to compute distances
+        return self.global_shoots.map_values(
+            lambda x: x.point(),
+        )
+
+    @cached_property
+    def transports(self):
+        data = collect_transports(
+            self._run.dir_config.transport_dir,
+            self._run.encoded_keys,
+        )
+        return self._transform(data)
+
+    @cached_property
+    def local_atlases(self):
+        data = collect_atlases(
+            self._run.dir_config.atlas_dir,
+            self._run.encoded_keys,
+        )
+        return self._transform(data)
+
+    @property
+    def local_atlases_points(self):
+        return self.local_atlases.map_values(lambda x: x.template())
+
+    @property
+    def global_atlas(self):
+        return self._run.global_atlas
+
+    @property
+    def global_atlas_point(self):
+        return self._run.global_atlas_point
+
+    @property
+    def global_atlas_flows(self):
+        return self._transform(Dataset(self.global_atlas.flows()))
+
+
+class LddmmToGlobalRun:
+    def __init__(self, path):
+        self.path = Path(path)
+
+    @cached_property
+    def encoded(self):
+        return LddmmToGlobalRunView(self, decode=False)
+
+    @cached_property
+    def decoded(self):
+        return LddmmToGlobalRunView(self, decode=True)
+
+    @cached_property
+    def params(self):
+        return load_json(self.path / "params.json")
+
+    @cached_property
+    def results(self):
+        return load_json(self.path / "results.json")
+
+    @cached_property
+    def dir_config(self):
+        return DirConfig(
+            outputs_dir=self.path,
+            **{key: self.path / value for key, value in self.params["dirs"].items()},
+        )
+
+    @cached_property
+    def key_map(self):
+        return NestedKeyCodec.from_key_map(self.params["metadata"]["key_map"])
+
+    @cached_property
+    def encoded_keys(self):
+        return self.key_map.keys(encoded=True)
+
+    @cached_property
+    def global_atlas(self):
+        return get_global_atlas(self.dir_config.atlas_dir)
+
+    @property
+    def global_atlas_point(self):
+        return self.global_atlas.template()

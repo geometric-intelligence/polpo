@@ -3,9 +3,9 @@ import string
 from pathlib import Path
 
 import polpo.utils as putils
-from polpo.lddmm_to_global import LddmmToGlobal
 from polpo.surface_mesh.generation.blob import create_blob
 from polpo.utils import NestedKeyCodec
+from polpo.workflow.lddmm_to_global import LddmmToGlobal
 
 if __name__ == "__main__":
     outputs_dir = putils.get_results_path() / "blobs/lddmm_to_global"
