@@ -17,10 +17,10 @@ from .collect import (
 )
 
 
-class LddmmToGlobalRunView:
-    def __init__(self, run, decode):
-        # TODO: add possibility to set decoder in run? i.e. decode directly to time
-        self._run = run
+class LddmmToGlobalOutputView:
+    def __init__(self, output, decode):
+        # TODO: add possibility to set decoder in output? i.e. decode directly to time
+        self._output = output
         self.decode = decode
 
     def _transform(self, data):
@@ -28,16 +28,16 @@ class LddmmToGlobalRunView:
             return data
 
         if isinstance(data, NestedDataset):
-            return data.map_keys(self._run.key_map.decode)
+            return data.map_keys(self._output.key_map.decode)
 
-        return data.map_keys(self._run.key_map.decode_outer)
+        return data.map_keys(self._output.key_map.decode_outer)
 
     @cached_property
     def dataset(self):
         # original meshes after rigid alignment
         data = collect_dataset(
-            self._run.dir_config.meshes_dir,
-            self._run.encoded_keys,
+            self._output.dir_config.meshes_dir,
+            self._output.encoded_keys,
         )
         return self._transform(data)
 
@@ -45,8 +45,8 @@ class LddmmToGlobalRunView:
     def local_registrations(self):
         # reconstructed results from local to observations
         data = collect_local_registrations(
-            self._run.dir_config.registration_dir,
-            self._run.encoded_keys,
+            self._output.dir_config.registration_dir,
+            self._output.encoded_keys,
         )
         return self._transform(data)
 
@@ -58,16 +58,16 @@ class LddmmToGlobalRunView:
     def registrations_to_global_atlas(self):
         # reconstructed results from local to global atlas
         data = collect_registrations_to_global_atlas(
-            self._run.dir_config.registration_dir,
-            self._run.encoded_keys.keys(),
+            self._output.dir_config.registration_dir,
+            self._output.encoded_keys.keys(),
         )
         return self._transform(data)
 
     @cached_property
     def global_shoots(self):
         data = collect_global_shoots(
-            self._run.dir_config.shoot_dir,
-            self._run.encoded_keys,
+            self._output.dir_config.shoot_dir,
+            self._output.encoded_keys,
         )
         return self._transform(data)
 
@@ -81,16 +81,16 @@ class LddmmToGlobalRunView:
     @cached_property
     def transports(self):
         data = collect_transports(
-            self._run.dir_config.transport_dir,
-            self._run.encoded_keys,
+            self._output.dir_config.transport_dir,
+            self._output.encoded_keys,
         )
         return self._transform(data)
 
     @cached_property
     def local_atlases(self):
         data = collect_atlases(
-            self._run.dir_config.atlas_dir,
-            self._run.encoded_keys,
+            self._output.dir_config.atlas_dir,
+            self._output.encoded_keys,
         )
         return self._transform(data)
 
@@ -100,28 +100,28 @@ class LddmmToGlobalRunView:
 
     @property
     def global_atlas(self):
-        return self._run.global_atlas
+        return self._output.global_atlas
 
     @property
     def global_atlas_point(self):
-        return self._run.global_atlas_point
+        return self._output.global_atlas_point
 
     @property
     def global_atlas_flows(self):
         return self._transform(Dataset(self.global_atlas.flows()))
 
 
-class LddmmToGlobalRun:
+class LddmmToGlobalOutput:
     def __init__(self, path):
         self.path = Path(path)
 
     @cached_property
     def encoded(self):
-        return LddmmToGlobalRunView(self, decode=False)
+        return LddmmToGlobalOutputView(self, decode=False)
 
     @cached_property
     def decoded(self):
-        return LddmmToGlobalRunView(self, decode=True)
+        return LddmmToGlobalOutputView(self, decode=True)
 
     @cached_property
     def params(self):

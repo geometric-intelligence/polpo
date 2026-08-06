@@ -14,9 +14,7 @@ from polpo.utils.dict_ import merge_dicts
 from polpo.utils.np import pairwise_dists
 from polpo.workflow.task import TaskRunner
 
-from .run import LddmmToGlobalRun
-
-# TODO: rename to distances
+from .output import LddmmToGlobalOutput
 
 
 def _save_pairwise_distances(path, result):
@@ -165,7 +163,7 @@ class VarifoldDistances(TaskRunner):
         results_dir="post_dists",
         backend="auto",
     ):
-        self.source = LddmmToGlobalRun(experiment_dir)
+        self.source = LddmmToGlobalOutput(experiment_dir)
 
         results_dir = Path(results_dir)
         if not results_dir.is_absolute():
@@ -221,7 +219,7 @@ class VarifoldDistances(TaskRunner):
 
 class EuclideanDistances:
     def __init__(self, experiment_dir):
-        self.source = LddmmToGlobalRun(experiment_dir)
+        self.source = LddmmToGlobalOutput(experiment_dir)
 
         self.results_ = None
 
