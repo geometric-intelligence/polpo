@@ -11,6 +11,7 @@ from .collect import (
     collect_dataset,
     collect_global_shoots,
     collect_local_registrations,
+    collect_registrations_to_global_atlas,
     collect_transports,
     get_global_atlas,
 )
@@ -33,6 +34,7 @@ class LddmmToGlobalRunView:
 
     @cached_property
     def dataset(self):
+        # original meshes after rigid alignment
         data = collect_dataset(
             self._run.dir_config.meshes_dir,
             self._run.encoded_keys,
@@ -41,6 +43,7 @@ class LddmmToGlobalRunView:
 
     @cached_property
     def local_registrations(self):
+        # reconstructed results from local to observations
         data = collect_local_registrations(
             self._run.dir_config.registration_dir,
             self._run.encoded_keys,
@@ -49,8 +52,16 @@ class LddmmToGlobalRunView:
 
     @cached_property
     def local_reconstructed_points(self):
-        # TODO: use to compute distances
         return self.local_registrations.map_values(lambda x: x.reconstructed())
+
+    @cached_property
+    def registrations_to_global_atlas(self):
+        # reconstructed results from local to global atlas
+        data = collect_registrations_to_global_atlas(
+            self._run.dir_config.registration_dir,
+            self._run.encoded_keys.keys(),
+        )
+        return self._transform(data)
 
     @cached_property
     def global_shoots(self):

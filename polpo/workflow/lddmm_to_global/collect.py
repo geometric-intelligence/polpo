@@ -77,3 +77,13 @@ def collect_transports(transport_dir, dataset_keys, atlas_id="gl", pole_ladder=F
         }
 
     return NestedDataset(dirs)
+
+
+def collect_registrations_to_global_atlas(registration_dir, outer_keys, atlas_id="gl"):
+    dirs = {}
+    for outer_key in outer_keys:
+        dirs[outer_key] = RegistrationResult.from_dirname(
+            registration_dir / f"{outer_key}_to_{atlas_id}"
+        )
+
+    return Dataset(dirs)

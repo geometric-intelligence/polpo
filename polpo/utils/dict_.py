@@ -93,6 +93,20 @@ def invert_dict(dict_):
     return dict(zip(dict_.values(), dict_.keys()))
 
 
+def merge_dicts(dicts, *, check_duplicates=False):
+    result = {}
+
+    for dict_ in dicts:
+        if check_duplicates:
+            duplicates = result.keys() & dict_.keys()
+            if duplicates:
+                raise ValueError(f"Duplicate keys: {sorted(duplicates)}")
+
+        result.update(dict_)
+
+    return result
+
+
 class JsonDict(dict):
     # TODO: use or delete
     def __init__(self, path, *, load=True, indent=2):

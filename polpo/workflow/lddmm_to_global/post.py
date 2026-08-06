@@ -1,22 +1,53 @@
 from collections.abc import Mapping
-from functools import cached_property
+from functools import cached_property, partial
 from pathlib import Path
 
 import geomstats.backend as gs
 
 from polpo.dataset import Dataset
 from polpo.distmat import PairwiseDistances
+from polpo.io.json import load_json
 from polpo.numpy.io import load_dict, save_dict_as_array
 from polpo.surface_mesh.euclidean import EuclideanSurfaces
 from polpo.surface_mesh.varifold.geometry import VarifoldMetric
+from polpo.utils.dict_ import merge_dicts
 from polpo.utils.np import pairwise_dists
 from polpo.workflow.task import TaskRunner
 
 from .run import LddmmToGlobalRun
 
-# TODO: add ability to confirm run success
+# TODO: rename to distances
 
-# TODO: centralize tasks
+
+def _save_pairwise_distances(path, result):
+    result.save(path)
+
+
+def _task(key, filename=None, *, pairwise=False):
+    filename = f"{key}.npz" if filename is None else filename
+
+    save = _save_pairwise_distances if pairwise else save_dict_as_array
+    load = PairwiseDistances.load if pairwise else load_dict
+
+    return key, {
+        "filename": filename,
+        "save": save,
+        "load": load,
+    }
+
+
+DISTANCE_TASKS = dict(
+    [
+        _task("local_reconstruction_error"),
+        _task("local_atlas_fit_error"),
+        _task("global_atlas_fit_error"),
+        _task("local_to_global_reconstruction_error"),
+        _task("local_to_global_transport_error"),
+        _task("local_pairwise", pairwise=True),
+        _task("local_reconstructed_pairwise", pairwise=True),
+        _task("global_pairwise", pairwise=True),
+    ]
+)
 
 
 def varifold_metric_from_results(data, backend="auto"):
@@ -57,6 +88,9 @@ class LddmmToGlobalDistanceEvaluator:
         self.source = source
         self.metric = metric
 
+    def tasks(self):
+        return {name: getattr(self, name) for name in DISTANCE_TASKS}
+
     def local_reconstruction_error(self):
         # compares original against reconstructed after registration
         return self.source.encoded.local_registrations.map_values(
@@ -64,31 +98,48 @@ class LddmmToGlobalDistanceEvaluator:
             dist_fnc=self.metric.dist,
         ).flatten()
 
-    def local_atlas_reconstruction_error(self):
+    def local_atlas_fit_error(self):
         # compares original against reconstructed during deterministic atlas
         errors = self.source.encoded.local_atlases.map_values(
             _atlas_reconstruction_error,
             dist_fnc=self.metric.dist,
         )
-        return Dataset({k: v for d in errors.values_list() for k, v in d.items()})
+        return Dataset(merge_dicts(errors.values_list()))
 
-    def global_atlas_reconstruction_error(self):
+    def global_atlas_fit_error(self):
+        # compares local atlas against reconstructed local atlas during deterministic atlas
         return _atlas_reconstruction_error(
             self.source.global_atlas,
             dist_fnc=self.metric.dist,
         )
 
-    def transport_error(self):
-        return self.source.encoded.transports.map_values(
-            _parallel_transport_res_error,
-            atlas=self.source.global_atlas_point.as_pv_surface(),
+    def local_to_global_reconstruction_error(self):
+        # compares global against registration from local
+        # establishes transport direction
+        return self.source.encoded.registrations_to_global_atlas.map_values(
+            _reconstruction_error,
             dist_fnc=self.metric.dist,
-        ).flatten()
+        )
+
+    def local_to_global_transport_error(self):
+        # error induced by transport direction
+        # only collecting one per outer due to the nature of the algorithm
+        # must compare with local_to_global_error
+        return (
+            self.source.encoded.transports.sample_inner(n_samples=1)
+            .flatten()
+            .map_keys(lambda x: x[0])
+            .map_values(
+                _parallel_transport_res_error,
+                atlas=self.source.global_atlas_point.as_pv_surface(),
+                dist_fnc=self.metric.dist,
+            )
+        )
 
     def local_pairwise(self):
         return self._pairwise(self.source.encoded.dataset.flatten())
 
-    def local_reconstruction_pairwise(self):
+    def local_reconstructed_pairwise(self):
         return self._pairwise(self.source.encoded.local_reconstructed_points.flatten())
 
     def global_pairwise(self):
@@ -107,7 +158,7 @@ class LddmmToGlobalDistanceEvaluator:
         )
 
 
-class LddmmToGlobalDistances(TaskRunner):
+class VarifoldDistances(TaskRunner):
     def __init__(
         self,
         experiment_dir,
@@ -130,26 +181,6 @@ class LddmmToGlobalDistances(TaskRunner):
         )
 
     @cached_property
-    def evaluator(self):
-        return LddmmToGlobalDistanceEvaluator(
-            self.source,
-            self.metric,
-        )
-
-    def tasks(self):
-        return {
-            "local_reconstruction_error": self.local_reconstruction_error,
-            "local_atlas_reconstruction_error": (self.local_atlas_reconstruction_error),
-            "global_atlas_reconstruction_error": (
-                self.global_atlas_reconstruction_error
-            ),
-            "transport_error": self.transport_error,
-            "local_pairwise": self.local_pairwise,
-            "reconstructed_local_pairwise": (self.reconstructed_local_pairwise),
-            "global_pairwise": self.global_pairwise,
-        }
-
-    @cached_property
     def metric(self):
         metric = varifold_metric_from_results(
             self.source.results,
@@ -163,73 +194,36 @@ class LddmmToGlobalDistances(TaskRunner):
 
         return metric
 
-    def local_reconstruction_error(self):
-        errors = self.evaluator.local_reconstruction_error()
-        save_dict_as_array(
-            self.results_dir / "rec_local",
-            errors,
-        )
-
-    def local_atlas_reconstruction_error(self):
-        errors = self.evaluator.local_atlas_reconstruction_error()
-        save_dict_as_array(
-            self.results_dir / "rec_local_atlas",
-            errors.flatten(),
-        )
-
-    def global_atlas_reconstruction_error(self):
-        errors = self.evaluator.global_atlas_reconstruction_error()
-        save_dict_as_array(
-            self.results_dir / "rec_global_atlas",
-            errors,
-        )
-
-    def transport_error(self):
-        errors = self.evaluator.transport_error()
-        save_dict_as_array(
-            self.results_dir / "rec_transport",
-            errors,
-        )
-
-    def local_pairwise(self):
-        distances = self.evaluator.local_pairwise()
-        distances.save(self.results_dir / "local_pairwise")
-
-    def reconstructed_local_pairwise(self):
-        distances = self.evaluator.reconstructed_local_pairwise()
-        distances.save(self.results_dir / "rec_local_pairwise")
-
-    def global_pairwise(self):
-        distances = self.evaluator.global_pairwise()
-        distances.save(self.results_dir / "global_pairwise")
-
     @property
     def results(self):
         return StoredDistanceResults(self.results_dir)
 
+    @cached_property
+    def evaluator(self):
+        return LddmmToGlobalDistanceEvaluator(
+            self.source,
+            self.metric,
+        )
 
-class EuclideanLddmmToGlobalDistances:
+    def tasks(self):
+        return {
+            name: partial(self._compute_and_save, name)
+            for name in self.evaluator.tasks()
+        }
+
+    def _compute_and_save(self, task):
+        result = self.evaluator.tasks()[task]()
+
+        spec = DISTANCE_TASKS[task]
+        path = self.results_dir / spec["filename"]
+        spec["save"](path, result)
+
+
+class EuclideanDistances:
     def __init__(self, experiment_dir):
         self.source = LddmmToGlobalRun(experiment_dir)
 
         self.results_ = None
-
-    def tasks(self):
-        evaluator = self.evaluator
-
-        return {
-            "local_reconstruction_error": (evaluator.local_reconstruction_error),
-            "local_atlas_reconstruction_error": (
-                evaluator.local_atlas_reconstruction_error
-            ),
-            "global_atlas_reconstruction_error": (
-                evaluator.global_atlas_reconstruction_error
-            ),
-            "transport_error": evaluator.transport_error,
-            "local_pairwise": evaluator.local_pairwise,
-            "local_reconstruction_pairwise": evaluator.local_reconstruction_pairwise,
-            "global_pairwise": evaluator.global_pairwise,
-        }
 
     @cached_property
     def evaluator(self):
@@ -239,6 +233,9 @@ class EuclideanLddmmToGlobalDistances:
                 faces=self.source.global_atlas_point.as_pv_surface().faces
             ).metric,
         )
+
+    def tasks(self):
+        return self.evaluator.tasks()
 
     def run(self, tasks=None):
         available = self.tasks()
@@ -264,8 +261,7 @@ class EuclideanLddmmToGlobalDistances:
         return self.results_
 
 
-class DistanceResults(Mapping):
-    # TODO: check need for this
+class _DistanceResults(Mapping):
     def __getattr__(self, name):
         try:
             return self[name]
@@ -273,7 +269,7 @@ class DistanceResults(Mapping):
             raise AttributeError(name) from None
 
 
-class InMemoryDistanceResults(DistanceResults):
+class InMemoryDistanceResults(_DistanceResults):
     def __init__(self, data):
         self._data = dict(data)
 
@@ -287,61 +283,56 @@ class InMemoryDistanceResults(DistanceResults):
         return len(self._data)
 
 
-class StoredDistanceResults(DistanceResults):
-    LOADERS = {
-        "local_reconstruction_error": (
-            "rec_local",
-            load_dict,
-        ),
-        "local_atlas_reconstruction_error": (
-            "rec_local_atlas",
-            load_dict,
-        ),
-        "global_atlas_reconstruction_error": (
-            "rec_global_atlas",
-            load_dict,
-        ),
-        "transport_error": (
-            "rec_transport",
-            load_dict,
-        ),
-        "local_pairwise": (
-            "local_pairwise",
-            PairwiseDistances.load,
-        ),
-        "local_reconstruction_pairwise": (
-            "rec_local_pairwise",
-            PairwiseDistances.load,
-        ),
-        "global_pairwise": (
-            "global_pairwise",
-            PairwiseDistances.load,
-        ),
-    }
-
+class StoredDistanceResults(_DistanceResults):
     def __init__(self, results_dir):
         self.results_dir = Path(results_dir)
         self._cache = {}
 
-    def __getitem__(self, key):
-        if key not in self:
-            raise KeyError(key)
+    @property
+    def manifest_path(self):
+        return self.results_dir / "manifest.json"
 
-        if key not in self._cache:
-            filename, loader = self.LOADERS[key]
-            self._cache[key] = loader(self.results_dir / filename)
+    @cached_property
+    def manifest(self):
+        return load_json(self.manifest_path)
 
-        return self._cache[key]
+    def __getitem__(self, task):
+        if task not in DISTANCE_TASKS:
+            raise KeyError(task)
+
+        if not self.is_available(task):
+            raise KeyError(f"Distance result {task!r} is not available.")
+
+        if task not in self._cache:
+            spec = DISTANCE_TASKS[task]
+            path = self.results_dir / spec["filename"]
+            self._cache[task] = spec["load"](path)
+
+        return self._cache[task]
 
     def __iter__(self):
-        return (key for key in self.LOADERS if self._exists(key))
+        return (task for task in DISTANCE_TASKS if self.is_available(task))
 
     def __len__(self):
-        return sum(1 for _ in self)
+        return sum(self.is_available(task) for task in DISTANCE_TASKS)
 
-    def __contains__(self, key):
-        return key in self.LOADERS and self._exists(key)
+    def __contains__(self, task):
+        return self.is_available(task)
 
-    def _exists(self, key):
-        filename, _ = self.LOADERS[key]
-        return self._result_exists(self.results_dir / filename)
+    def is_available(self, task):
+        if task not in DISTANCE_TASKS:
+            return False
+
+        task_info = self.manifest.get("tasks", {}).get(task, {})
+        return task_info.get("status") == "completed"
+
+    def clear_cache(self, task=None):
+        if task is None:
+            self._cache.clear()
+            return
+
+        self._cache.pop(task, None)
+
+    def refresh(self):
+        self.clear_cache()
+        self.__dict__.pop("manifest", None)
