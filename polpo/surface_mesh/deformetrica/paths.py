@@ -1,10 +1,7 @@
 from pathlib import Path
 
-# TODO: rename to paths
-# TODO: rename to LddmmPaths
 
-
-class DirConfig:
+class LddmmPaths:
     def __init__(
         self,
         outputs_dir,

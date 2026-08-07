@@ -4,7 +4,7 @@ from pathlib import Path
 import polpo.deformetrica as pdefo
 
 from .core import RegistrationResult, ShootResult, TransportResult
-from .utils import DirConfig
+from .paths import LddmmPaths
 
 
 class LddmmMetric:
@@ -17,7 +17,7 @@ class LddmmMetric:
         **registration_kwargs,
     ):
         if isinstance(dir_config, Path):
-            dir_config = DirConfig(dir_config)
+            dir_config = LddmmPaths(dir_config)
 
         self.dir_config = dir_config
 

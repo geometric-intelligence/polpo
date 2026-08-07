@@ -3,7 +3,7 @@ from pathlib import Path
 
 from polpo.dataset import Dataset, NestedDataset
 from polpo.io.json import load_json
-from polpo.surface_mesh.deformetrica.utils import DirConfig
+from polpo.surface_mesh.deformetrica.paths import LddmmPaths
 from polpo.utils import NestedKeyCodec
 
 from .collect import (
@@ -133,7 +133,7 @@ class LddmmToGlobalOutput:
 
     @cached_property
     def dir_config(self):
-        return DirConfig(
+        return LddmmPaths(
             outputs_dir=self.path,
             **{key: self.path / value for key, value in self.params["dirs"].items()},
         )
