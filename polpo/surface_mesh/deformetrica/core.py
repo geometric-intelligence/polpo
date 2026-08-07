@@ -1,19 +1,20 @@
 """A filesystem-backed adapter around deformetrica."""
 
-import json
+from abc import ABC
+from pathlib import Path
 
 import numpy as np
 import pyvista as pv
 
 import polpo.deformetrica.io as pdefoio
 from polpo.auto_all import auto_all
+from polpo.io.json import load_json, save_json
 from polpo.surface_mesh.core import PvSurface
 
 
 class Point:
     def __init__(self, id_, pv_surface=None, vtk_path=None, dirname=None):
         self.id = id_
-        # TODO: rename?
         self.pv_surface = pv_surface
 
         if vtk_path is None and dirname is None:
@@ -22,11 +23,7 @@ class Point:
         if vtk_path is None:
             vtk_path = dirname / f"{self.id}.vtk"
 
-        self._vtk_path = vtk_path
-
-    @property
-    def vtk_path(self):
-        return self._vtk_path
+        self.vtk_path = vtk_path
 
     def as_vtk_path(self):
         if self.vtk_path.exists():
@@ -35,6 +32,7 @@ class Point:
         if self.pv_surface is None:
             raise ValueError("There's no mesh attached to this point.")
 
+        self.vtk_path.parent.mkdir(parents=True, exist_ok=True)
         self.pv_surface.save(self.vtk_path)
 
         return self.vtk_path
@@ -53,12 +51,28 @@ class Point:
     def as_pv_surface(self):
         return PvSurface(self.as_polydata(), id_=self.id)
 
-    def as_dict(self):
-        return dict(id=self.id, vtk_path=self.vtk_path.as_posix())
+    def to_dict(self, *, root_dir=None):
+        vtk_path = self.vtk_path
+
+        if root_dir is not None:
+            vtk_path = vtk_path.relative_to(root_dir)
+
+        return {
+            "id": self.id,
+            "vtk_path": vtk_path.as_posix(),
+        }
 
     @classmethod
-    def from_dict(cls, data):
-        return cls(id_=data["id"], vtk_path=data["vtk_path"])
+    def from_dict(cls, data, root_dir=None):
+        vtk_path = Path(data["vtk_path"])
+
+        if root_dir is not None and not vtk_path.is_absolute():
+            vtk_path = root_dir / vtk_path
+
+        return cls(
+            data["id"],
+            vtk_path=vtk_path,
+        )
 
 
 class ControlPoints:
@@ -110,12 +124,21 @@ class TangentVector:
 
         return Momenta(filename)
 
-    def as_dict(self):
-        return dict(id=self.id, dirname=self.dirname.as_posix())
+    def to_dict(self, root_dir=None):
+        dirname = self.dirname
+        if root_dir is not None:
+            dirname = dirname.relative_to(root_dir)
+
+        return dict(id=self.id, dirname=dirname.as_posix())
 
     @classmethod
-    def from_dict(cls, data):
-        return cls(id_=data["id"], dirname=data["dirname"])
+    def from_dict(cls, data, root_dir=None):
+        dirname = data["dirname"]
+
+        if root_dir is not None and not dirname.is_absolute():
+            dirname = Path(root_dir) / dirname
+
+        return cls(id_=data["id"], dirname=dirname)
 
 
 class TransportedVector(TangentVector):
@@ -162,37 +185,49 @@ class Flow:
         return self.points[indices[0]]
 
 
-class RegistrationResult:
-    # TODO: disambiguate template_shape: confirm it is source
+class _Result(ABC):
+    def write(self):
+        return save_json(self.dirname / "params.json", self.params())
 
-    def __init__(self, dirname, base_point, point):
-        self.dirname = dirname
+
+class RegistrationResult(_Result):
+    # TODO: check success of registration; write to params?
+    def __init__(self, id_, dir_config, base_point, point):
+        self.id = id_
+        self.dir_config = dir_config
 
         self.base_point = base_point
         self.point = point
 
+    @property
+    def dirname(self):
+        return self.dir_config.registration_path(self.id)
+
     @classmethod
-    def from_dirname(cls, dirname):
-        # TODO: check if it exists
+    def load(cls, id_, dir_config):
+        data = load_json(dir_config.registration_path(id_) / "params.json")
 
-        # TODO: check if file exists?
-        with open(dirname / "params.json", "r") as file:
-            data = json.load(file)
+        point = Point.from_dict(
+            data["point"],
+            root_dir=dir_config.outputs_dir,
+        )
+        base_point = Point.from_dict(
+            data["base_point"],
+            root_dir=dir_config.outputs_dir,
+        )
 
-        point = Point.from_dict(data["point"])
-        base_point = Point.from_dict(data["base_point"])
-
-        return cls(dirname, base_point, point)
+        return cls(id_, dir_config, base_point, point)
 
     def params(self):
-        return dict(base_point=self.base_point.as_dict(), point=self.point.as_dict())
+        root_dir = self.dir_config.outputs_dir
 
-    def write_json(self):
-        with open(self.dirname / "params.json", "w") as file:
-            json.dump(self.params(), file, indent=2)
+        return dict(
+            base_point=self.base_point.to_dict(root_dir=root_dir),
+            point=self.point.to_dict(root_dir=root_dir),
+        )
 
     def tangent_vec(self):
-        return TangentVector(self.dirname.name, self.dirname)
+        return TangentVector(self.id, self.dirname)
 
     def reconstructed(self):
         # TODO: same for template?
@@ -216,36 +251,40 @@ class RegistrationResult:
         )
 
 
-class ShootResult:
-    # TODO: add Dir
-    def __init__(self, dirname, tangent_vec, base_point):
-        self.dirname = dirname
+class ShootResult(_Result):
+    def __init__(self, id_, dir_config, tangent_vec, base_point):
+        self.id = id_
+        self.dir_config = dir_config
 
         self.tangent_vec = tangent_vec
         self.base_point = base_point
 
+    @property
+    def dirname(self):
+        return self.dir_config.shoot_path(self.id)
+
     @classmethod
-    def from_dirname(cls, dirname):
-        # TODO: check if it exists
+    def load(cls, id_, dir_config):
+        data = load_json(dir_config.shoot_path(id_) / "params.json")
 
-        # TODO: check if file exists?
-        with open(dirname / "params.json", "r") as file:
-            data = json.load(file)
-
-        tangent_vec = TangentVector.from_dict(data["tangent_vec"])
-        base_point = Point.from_dict(data["base_point"])
-
-        return cls(dirname, tangent_vec, base_point)
-
-    def params(self):
-        return dict(
-            tangent_vec=self.tangent_vec.as_dict(),
-            base_point=self.base_point.as_dict(),
+        # TODO: update this one
+        tangent_vec = TangentVector.from_dict(
+            data["tangent_vec"],
+            root_dir=dir_config.outputs_dir,
+        )
+        base_point = Point.from_dict(
+            data["base_point"], root_dir=dir_config.outputs_dir
         )
 
-    def write_json(self):
-        with open(self.dirname / "params.json", "w") as file:
-            json.dump(self.params(), file, indent=2)
+        return cls(id_, dir_config, tangent_vec, base_point)
+
+    def params(self):
+        root_dir = self.dir_config.outputs_dir
+
+        return dict(
+            tangent_vec=self.tangent_vec.to_dict(root_dir=root_dir),
+            base_point=self.base_point.to_dict(root_dir=root_dir),
+        )
 
     def point(self):
         return Point(
@@ -267,30 +306,32 @@ class ShootResult:
         )
 
 
-class _BaseDeterministicAtlasResult:
-    def __init__(self, dirname, points):
-        self.dirname = dirname
+class _BaseDeterministicAtlasResult(_Result):
+    def __init__(self, id_, dir_config, points):
+        self.id = id_
+        self.dir_config = dir_config
         self.points = points
 
+    @property
+    def dirname(self):
+        return self.dir_config.atlas_path(self.id)
+
     @classmethod
-    def from_dirname(cls, dirname):
-        # TODO: update
+    def load(cls, id_, dir_config):
+        data = load_json(dir_config.atlas_path(id_) / "params.json")
 
-        # TODO: check if it exists
-
-        # TODO: check if file exists?
-        with open(dirname / "params.json", "r") as file:
-            data = json.load(file)
-
-        points = [Point.from_dict(data_) for data_ in data["points"]]
-        return cls(dirname, points)
+        points = [
+            Point.from_dict(data_, root_dir=dir_config.outputs_dir)
+            for data_ in data["points"]
+        ]
+        return cls(id_, dir_config, points)
 
     def params(self):
-        return dict(points=[pt.as_dict() for pt in self.points])
-
-    def write_json(self):
-        with open(self.dirname / "params.json", "w") as file:
-            json.dump(self.params(), file, indent=2)
+        return dict(
+            points=[
+                pt.to_dict(root_dir=self.dir_config.outputs_dir) for pt in self.points
+            ]
+        )
 
 
 class DeterministicAtlasManyResult(_BaseDeterministicAtlasResult):
@@ -298,7 +339,7 @@ class DeterministicAtlasManyResult(_BaseDeterministicAtlasResult):
 
     def template(self):
         return Point(
-            self.dirname.name,
+            self.id,
             vtk_path=pdefoio.load_template(self.dirname, as_path=True),
         )
 
@@ -307,14 +348,11 @@ class DeterministicAtlasManyResult(_BaseDeterministicAtlasResult):
         return ControlPoints(pdefoio.load_cp(self.dirname, as_path=True))
 
     def tangent_vecs(self):
-        atlas_id = self.dirname.name
         return [
-            TangentVector(f"{atlas_id}_to_{pt.id}", self.dirname) for pt in self.points
+            TangentVector(f"{self.id}_to_{pt.id}", self.dirname) for pt in self.points
         ]
 
     def flows(self):
-        atlas_id = self.dirname.name
-
         flows = {}
         for point in self.points:
             vtk_paths = pdefoio.load_deterministic_atlas_flow(
@@ -323,7 +361,7 @@ class DeterministicAtlasManyResult(_BaseDeterministicAtlasResult):
 
             flows[point.id] = Flow(
                 [
-                    Point(f"{atlas_id}_to_{point.id}|tp{index}", vtk_path=vtk_path)
+                    Point(f"{self.id}_to_{point.id}|tp{index}", vtk_path=vtk_path)
                     for index, vtk_path in enumerate(vtk_paths)
                 ]
             )
@@ -331,17 +369,13 @@ class DeterministicAtlasManyResult(_BaseDeterministicAtlasResult):
         return flows
 
     def reconstructed(self):
-        atlas_id = self.dirname.name
-
         reconstructed = []
         for point in self.points:
             vkt_path = pdefoio.load_deterministic_atlas_reconstruction(
                 self.dirname, as_path=True, id_=point.id
             )
             reconstructed.append(
-                Point(
-                    id_=f"{atlas_id}_shoot_{atlas_id}_to_{point.id}", vtk_path=vkt_path
-                )
+                Point(id_=f"{self.id}_shoot_{self.id}_to_{point.id}", vtk_path=vkt_path)
             )
 
         return reconstructed
@@ -349,10 +383,9 @@ class DeterministicAtlasManyResult(_BaseDeterministicAtlasResult):
 
 class DeterministicAtlasOneDir(_BaseDeterministicAtlasResult):
     def template(self):
-        name = self.dirname.name
         return Point(
-            name,
-            vtk_path=self.dirname / f"{name}.vtk",
+            self.id,
+            vtk_path=self.dirname / f"{self.id}.vtk",
         )
 
     def reconstructed(self):
@@ -365,33 +398,36 @@ class DeterministicAtlasOneDir(_BaseDeterministicAtlasResult):
 
 
 class DeterministicAtlasResult(_BaseDeterministicAtlasResult):
-    def __new__(cls, dirname, points):
+    def __new__(cls, id_, dir_config, points):
         if len(points) == 1:
-            return DeterministicAtlasOneDir(dirname, points)
+            return DeterministicAtlasOneDir(id_, dir_config, points)
 
-        return DeterministicAtlasManyResult(dirname, points)
+        return DeterministicAtlasManyResult(id_, dir_config, points)
 
 
-class _TransportResult:
-    def __init__(self, dirname, tangent_vec, base_point, direction):
+class _TransportResult(_Result):
+    def __init__(self, id_, dir_config, tangent_vec, base_point, direction):
         # TODO: play with end_point and direction
-        self.dirname = dirname
+        self.id = id_
+        self.dir_config = dir_config
 
         self.tangent_vec = tangent_vec
         self.base_point = base_point
         self.direction = direction
 
+    @property
+    def dirname(self):
+        return self.dir_config.transport_path(self.id)
+
     def params(self):
+        root_dir = self.dir_config.outputs_dir
+
         return dict(
-            tangent_vec=self.tangent_vec.as_dict(),
-            base_point=self.base_point.as_dict(),
-            direction=self.direction.as_dict(),
+            tangent_vec=self.tangent_vec.to_dict(root_dir=root_dir),
+            base_point=self.base_point.to_dict(root_dir=root_dir),
+            direction=self.direction.to_dict(root_dir=root_dir),
             pole_ladder=not isinstance(self, TransportResultFan),
         )
-
-    def write_json(self):
-        with open(self.dirname / "params.json", "w") as file:
-            json.dump(self.params(), file, indent=2)
 
     def transported(self):
         return TransportedVector(self.dirname.name, self.dirname)
@@ -423,19 +459,29 @@ class TransportResult:
         return TransportResultFan(*args, **kwargs)
 
     @classmethod
-    def from_dirname(cls, dirname):
-        # TODO: check if it exists
+    def load(cls, id_, dir_config):
+        data = load_json(dir_config.transport_path(id_) / "params.json")
 
-        # TODO: check if file exists?
-        with open(dirname / "params.json", "r") as file:
-            data = json.load(file)
-
-        tangent_vec = TangentVector.from_dict(data["tangent_vec"])
-        base_point = Point.from_dict(data["base_point"])
-        direction = TangentVector.from_dict(data["direction"])
+        tangent_vec = TangentVector.from_dict(
+            data["tangent_vec"],
+            root_dir=dir_config.outputs_dir,
+        )
+        base_point = Point.from_dict(
+            data["base_point"],
+            root_dir=dir_config.outputs_dir,
+        )
+        direction = TangentVector.from_dict(
+            data["direction"],
+            root_dir=dir_config.outputs_dir,
+        )
 
         return cls(
-            dirname, tangent_vec, base_point, direction, pole_ladder=data["pole_ladder"]
+            id_,
+            dir_config,
+            tangent_vec,
+            base_point,
+            direction,
+            pole_ladder=data["pole_ladder"],
         )
 
 

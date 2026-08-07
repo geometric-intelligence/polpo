@@ -3,11 +3,7 @@ from pathlib import Path
 
 import polpo.deformetrica as pdefo
 
-from .core import (
-    RegistrationResult,
-    ShootResult,
-    TransportResult,
-)
+from .core import RegistrationResult, ShootResult, TransportResult
 from .utils import DirConfig
 
 
@@ -22,6 +18,7 @@ class LddmmMetric:
     ):
         if isinstance(dir_config, Path):
             dir_config = DirConfig(dir_config)
+
         self.dir_config = dir_config
 
         self.kernel_width = kernel_width
@@ -43,11 +40,7 @@ class LddmmMetric:
         # TODO: make _single and vectorize?
 
         id_ = f"{base_point.id}_to_{point.id}"
-        dir_ = RegistrationResult(
-            self.dir_config.registration_dir / id_,
-            base_point,
-            point,
-        )
+        dir_ = RegistrationResult(id_, self.dir_config, base_point, point)
 
         # TODO: make this part of RegistrationDir?
         if not self._dir_exists(dir_.dirname):
@@ -59,7 +52,7 @@ class LddmmMetric:
                 kernel_width=self.kernel_width,
                 **self.registration_kwargs,
             )
-            dir_.write_json()
+            dir_.write()
 
         # TODO: if exists, check if other meshes are being used?
 
@@ -67,7 +60,8 @@ class LddmmMetric:
 
     def exp(self, tangent_vec, base_point):
         dir_ = ShootResult(
-            self.dir_config.shoot_dir / f"{base_point.id}_shoot_{tangent_vec.id}",
+            f"{base_point.id}_shoot_{tangent_vec.id}",
+            self.dir_config,
             tangent_vec,
             base_point,
         )
@@ -86,7 +80,7 @@ class LddmmMetric:
                 # TODO: compare geodesic with parallel transport fan one
                 write_adjoint_parameters=False,
             )
-            dir_.write_json()
+            dir_.write()
 
         return dir_.point()
 
@@ -97,10 +91,9 @@ class LddmmMetric:
             # TODO: implement? it is actually easy
             raise NotImplementedError("Need direction to compute parallel transport")
 
-        scheme = "ladder" if self.use_pole_ladder else "fan"
         dir_ = TransportResult(
-            self.dir_config.transport_dir
-            / f"{tangent_vec.id}_along_{scheme}_{direction.id}",
+            f"{tangent_vec.id}_along_{direction.id}",
+            self.dir_config,
             tangent_vec,
             base_point,
             direction,
@@ -119,6 +112,6 @@ class LddmmMetric:
                 output_dir=dir_.dirname,
                 use_pole_ladder=self.use_pole_ladder,  # TODO: just use a different scheme?
             )
-            dir_.write_json()
+            dir_.write()
 
         return dir_.transported()

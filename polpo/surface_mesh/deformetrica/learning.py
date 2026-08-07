@@ -26,9 +26,7 @@ class FrechetMean:
     def fit(self, X, atlas_id):
         self.estimate_ = None
 
-        dir_ = DeterministicAtlasResult(
-            self.metric.dir_config.atlas_dir / atlas_id, points=X
-        )
+        dir_ = DeterministicAtlasResult(atlas_id, self.metric.dir_config, points=X)
 
         if not self._dir_exists(dir_.dirname):
             if len(X) > 1:
@@ -48,7 +46,7 @@ class FrechetMean:
             else:
                 dir_.write_mesh()
 
-            dir_.write_json()
+            dir_.write()
 
         self.estimate_ = dir_.template()
 
