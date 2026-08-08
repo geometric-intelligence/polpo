@@ -21,11 +21,15 @@ def _save_pairwise_distances(path, result):
     result.save(path)
 
 
+def _load_distances(path):
+    return Dataset(load_dict(path))
+
+
 def _task(key, filename=None, *, pairwise=False):
     filename = f"{key}.npz" if filename is None else filename
 
     save = _save_pairwise_distances if pairwise else save_dict_as_array
-    load = PairwiseDistances.load if pairwise else load_dict
+    load = PairwiseDistances.load if pairwise else _load_distances
 
     return key, {
         "filename": filename,
@@ -80,7 +84,7 @@ def _parallel_transport_res_error(transport_res, atlas, dist_fnc):
     )
 
 
-class LddmmToGlobalDistanceEvaluator:
+class DistanceEvaluator:
     # original means after rigid alignment
     def __init__(self, source, metric):
         self.source = source
@@ -198,7 +202,7 @@ class VarifoldDistances(TaskRunner):
 
     @cached_property
     def evaluator(self):
-        return LddmmToGlobalDistanceEvaluator(
+        return DistanceEvaluator(
             self.source,
             self.metric,
         )
@@ -225,7 +229,7 @@ class EuclideanDistances:
 
     @cached_property
     def evaluator(self):
-        return LddmmToGlobalDistanceEvaluator(
+        return DistanceEvaluator(
             self.source,
             metric=EuclideanSurfaces(
                 faces=self.source.global_atlas_point.as_pv_surface().faces

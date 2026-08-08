@@ -133,7 +133,7 @@ class TangentVector:
 
     @classmethod
     def from_dict(cls, data, root_dir=None):
-        dirname = data["dirname"]
+        dirname = Path(data["dirname"])
 
         if root_dir is not None and not dirname.is_absolute():
             dirname = Path(root_dir) / dirname

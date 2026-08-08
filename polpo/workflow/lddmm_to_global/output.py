@@ -36,7 +36,7 @@ class LddmmToGlobalOutputView:
     def dataset(self):
         # original meshes after rigid alignment
         data = collect_dataset(
-            self._output.dir_config.meshes_dir,
+            self._output.dir_config,
             self._output.encoded_keys,
         )
         return self._transform(data)
@@ -45,7 +45,7 @@ class LddmmToGlobalOutputView:
     def local_registrations(self):
         # reconstructed results from local to observations
         data = collect_local_registrations(
-            self._output.dir_config.registration_dir,
+            self._output.dir_config,
             self._output.encoded_keys,
         )
         return self._transform(data)
@@ -58,7 +58,7 @@ class LddmmToGlobalOutputView:
     def registrations_to_global_atlas(self):
         # reconstructed results from local to global atlas
         data = collect_registrations_to_global_atlas(
-            self._output.dir_config.registration_dir,
+            self._output.dir_config,
             self._output.encoded_keys.keys(),
         )
         return self._transform(data)
@@ -66,7 +66,7 @@ class LddmmToGlobalOutputView:
     @cached_property
     def global_shoots(self):
         data = collect_global_shoots(
-            self._output.dir_config.shoot_dir,
+            self._output.dir_config,
             self._output.encoded_keys,
         )
         return self._transform(data)
@@ -81,7 +81,7 @@ class LddmmToGlobalOutputView:
     @cached_property
     def transports(self):
         data = collect_transports(
-            self._output.dir_config.transport_dir,
+            self._output.dir_config,
             self._output.encoded_keys,
         )
         return self._transform(data)
@@ -89,7 +89,7 @@ class LddmmToGlobalOutputView:
     @cached_property
     def local_atlases(self):
         data = collect_atlases(
-            self._output.dir_config.atlas_dir,
+            self._output.dir_config,
             self._output.encoded_keys,
         )
         return self._transform(data)
@@ -148,7 +148,7 @@ class LddmmToGlobalOutput:
 
     @cached_property
     def global_atlas(self):
-        return get_global_atlas(self.dir_config.atlas_dir)
+        return get_global_atlas(self.dir_config)
 
     @property
     def global_atlas_point(self):
