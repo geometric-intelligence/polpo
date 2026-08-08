@@ -37,11 +37,10 @@ def collect_local_registrations(dir_config, dataset_keys):
 
 def collect_global_shoots(dir_config, dataset_keys, atlas_id="gl", pole_ladder=False):
     dirs = {}
-    pt_str = "pole" if pole_ladder else "fan"
     for outer_key, inner_keys in dataset_keys.items():
         dirs[outer_key] = {
             inner_key: ShootResult.load(
-                f"{atlas_id}_shoot_{outer_key}_to_{outer_key}-{inner_key}_along_{pt_str}_{outer_key}_to_{atlas_id}",
+                f"{atlas_id}_shoot_{outer_key}_to_{outer_key}-{inner_key}_along_{outer_key}_to_{atlas_id}",
                 dir_config,
             )
             for inner_key in inner_keys

@@ -16,6 +16,11 @@ from polpo.workflow.task import TaskRunner
 
 from .output import LddmmToGlobalOutput
 
+try:
+    from polpo.surface_mesh.deformetrica.geometry import LddmmMetric
+except ImportError:
+    pass
+
 
 def _save_pairwise_distances(path, result):
     result.save(path)
@@ -37,6 +42,13 @@ def _task(key, filename=None, *, pairwise=False):
         "load": load,
     }
 
+
+REGISTRATION_TASKS = dict(
+    [
+        _task("local_atlas_to_reconstructed"),
+        _task("global_atlas_to_global"),
+    ]
+)
 
 DISTANCE_TASKS = dict(
     [
@@ -64,6 +76,12 @@ def _reconstruction_error(registration_res, dist_fnc):
     )
 
 
+def _reconstruction_error_lddmm(registration_res, dist_fnc):
+    return dist_fnc(
+        registration_res.tangent_vec(),
+    )
+
+
 def _atlas_reconstruction_error(atlas_res, dist_fnc):
     def _id_to_key(id_):
         if "-" in id_:
@@ -84,14 +102,50 @@ def _parallel_transport_res_error(transport_res, atlas, dist_fnc):
     )
 
 
-class DistanceEvaluator:
-    # original means after rigid alignment
+class Evaluator:
+    task_specs = ()
+
     def __init__(self, source, metric):
         self.source = source
         self.metric = metric
 
     def tasks(self):
-        return {name: getattr(self, name) for name in DISTANCE_TASKS}
+        return {name: getattr(self, name) for name in self.task_specs}
+
+    def run(self, tasks=None):
+        available = self.tasks()
+
+        if tasks is None:
+            tasks = list(available)
+
+        unknown = set(tasks) - set(available)
+        if unknown:
+            raise ValueError(f"Unknown tasks: {sorted(unknown)}")
+
+        self.results_ = InMemoryResults({task: available[task]() for task in tasks})
+
+        return self
+
+    @property
+    def results(self):
+        if self.results_ is None:
+            raise RuntimeError("Distances have not been computed. Call run() first.")
+
+        return self.results_
+
+    @property
+    def requested(self):
+        return {}
+
+    @property
+    def resolved(self):
+        return {}
+
+
+class DistanceEvaluator(Evaluator):
+    # original means after rigid alignment
+
+    task_specs = DISTANCE_TASKS
 
     def local_reconstruction_error(self):
         # compares original against reconstructed after registration
@@ -159,37 +213,6 @@ class DistanceEvaluator:
             ),
         )
 
-    def run(self, tasks=None):
-        available = self.tasks()
-
-        if tasks is None:
-            tasks = list(available)
-
-        unknown = set(tasks) - set(available)
-        if unknown:
-            raise ValueError(f"Unknown tasks: {sorted(unknown)}")
-
-        self.results_ = InMemoryDistanceResults(
-            {task: available[task]() for task in tasks}
-        )
-
-        return self
-
-    @property
-    def results(self):
-        if self.results_ is None:
-            raise RuntimeError("Distances have not been computed. Call run() first.")
-
-        return self.results_
-
-    @property
-    def requested(self):
-        return {}
-
-    @property
-    def resolved(self):
-        return {}
-
 
 class VarifoldDistances(DistanceEvaluator):
     def __init__(self, experiment_dir, backend="auto"):
@@ -226,6 +249,33 @@ class EuclideanDistances(DistanceEvaluator):
         super().__init__(source, metric)
 
 
+class LddmmDistances(Evaluator):
+    task_specs = REGISTRATION_TASKS
+
+    def __init__(self, experiment_dir):
+        source = LddmmToGlobalOutput(experiment_dir)
+        metric = LddmmMetric(
+            experiment_dir,
+            kernel_width=source.results["kernel_tuning"]["sigma_vel"],
+        )
+
+        super().__init__(source, metric)
+
+    def local_atlas_to_reconstructed(self):
+        # distance from local atlas to reconstructed
+        return self.source.encoded.local_registrations.map_values(
+            # TODO: add norm
+            lambda x: self.metric.norm(x.tangent_vec()),
+        ).flatten()
+
+    def global_atlas_to_global(self):
+        # distance from local atlas to reconstructed
+        # NB: parallel transport preserves distance
+        return self.source.encoded.global_shoots.map_values(
+            lambda x: self.metric.norm(x.tangent_vec),
+        ).flatten()
+
+
 class PersistentEvaluator(TaskRunner):
     def __init__(self, evaluator, results_dir="post_dists"):
         results_dir = Path(results_dir)
@@ -239,7 +289,7 @@ class PersistentEvaluator(TaskRunner):
 
     @property
     def results(self):
-        return DistanceResults(self.results_dir)
+        return DistanceResults(self.results_dir, task_specs=self.evaluator.task_specs)
 
     def tasks(self):
         return {
@@ -250,12 +300,12 @@ class PersistentEvaluator(TaskRunner):
     def _compute_and_save(self, task):
         result = self.evaluator.tasks()[task]()
 
-        spec = DISTANCE_TASKS[task]
+        spec = self.evaluator.task_specs[task]
         path = self.results_dir / spec["filename"]
         spec["save"](path, result)
 
 
-class _DistanceResults(Mapping):
+class _Results(Mapping):
     def __getattr__(self, name):
         try:
             return self[name]
@@ -263,7 +313,7 @@ class _DistanceResults(Mapping):
             raise AttributeError(name) from None
 
 
-class InMemoryDistanceResults(_DistanceResults):
+class InMemoryResults(_Results):
     def __init__(self, data):
         self._data = dict(data)
 
@@ -277,9 +327,19 @@ class InMemoryDistanceResults(_DistanceResults):
         return len(self._data)
 
 
-class DistanceResults(_DistanceResults):
-    def __init__(self, results_dir):
+class DistanceResults(_Results):
+    def __init__(self, results_dir, task_specs=None):
         self.results_dir = Path(results_dir)
+
+        if task_specs is None:
+            task_specs = (
+                DISTANCE_TASKS
+                if "global_pairwise" in self.manifest["tasks"]
+                else REGISTRATION_TASKS
+            )
+
+        self.task_specs = task_specs
+
         self._cache = {}
 
     @property
@@ -291,30 +351,30 @@ class DistanceResults(_DistanceResults):
         return load_json(self.manifest_path)
 
     def __getitem__(self, task):
-        if task not in DISTANCE_TASKS:
+        if task not in self.task_specs:
             raise KeyError(task)
 
         if not self.is_available(task):
             raise KeyError(f"Distance result {task!r} is not available.")
 
         if task not in self._cache:
-            spec = DISTANCE_TASKS[task]
+            spec = self.task_specs[task]
             path = self.results_dir / spec["filename"]
             self._cache[task] = spec["load"](path)
 
         return self._cache[task]
 
     def __iter__(self):
-        return (task for task in DISTANCE_TASKS if self.is_available(task))
+        return (task for task in self.task_specs if self.is_available(task))
 
     def __len__(self):
-        return sum(self.is_available(task) for task in DISTANCE_TASKS)
+        return sum(self.is_available(task) for task in self.task_specs)
 
     def __contains__(self, task):
         return self.is_available(task)
 
     def is_available(self, task):
-        if task not in DISTANCE_TASKS:
+        if task not in self.task_specs:
             return False
 
         task_info = self.manifest.get("tasks", {}).get(task, {})

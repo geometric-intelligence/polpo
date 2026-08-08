@@ -267,11 +267,20 @@ class ShootResult(_Result):
     def load(cls, id_, dir_config):
         data = load_json(dir_config.shoot_path(id_) / "params.json")
 
-        # TODO: update this one
-        tangent_vec = TangentVector.from_dict(
-            data["tangent_vec"],
-            root_dir=dir_config.outputs_dir,
-        )
+        tangent_data = data["tangent_vec"]
+        if Path(tangent_data["dirname"]).is_relative_to(
+            dir_config.transports_dir.relative_to(dir_config.outputs_dir)
+        ):
+            tangent_vec = TransportedVector.from_dict(
+                tangent_data,
+                root_dir=dir_config.outputs_dir,
+            )
+        else:
+            tangent_vec = TangentVector.from_dict(
+                tangent_data,
+                root_dir=dir_config.outputs_dir,
+            )
+
         base_point = Point.from_dict(
             data["base_point"], root_dir=dir_config.outputs_dir
         )

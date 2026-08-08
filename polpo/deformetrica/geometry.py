@@ -11,8 +11,6 @@ from launch.compute_parallel_transport import (
 from launch.compute_shooting import compute_shooting
 from support import utilities
 
-import polpo.deformetrica.io as io
-import polpo.deformetrica.registration as registration
 from polpo.deformetrica.utils import move_data_device
 
 logger = logging.getLogger(__name__)
@@ -251,115 +249,6 @@ def parallel_transport(
         control_points_to_transport=control_points_to_transport,
         kernel_type=kernel_type,
         **model_options,
-    )
-
-
-def parallel_transport_ABC(
-    meshes,
-    output_dir,
-    kernel_width=20.0,
-    kernel_type="torch",
-    kernel_device="cuda",
-    use_pole_ladder=False,
-    compute_shoot=False,
-    registration_dir=None,
-    shoot_dir=None,
-    **registration_kwargs,
-):
-    """Parallel transport BC along B -> A.
-
-    Given three meshes A, B, C, this function will:
-
-    * register A to B (fixed), and C to B (fixed)
-    * parallel transport BC along BA
-
-    Registration is not performed if directory already exists.
-
-    Parameters
-    ----------
-    meshes : dict or array-like
-        mesh_name : path if ``dict``.
-        List of paths otherwise.
-    """
-    # TODO: fix notebook
-    # TODO: allow for C_i?
-    # TODO: add shoot option
-    if registration_dir is None:
-        registration_dir = output_dir
-
-    if shoot_dir is None:
-        shoot_dir = output_dir
-
-    if not isinstance(meshes, dict):
-        meshes = dict(zip(["A", "B", "C"], meshes))
-
-    a_name, b_name, c_name = list(meshes.keys())
-
-    def _register_dir_from_pair(source, target):
-        return registration_dir / io.build_registration_name(source, target)
-
-    pairs = ((b_name, a_name), (b_name, c_name))
-
-    for source, target in pairs:
-        # only register if nonexisting
-        if _register_dir_from_pair(source, target).exists():
-            continue
-
-        registration.estimate_registration(
-            source=meshes[source],
-            target=meshes[target],
-            output_dir=_register_dir_from_pair(source, target),
-            **registration_kwargs,
-        )
-
-    source = b_name
-    geod_target = a_name
-    transp_target = c_name
-    transport_output_dir = output_dir / io.build_parallel_transport_name(
-        source, geod_target, transp_target
-    )
-
-    out = parallel_transport(
-        source=meshes[source],
-        control_points=io.load_cp(
-            _register_dir_from_pair(source, geod_target), as_path=True
-        ),
-        momenta=io.load_momenta(
-            _register_dir_from_pair(source, geod_target), as_path=True
-        ),
-        control_points_to_transport=io.load_cp(
-            _register_dir_from_pair(source, transp_target), as_path=True
-        ),
-        momenta_to_transport=io.load_momenta(
-            _register_dir_from_pair(source, transp_target), as_path=True
-        ),
-        kernel_width=kernel_width,
-        output_dir=transport_output_dir,
-        use_pole_ladder=use_pole_ladder,
-    )
-
-    if not compute_shoot:
-        return out
-
-    transported_cp = io.load_transported_cp(transport_output_dir, as_path=True)
-    transported_momenta = io.load_transported_momenta(
-        transport_output_dir, as_path=True
-    )
-
-    parallel_shoot_dir = shoot_dir / io.build_parallel_shoot_name(
-        source, geod_target, transp_target
-    )
-
-    source = meshes[a_name]
-    return shoot(
-        source,
-        transported_cp,
-        transported_momenta,
-        parallel_shoot_dir,
-        kernel_width=kernel_width,
-        kernel_type=kernel_type,
-        kernel_device=kernel_device,
-        write_adjoint_parameters=False,
     )
 
 
