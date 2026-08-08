@@ -159,86 +159,6 @@ class DistanceEvaluator:
             ),
         )
 
-
-class VarifoldDistances(TaskRunner):
-    def __init__(
-        self,
-        experiment_dir,
-        results_dir="post_dists",
-        backend="auto",
-    ):
-        self.source = LddmmToGlobalOutput(experiment_dir)
-
-        results_dir = Path(results_dir)
-        if not results_dir.is_absolute():
-            results_dir = experiment_dir / results_dir
-
-        self.backend = backend
-        super().__init__(
-            results_dir,
-            metadata={
-                "backend": backend,
-                "experiment_dir": str(experiment_dir),
-            },
-        )
-
-    @cached_property
-    def metric(self):
-        metric = varifold_metric_from_results(
-            self.source.results,
-            backend=self.backend,
-        )
-
-        self.set_resolved(
-            geomstats_backend=gs.__name__,
-            device="gpu" if metric._gpu else "cpu",
-        )
-
-        return metric
-
-    @property
-    def results(self):
-        return StoredDistanceResults(self.results_dir)
-
-    @cached_property
-    def evaluator(self):
-        return DistanceEvaluator(
-            self.source,
-            self.metric,
-        )
-
-    def tasks(self):
-        return {
-            name: partial(self._compute_and_save, name)
-            for name in self.evaluator.tasks()
-        }
-
-    def _compute_and_save(self, task):
-        result = self.evaluator.tasks()[task]()
-
-        spec = DISTANCE_TASKS[task]
-        path = self.results_dir / spec["filename"]
-        spec["save"](path, result)
-
-
-class EuclideanDistances:
-    def __init__(self, experiment_dir):
-        self.source = LddmmToGlobalOutput(experiment_dir)
-
-        self.results_ = None
-
-    @cached_property
-    def evaluator(self):
-        return DistanceEvaluator(
-            self.source,
-            metric=EuclideanSurfaces(
-                faces=self.source.global_atlas_point.as_pv_surface().faces
-            ).metric,
-        )
-
-    def tasks(self):
-        return self.evaluator.tasks()
-
     def run(self, tasks=None):
         available = self.tasks()
 
@@ -261,6 +181,78 @@ class EuclideanDistances:
             raise RuntimeError("Distances have not been computed. Call run() first.")
 
         return self.results_
+
+    @property
+    def requested(self):
+        return {}
+
+    @property
+    def resolved(self):
+        return {}
+
+
+class VarifoldDistances(DistanceEvaluator):
+    def __init__(self, experiment_dir, backend="auto"):
+        source = LddmmToGlobalOutput(experiment_dir)
+
+        metric = varifold_metric_from_results(
+            source.results,
+            backend=backend,
+        )
+        self.backend = backend
+
+        super().__init__(source, metric)
+
+    @property
+    def requested(self):
+        return {"backend": self.backend}
+
+    @property
+    def resolved(self):
+        return dict(
+            geomstats_backend=(gs.__name__,),
+            device=("gpu" if self.metric._gpu else "cpu",),
+        )
+
+
+class EuclideanDistances(DistanceEvaluator):
+    def __init__(self, experiment_dir):
+        source = LddmmToGlobalOutput(experiment_dir)
+
+        metric = EuclideanSurfaces(
+            faces=source.global_atlas_point.as_pv_surface().faces
+        ).metric
+
+        super().__init__(source, metric)
+
+
+class PersistentEvaluator(TaskRunner):
+    def __init__(self, evaluator, results_dir="post_dists"):
+        results_dir = Path(results_dir)
+        if not results_dir.is_absolute():
+            results_dir = evaluator.source.path / results_dir
+
+        super().__init__(results_dir, metadata=evaluator.requested)
+
+        self.evaluator = evaluator
+        self.set_resolved(**evaluator.resolved)
+
+    @property
+    def results(self):
+        return DistanceResults(self.results_dir)
+
+    def tasks(self):
+        return {
+            name: partial(self._compute_and_save, name)
+            for name in self.evaluator.tasks()
+        }
+
+    def _compute_and_save(self, task):
+        result = self.evaluator.tasks()[task]()
+
+        spec = DISTANCE_TASKS[task]
+        path = self.results_dir / spec["filename"]
+        spec["save"](path, result)
 
 
 class _DistanceResults(Mapping):
@@ -285,7 +277,7 @@ class InMemoryDistanceResults(_DistanceResults):
         return len(self._data)
 
 
-class StoredDistanceResults(_DistanceResults):
+class DistanceResults(_DistanceResults):
     def __init__(self, results_dir):
         self.results_dir = Path(results_dir)
         self._cache = {}
