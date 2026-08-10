@@ -153,6 +153,11 @@ class Dataset(DatasetMapping):
 
         return self._new({key: self[key] for key in keys})
 
+    def filter_values(self, predicate):
+        return self._new(
+            dict((key, value) for key, value in self.items() if predicate(value))
+        )
+
 
 class NestedDataset(DatasetMapping):
     def __init__(self, data):
