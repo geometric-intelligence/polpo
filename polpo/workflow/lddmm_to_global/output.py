@@ -16,21 +16,30 @@ from .collect import (
     get_global_atlas,
 )
 
+# TODO: some code to read errors e.g. missing meshes/failed registrations
+
 
 class LddmmToGlobalOutputView:
-    def __init__(self, output, decode):
+    def __init__(self, output, decode_keys=False, codec=None):
         # TODO: add possibility to set decoder in output? i.e. decode directly to time
         self._output = output
-        self.decode = decode
+        self.decode_keys = decode_keys
+        self.codec = codec
+
+    def with_codec(self, codec):
+        return type(self)(self._output, decode_keys=self.decode_keys, codec=codec)
 
     def _transform(self, data):
-        if not self.decode:
-            return data
+        if self.decode_keys:
+            if isinstance(data, NestedDataset):
+                data = data.map_keys(self._output.key_map.decode)
+            else:
+                data = data.map_keys(self._output.key_map.decode_outer)
 
-        if isinstance(data, NestedDataset):
-            return data.map_keys(self._output.key_map.decode)
+        if self.codec is not None:
+            data = data.map_keys(self.codec)
 
-        return data.map_keys(self._output.key_map.decode_outer)
+        return data
 
     @cached_property
     def dataset(self):
@@ -117,11 +126,11 @@ class LddmmToGlobalOutput:
 
     @cached_property
     def encoded(self):
-        return LddmmToGlobalOutputView(self, decode=False)
+        return LddmmToGlobalOutputView(self, decode_keys=False)
 
     @cached_property
     def decoded(self):
-        return LddmmToGlobalOutputView(self, decode=True)
+        return LddmmToGlobalOutputView(self, decode_keys=True)
 
     @cached_property
     def params(self):
