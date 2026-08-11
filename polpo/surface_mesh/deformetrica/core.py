@@ -85,12 +85,11 @@ class ControlPoints:
     def as_array(self):
         return pdefoio.read_array(self.filename)
 
-    def as_pv(self):
+    def as_polydata(self):
         return pv.PolyData(self.as_array())
 
 
 class Momenta:
-    # TODO: homogenize with control points?
     def __init__(self, filename):
         self.filename = filename
 
@@ -99,10 +98,6 @@ class Momenta:
 
     def as_array(self):
         return pdefoio.read_array(self.filename)
-
-    def as_pv(self):
-        # TODO: implement
-        pass
 
 
 class TangentVector:
@@ -139,6 +134,18 @@ class TangentVector:
             dirname = Path(root_dir) / dirname
 
         return cls(id_=data["id"], dirname=dirname)
+
+    def as_polydata(self):
+        polydata = self.control_points().as_polydata()
+        polydata["momenta"] = self.momenta().as_array()
+        return polydata
+
+    def as_glyphs(self, factor=1.0):
+        return self.as_polydata().glyph(
+            orient="momenta",
+            scale="momenta",
+            factor=factor,
+        )
 
 
 class TransportedVector(TangentVector):
