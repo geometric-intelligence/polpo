@@ -306,19 +306,35 @@ class PersistentEvaluator(TaskRunner):
 
 
 class _Results(Mapping):
+    def __init__(self, label_map=None):
+        self.label_map = None
+
     def __getattr__(self, name):
         try:
             return self[name]
         except KeyError:
             raise AttributeError(name) from None
 
+    def _transform(self, data):
+        if self.label_map is None:
+            return data
+
+        if isinstance(data, PairwiseDistances):
+            return data.map_labels(self.label_map)
+
+        if isinstance(data, Dataset):
+            return data.map_keys(self.label_map)
+
+        return data
+
 
 class InMemoryResults(_Results):
-    def __init__(self, data):
+    def __init__(self, data, label_map=None):
+        super().__init__(label_map=label_map)
         self._data = dict(data)
 
     def __getitem__(self, key):
-        return self._data[key]
+        return self._transform(self._data[key])
 
     def __iter__(self):
         return iter(self._data)
@@ -326,10 +342,17 @@ class InMemoryResults(_Results):
     def __len__(self):
         return len(self._data)
 
+    def with_label_map(self, label_map):
+        return self.__class__(
+            self.data,
+            label_map=label_map,
+        )
+
 
 class DistanceResults(_Results):
-    def __init__(self, results_dir, task_specs=None):
+    def __init__(self, results_dir, task_specs=None, label_map=None):
         self.results_dir = Path(results_dir)
+        self.label_map = label_map
 
         if task_specs is None:
             task_specs = (
@@ -341,6 +364,13 @@ class DistanceResults(_Results):
         self.task_specs = task_specs
 
         self._cache = {}
+
+    def with_label_map(self, label_map):
+        return self.__class__(
+            self.results_dir,
+            task_specs=self.task_specs,
+            label_map=label_map,
+        )
 
     @property
     def manifest_path(self):
@@ -360,7 +390,7 @@ class DistanceResults(_Results):
         if task not in self._cache:
             spec = self.task_specs[task]
             path = self.results_dir / spec["filename"]
-            self._cache[task] = spec["load"](path)
+            self._cache[task] = self._transform(spec["load"](path))
 
         return self._cache[task]
 
