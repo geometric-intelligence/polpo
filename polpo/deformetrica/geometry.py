@@ -11,7 +11,7 @@ from launch.compute_parallel_transport import (
 from launch.compute_shooting import compute_shooting
 from support import utilities
 
-from polpo.deformetrica.utils import move_data_device
+from polpo.deformetrica.utils import move_data
 
 logger = logging.getLogger(__name__)
 
@@ -267,7 +267,7 @@ def velocity_at_x(
         gpu_mode=gpu_mode,
     )
 
-    x, control_points, momenta = move_data_device(
+    x, control_points, momenta = move_data(
         x,
         control_points,
         momenta,
@@ -294,7 +294,7 @@ def reconstruct_parametrization(
         gpu_mode=gpu_mode,
     )
 
-    velocity, control_points = move_data_device(
+    velocity, control_points = move_data(
         velocity,
         control_points,
         gpu_mode=gpu_mode,

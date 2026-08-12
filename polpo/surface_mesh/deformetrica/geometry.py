@@ -2,9 +2,6 @@ import shutil
 from pathlib import Path
 
 import numpy as np
-import support.kernels as kernel_factory
-from core.model_tools.deformations.exponential import Exponential
-from support import utilities
 
 import polpo.deformetrica as pdefo
 
@@ -35,12 +32,11 @@ class LddmmMetric:
         # TODO: cache_policy: reuse, overwrite, validate, read_only
         self.recompute = recompute
 
-        deformation_kernel = kernel_factory.factory(
+        deformation_kernel = pdefo.geometry.kernel_factory.factory(
             kernel_type="torch",
             kernel_width=kernel_width,
         )
-        self._exponential = Exponential(kernel=deformation_kernel)
-        self._gpu_mode = self._exponential.kernel.gpu_mode
+        self._exponential = pdefo.geometry.Exponential(kernel=deformation_kernel)
 
     def _dir_exists(self, dirname):
         if self.recompute and dirname.exists():
@@ -141,12 +137,10 @@ class LddmmMetric:
 
     def squared_norm(self, tangent_vec, base_point=None):
         # NB: base_point is ignored
-        device, _ = utilities.get_best_device(self._gpu_mode)
-
-        control_points = utilities.move_data(
-            tangent_vec.control_points().as_array(), device=device
+        control_points, momenta = pdefo.utils.move_data(
+            tangent_vec.control_points().as_array(),
+            tangent_vec.momenta().as_array(),
         )
-        momenta = utilities.move_data(tangent_vec.momenta().as_array(), device=device)
 
         return self._exponential.scalar_product(
             control_points,

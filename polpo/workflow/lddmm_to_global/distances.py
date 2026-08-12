@@ -8,6 +8,7 @@ from polpo.dataset import Dataset
 from polpo.distmat import PairwiseDistances
 from polpo.io.json import load_json
 from polpo.numpy.io import load_dict, save_dict_as_array
+from polpo.surface_mesh.deformetrica.geometry import LddmmMetric
 from polpo.surface_mesh.euclidean import EuclideanSurfaces
 from polpo.surface_mesh.varifold.geometry import VarifoldMetric
 from polpo.utils.dict_ import merge_dicts
@@ -15,12 +16,6 @@ from polpo.utils.np import pairwise_dists
 from polpo.workflow.task import TaskRunner
 
 from .output import LddmmToGlobalOutput
-
-try:
-    # TODO: fix this at lddmmmetric level?
-    from polpo.surface_mesh.deformetrica.geometry import LddmmMetric
-except ImportError:
-    pass
 
 
 def _save_pairwise_distances(path, result):

@@ -2,7 +2,7 @@ from core import default
 from support import utilities
 
 
-def move_data_device(
+def move_data(
     *arrays,
     gpu_mode=default.gpu_mode,
     tensor_scalar_type=default.tensor_scalar_type,
