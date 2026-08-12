@@ -64,7 +64,7 @@ class LddmmMetric:
 
         # TODO: if exists, check if other meshes are being used?
 
-        return dir_.tangent_vec()
+        return dir_.tangent_vec
 
     def exp(self, tangent_vec, base_point):
         dir_ = ShootResult(
@@ -77,8 +77,8 @@ class LddmmMetric:
         if not self._dir_exists(dir_.dirname):
             pdefo.geometry.shoot(
                 source=base_point.as_vtk_path(),
-                control_points=tangent_vec.control_points().as_path(),
-                momenta=tangent_vec.momenta().as_path(),
+                control_points=tangent_vec.control_points.as_path(),
+                momenta=tangent_vec.momenta.as_path(),
                 kernel_width=self.kernel_width,
                 # TODO: add shoot params?
                 concentration_of_time_points=10,
@@ -90,7 +90,7 @@ class LddmmMetric:
             )
             dir_.write()
 
-        return dir_.point()
+        return dir_.point
 
     def parallel_transport(
         self, tangent_vec, base_point, direction=None, end_point=None
@@ -120,10 +120,10 @@ class LddmmMetric:
             if method != "zero":
                 pdefo.geometry.parallel_transport(
                     source=base_point.as_vtk_path(),
-                    control_points=direction.control_points().as_path(),
-                    momenta=direction.momenta().as_path(),
-                    control_points_to_transport=tangent_vec.control_points().as_path(),
-                    momenta_to_transport=tangent_vec.momenta().as_path(),
+                    control_points=direction.control_points.as_path(),
+                    momenta=direction.momenta.as_path(),
+                    control_points_to_transport=tangent_vec.control_points.as_path(),
+                    momenta_to_transport=tangent_vec.momenta.as_path(),
                     kernel_width=self.kernel_width,
                     output_dir=dir_.dirname,
                     use_pole_ladder=self.use_pole_ladder,  # TODO: just use a different scheme?
@@ -133,13 +133,13 @@ class LddmmMetric:
 
             dir_.write()
 
-        return dir_.transported()
+        return dir_.transported
 
     def squared_norm(self, tangent_vec, base_point=None):
         # NB: base_point is ignored
         control_points, momenta = pdefo.utils.move_data(
-            tangent_vec.control_points().as_array(),
-            tangent_vec.momenta().as_array(),
+            tangent_vec.control_points.as_array(),
+            tangent_vec.momenta.as_array(),
         )
 
         return self._exponential.scalar_product(

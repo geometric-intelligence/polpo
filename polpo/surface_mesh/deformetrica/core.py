@@ -106,9 +106,11 @@ class TangentVector:
         self.id = id_
         self.dirname = dirname
 
+    @property
     def control_points(self):
         return ControlPoints(pdefoio.load_cp(self.dirname, as_path=True))
 
+    @property
     def momenta(self):
         try:
             filename = pdefoio.load_momenta(self.dirname, as_path=True)
@@ -136,8 +138,8 @@ class TangentVector:
         return cls(id_=data["id"], dirname=dirname)
 
     def as_polydata(self):
-        polydata = self.control_points().as_polydata()
-        polydata["momenta"] = self.momenta().as_array()
+        polydata = self.control_points.as_polydata()
+        polydata["momenta"] = self.momenta.as_array()
         return polydata
 
     def as_glyphs(self, factor=1.0):
@@ -149,9 +151,11 @@ class TangentVector:
 
 
 class TransportedVector(TangentVector):
+    @property
     def control_points(self):
         return ControlPoints(pdefoio.load_transported_cp(self.dirname, as_path=True))
 
+    @property
     def momenta(self):
         return Momenta(pdefoio.load_transported_momenta(self.dirname, as_path=True))
 
@@ -176,7 +180,7 @@ class Flow:
 
     @property
     def end_point(self):
-        return self.points[0]
+        return self.points[-1]
 
     def as_polydata(self):
         return [point.as_polydata() for point in self.points]
@@ -194,7 +198,7 @@ class Flow:
 
 class _Result(ABC):
     def write(self):
-        return save_json(self.dirname / "params.json", self.params())
+        return save_json(self.dirname / "params.json", self.params)
 
 
 class RegistrationResult(_Result):
@@ -225,6 +229,7 @@ class RegistrationResult(_Result):
 
         return cls(id_, dir_config, base_point, point)
 
+    @property
     def params(self):
         root_dir = self.dir_config.outputs_dir
 
@@ -233,9 +238,11 @@ class RegistrationResult(_Result):
             point=self.point.to_dict(root_dir=root_dir),
         )
 
+    @property
     def tangent_vec(self):
         return TangentVector(self.id, self.dirname)
 
+    @property
     def reconstructed(self):
         # TODO: same for template?
 
@@ -246,6 +253,7 @@ class RegistrationResult(_Result):
             id_=f"{self.base_point.id}_shoot_{self.dirname.name}", vtk_path=vkt_path
         )
 
+    @property
     def flow(self):
         vtk_paths = pdefoio.load_deterministic_atlas_flow(
             self.dirname, as_pv=True, as_path=True
@@ -294,6 +302,7 @@ class ShootResult(_Result):
 
         return cls(id_, dir_config, tangent_vec, base_point)
 
+    @property
     def params(self):
         root_dir = self.dir_config.outputs_dir
 
@@ -302,12 +311,14 @@ class ShootResult(_Result):
             base_point=self.base_point.to_dict(root_dir=root_dir),
         )
 
+    @property
     def point(self):
         return Point(
             self.dirname.name,
             vtk_path=pdefoio.load_shooted_point(self.dirname, as_path=True),
         )
 
+    @property
     def flow(self):
         vtk_paths = pdefoio.load_shooting_flow(
             self.dirname,
@@ -342,6 +353,7 @@ class _BaseDeterministicAtlasResult(_Result):
         ]
         return cls(id_, dir_config, points)
 
+    @property
     def params(self):
         return dict(
             points=[
@@ -353,21 +365,25 @@ class _BaseDeterministicAtlasResult(_Result):
 class DeterministicAtlasManyResult(_BaseDeterministicAtlasResult):
     # TODO: add to_registrations
 
+    @property
     def template(self):
         return Point(
             self.id,
             vtk_path=pdefoio.load_template(self.dirname, as_path=True),
         )
 
+    @property
     def control_points(self):
         # shared for all tangent vectors
         return ControlPoints(pdefoio.load_cp(self.dirname, as_path=True))
 
+    @property
     def tangent_vecs(self):
         return [
             TangentVector(f"{self.id}_to_{pt.id}", self.dirname) for pt in self.points
         ]
 
+    @property
     def flows(self):
         flows = {}
         for point in self.points:
@@ -384,6 +400,7 @@ class DeterministicAtlasManyResult(_BaseDeterministicAtlasResult):
 
         return flows
 
+    @property
     def reconstructed(self):
         reconstructed = []
         for point in self.points:
@@ -398,19 +415,21 @@ class DeterministicAtlasManyResult(_BaseDeterministicAtlasResult):
 
 
 class DeterministicAtlasOneDir(_BaseDeterministicAtlasResult):
+    @property
     def template(self):
         return Point(
             self.id,
             vtk_path=self.dirname / f"{self.id}.vtk",
         )
 
+    @property
     def reconstructed(self):
-        return [self.template()]
+        return [self.template]
 
     def write_mesh(self):
         self.dirname.mkdir(parents=True)
         point = self.points[0]
-        point.as_polydata().save(self.template().vtk_path)
+        point.as_polydata().save(self.template.vtk_path)
 
 
 class DeterministicAtlasResult(_BaseDeterministicAtlasResult):
@@ -435,6 +454,7 @@ class _TransportResult(_Result):
     def dirname(self):
         return self.dir_config.transport_path(self.id)
 
+    @property
     def params(self):
         root_dir = self.dir_config.outputs_dir
 
@@ -445,6 +465,7 @@ class _TransportResult(_Result):
             method=self.method,
         )
 
+    @property
     def transported(self):
         return TransportedVector(self.dirname.name, self.dirname)
 
@@ -456,6 +477,7 @@ class TransportResultPoleLadder(_TransportResult):
 class TransportResultFan(_TransportResult):
     method = "fan"
 
+    @property
     def reconstructed(self):
         # TODO: update
         # NB: it reconstructs the end point of direction
@@ -466,6 +488,7 @@ class TransportResultFan(_TransportResult):
         vtk_path = pdefoio.load_shooted_point(self.dirname, as_path=True)
         return Point(id_=id_, vtk_path=vtk_path)
 
+    @property
     def reconstructed_shooted(self):
         # TODO: update
         id_ = f"{self.direction.id}_rs"
@@ -485,9 +508,9 @@ class TransportResultZero(_TransportResult):
 
         vec = self.tangent_vec
         pdefoio.write_array(
-            path / "final_cp.txt", vec.control_points().as_array(), header=False
+            path / "final_cp.txt", vec.control_points.as_array(), header=False
         )
-        pdefoio.write_array(path / "transported_momenta.txt", vec.momenta().as_array())
+        pdefoio.write_array(path / "transported_momenta.txt", vec.momenta.as_array())
 
 
 class TransportResult:

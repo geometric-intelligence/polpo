@@ -68,13 +68,7 @@ def varifold_metric_from_results(data, backend="auto"):
 def _reconstruction_error(registration_res, dist_fnc):
     return dist_fnc(
         registration_res.point.as_pv_surface(),
-        registration_res.reconstructed().as_pv_surface(),
-    )
-
-
-def _reconstruction_error_lddmm(registration_res, dist_fnc):
-    return dist_fnc(
-        registration_res.tangent_vec(),
+        registration_res.reconstructed.as_pv_surface(),
     )
 
 
@@ -87,13 +81,13 @@ def _atlas_reconstruction_error(atlas_res, dist_fnc):
 
     return {
         _id_to_key(point.id): dist_fnc(point.as_pv_surface(), cmp_point.as_pv_surface())
-        for point, cmp_point in zip(atlas_res.points, atlas_res.reconstructed())
+        for point, cmp_point in zip(atlas_res.points, atlas_res.reconstructed)
     }
 
 
 def _parallel_transport_res_error(transport_res, atlas, dist_fnc):
     return dist_fnc(
-        transport_res.reconstructed().as_pv_surface(),
+        transport_res.reconstructed.as_pv_surface(),
         atlas,
     )
 
@@ -272,7 +266,7 @@ class LddmmDistances(Evaluator):
         # distance from local atlas to reconstructed
         return self.source.encoded.local_registrations.map_values(
             # TODO: add norm
-            lambda x: self.metric.norm(x.tangent_vec()),
+            lambda x: self.metric.norm(x.tangent_vec),
         ).flatten()
 
     def global_atlas_to_global(self):

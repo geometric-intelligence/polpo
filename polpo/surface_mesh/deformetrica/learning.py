@@ -48,6 +48,6 @@ class FrechetMean:
 
             dir_.write()
 
-        self.estimate_ = dir_.template()
+        self.estimate_ = dir_.template
 
         return self

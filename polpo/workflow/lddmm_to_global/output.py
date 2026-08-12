@@ -61,7 +61,7 @@ class LddmmToGlobalOutputView:
 
     @cached_property
     def local_reconstructed_points(self):
-        return self.local_registrations.map_values(lambda x: x.reconstructed())
+        return self.local_registrations.map_values(lambda x: x.reconstructed)
 
     @cached_property
     def registrations_to_global_atlas(self):
@@ -84,7 +84,7 @@ class LddmmToGlobalOutputView:
     def global_points(self):
         # TODO: use to compute distances
         return self.global_shoots.map_values(
-            lambda x: x.point(),
+            lambda x: x.point,
         )
 
     @cached_property
@@ -105,7 +105,7 @@ class LddmmToGlobalOutputView:
 
     @property
     def local_atlases_points(self):
-        return self.local_atlases.map_values(lambda x: x.template())
+        return self.local_atlases.map_values(lambda x: x.template)
 
     @property
     def global_atlas(self):
@@ -117,7 +117,7 @@ class LddmmToGlobalOutputView:
 
     @property
     def global_atlas_flows(self):
-        return self._transform(Dataset(self.global_atlas.flows()))
+        return self._transform(Dataset(self.global_atlas.flows))
 
 
 class LddmmToGlobalOutput:
@@ -161,4 +161,4 @@ class LddmmToGlobalOutput:
 
     @property
     def global_atlas_point(self):
-        return self.global_atlas.template()
+        return self.global_atlas.template
