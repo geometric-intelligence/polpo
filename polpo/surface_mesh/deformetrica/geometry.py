@@ -40,6 +40,7 @@ class LddmmMetric:
             kernel_width=kernel_width,
         )
         self._exponential = Exponential(kernel=deformation_kernel)
+        self._gpu_mode = self._exponential.kernel.gpu_mode
 
     def _dir_exists(self, dirname):
         if self.recompute and dirname.exists():
@@ -140,8 +141,12 @@ class LddmmMetric:
 
     def squared_norm(self, tangent_vec, base_point=None):
         # NB: base_point is ignored
-        control_points = utilities.move_data(tangent_vec.control_points().as_array())
-        momenta = utilities.move_data(tangent_vec.momenta().as_array())
+        device, _ = utilities.get_best_device(self._gpu_mode)
+
+        control_points = utilities.move_data(
+            tangent_vec.control_points().as_array(), device=device
+        )
+        momenta = utilities.move_data(tangent_vec.momenta().as_array(), device=device)
 
         return self._exponential.scalar_product(
             control_points,
