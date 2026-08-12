@@ -252,66 +252,6 @@ def parallel_transport(
     )
 
 
-def velocity_at_x(
-    x,
-    control_points,
-    momenta,
-    kernel_type="torch",
-    kernel_width=20.0,
-    gpu_mode=default.gpu_mode,
-    tensor_scalar_type=default.tensor_scalar_type,
-):
-    kernel = kernel_factory.factory(
-        kernel_type,
-        kernel_width=kernel_width,
-        gpu_mode=gpu_mode,
-    )
-
-    x, control_points, momenta = move_data(
-        x,
-        control_points,
-        momenta,
-        gpu_mode=gpu_mode,
-        tensor_scalar_type=tensor_scalar_type,
-    )
-
-    vel = kernel.convolve(x, control_points, momenta)
-
-    return vel
-
-
-def reconstruct_parametrization(
-    velocity,
-    control_points,
-    kernel_type="torch",
-    kernel_width=20.0,
-    gpu_mode=default.gpu_mode,
-    tensor_scalar_type=default.tensor_scalar_type,
-):
-    kernel = kernel_factory.factory(
-        kernel_type,
-        kernel_width=kernel_width,
-        gpu_mode=gpu_mode,
-    )
-
-    velocity, control_points = move_data(
-        velocity,
-        control_points,
-        gpu_mode=gpu_mode,
-        tensor_scalar_type=tensor_scalar_type,
-    )
-
-    kernel_matrix = kernel.get_kernel_matrix(control_points)
-
-    cholesky_kernel_matrix = torch.cholesky(kernel_matrix)
-
-    projected_momenta = (
-        torch.cholesky_solve(velocity, cholesky_kernel_matrix).squeeze().contiguous()
-    )
-
-    return projected_momenta
-
-
 def flow(
     base_point,
     control_points_t,

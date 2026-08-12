@@ -76,6 +76,21 @@ class Point:
 
 
 class ControlPoints:
+    def __init__(self, array):
+        self._array = array
+
+    def as_array(self):
+        return self._array
+
+    def as_polydata(self):
+        return pv.PolyData(self.as_array())
+
+    @classmethod
+    def from_file(cls, filename):
+        return StoredControlPoints(filename)
+
+
+class StoredControlPoints(ControlPoints):
     def __init__(self, filename):
         self.filename = filename
 
@@ -85,11 +100,20 @@ class ControlPoints:
     def as_array(self):
         return pdefoio.read_array(self.filename)
 
-    def as_polydata(self):
-        return pv.PolyData(self.as_array())
-
 
 class Momenta:
+    def __init__(self, array):
+        self._array = array
+
+    def as_array(self):
+        return self._array
+
+    @classmethod
+    def from_file(cls, filename):
+        return StoredMomenta(filename)
+
+
+class StoredMomenta(Momenta):
     def __init__(self, filename):
         self.filename = filename
 
@@ -101,14 +125,52 @@ class Momenta:
 
 
 class TangentVector:
+    def __init__(self, control_points, momenta):
+        self._control_points = control_points
+        self._momenta = momenta
+
+    @classmethod
+    def from_dir(cls, id_, dirname, transported=False):
+        if transported:
+            return StoredTransportedVector(id_, dirname)
+        return StoredTangentVector(id_, dirname)
+
+    @classmethod
+    def from_dict(cls, data, root_dir=None, transported=False):
+        if transported:
+            return StoredTransportedVector.from_dict(data, root_dir=root_dir)
+
+        return StoredTangentVector.from_dict(data, root_dir=root_dir)
+
+    @property
+    def control_points(self):
+        return self._control_points
+
+    @property
+    def momenta(self):
+        return self._momenta
+
+    def as_polydata(self):
+        polydata = self.control_points.as_polydata()
+        polydata["momenta"] = self.momenta.as_array()
+        return polydata
+
+    def as_glyphs(self, factor=1.0):
+        return self.as_polydata().glyph(
+            orient="momenta",
+            scale="momenta",
+            factor=factor,
+        )
+
+
+class StoredTangentVector(TangentVector):
     def __init__(self, id_, dirname):
-        # TODO: allow id to be none?
         self.id = id_
         self.dirname = dirname
 
     @property
     def control_points(self):
-        return ControlPoints(pdefoio.load_cp(self.dirname, as_path=True))
+        return ControlPoints.from_file(pdefoio.load_cp(self.dirname, as_path=True))
 
     @property
     def momenta(self):
@@ -119,7 +181,7 @@ class TangentVector:
                 self.dirname, as_path=True, id_=self.id.split("_to_")[-1]
             )
 
-        return Momenta(filename)
+        return Momenta.from_file(filename)
 
     def to_dict(self, root_dir=None):
         dirname = self.dirname
@@ -137,27 +199,37 @@ class TangentVector:
 
         return cls(id_=data["id"], dirname=dirname)
 
+
+class StoredTransportedVector(StoredTangentVector):
+    @property
+    def control_points(self):
+        return ControlPoints.from_file(
+            pdefoio.load_transported_cp(self.dirname, as_path=True)
+        )
+
+    @property
+    def momenta(self):
+        return Momenta.from_file(
+            pdefoio.load_transported_momenta(self.dirname, as_path=True)
+        )
+
+
+class Velocity:
+    def __init__(self, locations, values):
+        self.locations = locations
+        self.values = values
+
     def as_polydata(self):
-        polydata = self.control_points.as_polydata()
-        polydata["momenta"] = self.momenta.as_array()
+        polydata = self.locations
+        polydata["velocity"] = self.values
         return polydata
 
     def as_glyphs(self, factor=1.0):
         return self.as_polydata().glyph(
-            orient="momenta",
-            scale="momenta",
+            orient="velocity",
+            scale="velocity",
             factor=factor,
         )
-
-
-class TransportedVector(TangentVector):
-    @property
-    def control_points(self):
-        return ControlPoints(pdefoio.load_transported_cp(self.dirname, as_path=True))
-
-    @property
-    def momenta(self):
-        return Momenta(pdefoio.load_transported_momenta(self.dirname, as_path=True))
 
 
 class Flow:
@@ -240,7 +312,7 @@ class RegistrationResult(_Result):
 
     @property
     def tangent_vec(self):
-        return TangentVector(self.id, self.dirname)
+        return TangentVector.from_dir(self.id, self.dirname)
 
     @property
     def reconstructed(self):
@@ -283,18 +355,12 @@ class ShootResult(_Result):
         data = load_json(dir_config.shoot_path(id_) / "params.json")
 
         tangent_data = data["tangent_vec"]
-        if Path(tangent_data["dirname"]).is_relative_to(
+        transported = Path(tangent_data["dirname"]).is_relative_to(
             dir_config.transports_dir.relative_to(dir_config.outputs_dir)
-        ):
-            tangent_vec = TransportedVector.from_dict(
-                tangent_data,
-                root_dir=dir_config.outputs_dir,
-            )
-        else:
-            tangent_vec = TangentVector.from_dict(
-                tangent_data,
-                root_dir=dir_config.outputs_dir,
-            )
+        )
+        tangent_vec = TangentVector.from_dict(
+            tangent_data, root_dir=dir_config.outputs_dir, transported=transported
+        )
 
         base_point = Point.from_dict(
             data["base_point"], root_dir=dir_config.outputs_dir
@@ -375,12 +441,13 @@ class DeterministicAtlasManyResult(_BaseDeterministicAtlasResult):
     @property
     def control_points(self):
         # shared for all tangent vectors
-        return ControlPoints(pdefoio.load_cp(self.dirname, as_path=True))
+        return ControlPoints.from_file(pdefoio.load_cp(self.dirname, as_path=True))
 
     @property
     def tangent_vecs(self):
         return [
-            TangentVector(f"{self.id}_to_{pt.id}", self.dirname) for pt in self.points
+            TangentVector.from_dir(f"{self.id}_to_{pt.id}", self.dirname)
+            for pt in self.points
         ]
 
     @property
@@ -467,7 +534,7 @@ class _TransportResult(_Result):
 
     @property
     def transported(self):
-        return TransportedVector(self.dirname.name, self.dirname)
+        return TangentVector.from_dir(self.dirname.name, self.dirname, transported=True)
 
 
 class TransportResultPoleLadder(_TransportResult):

@@ -2,10 +2,19 @@ import shutil
 from pathlib import Path
 
 import numpy as np
+import torch
 
 import polpo.deformetrica as pdefo
 
-from .core import RegistrationResult, ShootResult, TransportResult
+from .core import (
+    ControlPoints,
+    Momenta,
+    RegistrationResult,
+    ShootResult,
+    TangentVector,
+    TransportResult,
+    Velocity,
+)
 from .paths import LddmmPaths
 
 
@@ -32,11 +41,11 @@ class LddmmMetric:
         # TODO: cache_policy: reuse, overwrite, validate, read_only
         self.recompute = recompute
 
-        deformation_kernel = pdefo.geometry.kernel_factory.factory(
+        self._kernel = pdefo.geometry.kernel_factory.factory(
             kernel_type="torch",
             kernel_width=kernel_width,
         )
-        self._exponential = pdefo.geometry.Exponential(kernel=deformation_kernel)
+        self._exponential = pdefo.geometry.Exponential(kernel=self._kernel)
 
     def _dir_exists(self, dirname):
         if self.recompute and dirname.exists():
@@ -135,18 +144,65 @@ class LddmmMetric:
 
         return dir_.transported
 
+    def _move_data(self, *arrays):
+        return pdefo.utils.move_data(*arrays)
+
+    def _move_data_back(self, data, like):
+        if isinstance(like, np.ndarray):
+            return data.detach().cpu().numpy()
+
+        if torch.is_tensor(like):
+            return data.to(device=like.device, dtype=like.dtype)
+
+        return data
+
     def squared_norm(self, tangent_vec, base_point=None):
         # NB: base_point is ignored
-        control_points, momenta = pdefo.utils.move_data(
-            tangent_vec.control_points.as_array(),
+        control_points_ = tangent_vec.control_points.as_array()
+        control_points, momenta = self._move_data(
+            control_points_,
             tangent_vec.momenta.as_array(),
         )
 
-        return self._exponential.scalar_product(
+        snorm = self._exponential.scalar_product(
             control_points,
             momenta,
             momenta,
         )
+        return self._move_data_back(snorm, like=control_points_)
 
     def norm(self, tangent_vec, base_point=None):
         return np.sqrt(self.squared_norm(tangent_vec, base_point).numpy())
+
+    def velocity_at(self, x, tangent_vec):
+        # v(x)=\sum_i K\left(x, c_i\right) p_i
+        x_ = x
+        x, control_points, momenta = self._move_data(
+            x,
+            tangent_vec.control_points.as_array(),
+            tangent_vec.momenta.as_array(),
+        )
+
+        velocity = self._kernel.convolve(x, control_points, momenta)
+        return Velocity(x_, self._move_data_back(velocity, like=x_))
+
+    def momenta_from_velocity(self, velocity):
+        # returns array
+        locations = velocity.locations
+        locations_, velocity_ = self._move_data(locations, velocity.values)
+
+        kernel_matrix = self._kernel.get_kernel_matrix(locations_)
+        cholesky = torch.linalg.cholesky(kernel_matrix)
+
+        momenta = torch.cholesky_solve(velocity_, cholesky)
+
+        return self._move_data_back(momenta, locations)
+
+    def represent_at(self, locations, tangent_vec):
+        velocity = self.velocity_at(locations, tangent_vec)
+        momenta = self.momenta_from_velocity(velocity)
+
+        return TangentVector(
+            control_points=ControlPoints(locations),
+            momenta=Momenta(momenta),
+        )
