@@ -32,6 +32,29 @@ def read_array(path):
         return array.reshape((n_arrays, n // n_arrays, dim))
 
 
+def write_array(path, array, header=True):
+    if not header:
+        np.savetxt(path, array)
+        return
+
+    if array.ndim == 2:
+        n, dim = array.shape
+        n_arrays = 1
+        flat_array = array
+
+    elif array.ndim == 3:
+        n_arrays, n, dim = array.shape
+        flat_array = array.reshape(n_arrays * n, dim)
+
+    else:
+        raise ValueError(f"Expected a 2D or 3D array, got shape {array.shape}.")
+
+    with open(path, "w") as file:
+        file.write(f"{n_arrays} {n} {dim}\n")
+        file.write("\n")
+        np.savetxt(file, flat_array)
+
+
 def load_vtk_mesh(path, as_pv=False):
     pv_mesh = pv.read(path)
     if as_pv:

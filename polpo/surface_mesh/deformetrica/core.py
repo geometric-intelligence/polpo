@@ -442,14 +442,20 @@ class _TransportResult(_Result):
             tangent_vec=self.tangent_vec.to_dict(root_dir=root_dir),
             base_point=self.base_point.to_dict(root_dir=root_dir),
             direction=self.direction.to_dict(root_dir=root_dir),
-            pole_ladder=not isinstance(self, TransportResultFan),
+            method=self.method,
         )
 
     def transported(self):
         return TransportedVector(self.dirname.name, self.dirname)
 
 
+class TransportResultPoleLadder(_TransportResult):
+    method = "pole_ladder"
+
+
 class TransportResultFan(_TransportResult):
+    method = "fan"
+
     def reconstructed(self):
         # TODO: update
         # NB: it reconstructs the end point of direction
@@ -467,12 +473,32 @@ class TransportResultFan(_TransportResult):
         return Point(id_=id_, vtk_path=vtk_path)
 
 
-class TransportResult:
-    def __new__(cls, *args, pole_ladder=True, **kwargs):
-        if pole_ladder:
-            return _TransportResult(*args, **kwargs)
+class TransportResultZero(_TransportResult):
+    method = "zero"
 
-        return TransportResultFan(*args, **kwargs)
+    def write_data(self):
+        # NB: compatible with pole_ladder
+
+        path = self.dirname
+
+        path.mkdir(exist_ok=True, parents=True)
+
+        vec = self.tangent_vec
+        pdefoio.write_array(
+            path / "final_cp.txt", vec.control_points().as_array(), header=False
+        )
+        pdefoio.write_array(path / "transported_momenta.txt", vec.momenta().as_array())
+
+
+class TransportResult:
+    def __new__(cls, *args, method="pole_ladder", **kwargs):
+        result_cls = {
+            "pole_ladder": TransportResultPoleLadder,
+            "fan": TransportResultFan,
+            "zero": TransportResultZero,
+        }[method]
+
+        return result_cls(*args, **kwargs)
 
     @classmethod
     def load(cls, id_, dir_config):
@@ -497,7 +523,7 @@ class TransportResult:
             tangent_vec,
             base_point,
             direction,
-            pole_ladder=data["pole_ladder"],
+            method=data["method"],
         )
 
 

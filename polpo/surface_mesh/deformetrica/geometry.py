@@ -19,6 +19,7 @@ class LddmmMetric:
         kernel_width=10.0,
         recompute=False,
         use_pole_ladder=False,
+        transport_zero_tol=1e-3,
         **registration_kwargs,
     ):
         if isinstance(dir_config, Path):
@@ -28,6 +29,7 @@ class LddmmMetric:
 
         self.kernel_width = kernel_width
         self.use_pole_ladder = use_pole_ladder
+        self.transport_zero_tol = transport_zero_tol
         self.registration_kwargs = registration_kwargs
 
         # TODO: cache_policy: reuse, overwrite, validate, read_only
@@ -100,27 +102,38 @@ class LddmmMetric:
             # TODO: implement? it is actually easy
             raise NotImplementedError("Need direction to compute parallel transport")
 
+        method = "pole_ladder" if self.use_pole_ladder else "fan"
+        if (
+            self.transport_zero_tol is not None
+            and self.squared_norm(tangent_vec) < self.transport_zero_tol**2
+        ):
+            method = "zero"
+
         dir_ = TransportResult(
             f"{tangent_vec.id}_along_{direction.id}",
             self.dir_config,
             tangent_vec,
             base_point,
             direction,
-            pole_ladder=self.use_pole_ladder,
+            method=method,
         )
 
         # TODO: control at init?
         if not self._dir_exists(dir_.dirname):
-            pdefo.geometry.parallel_transport(
-                source=base_point.as_vtk_path(),
-                control_points=direction.control_points().as_path(),
-                momenta=direction.momenta().as_path(),
-                control_points_to_transport=tangent_vec.control_points().as_path(),
-                momenta_to_transport=tangent_vec.momenta().as_path(),
-                kernel_width=self.kernel_width,
-                output_dir=dir_.dirname,
-                use_pole_ladder=self.use_pole_ladder,  # TODO: just use a different scheme?
-            )
+            if method != "zero":
+                pdefo.geometry.parallel_transport(
+                    source=base_point.as_vtk_path(),
+                    control_points=direction.control_points().as_path(),
+                    momenta=direction.momenta().as_path(),
+                    control_points_to_transport=tangent_vec.control_points().as_path(),
+                    momenta_to_transport=tangent_vec.momenta().as_path(),
+                    kernel_width=self.kernel_width,
+                    output_dir=dir_.dirname,
+                    use_pole_ladder=self.use_pole_ladder,  # TODO: just use a different scheme?
+                )
+            else:
+                dir_.write_data()
+
             dir_.write()
 
         return dir_.transported()

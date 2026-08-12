@@ -30,7 +30,7 @@ def get_subject_colors(subj_ids):
     return colors
 
 
-def dist_hist(dist_res, ax=None):
+def dist_hist(dist_res, ax=None, title="Distribution"):
     if ax is None:
         fig, ax = plt.subplots()
 
@@ -58,7 +58,7 @@ def dist_hist(dist_res, ax=None):
     ax.set(
         xlabel="Distance",
         ylabel="Density",
-        title="Distribution",
+        title=title,
     )
 
     ax.legend()

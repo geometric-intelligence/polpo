@@ -17,6 +17,7 @@ from polpo.workflow.task import TaskRunner
 from .output import LddmmToGlobalOutput
 
 try:
+    # TODO: fix this at lddmmmetric level?
     from polpo.surface_mesh.deformetrica.geometry import LddmmMetric
 except ImportError:
     pass
@@ -180,16 +181,27 @@ class DistanceEvaluator(Evaluator):
     def local_to_global_transport_error(self):
         # error induced by transport direction
         # only collecting one per outer due to the nature of the algorithm
-        # must compare with local_to_global_error
-        return (
-            self.source.encoded.transports.sample_inner(n_samples=1)
-            .flatten()
-            .map_keys(lambda x: x[0])
-            .map_values(
-                _parallel_transport_res_error,
-                atlas=self.source.global_atlas_point.as_pv_surface(),
-                dist_fnc=self.metric.dist,
+        # must compare with local_to_global_reconstruction_error
+
+        # TODO: improve
+        # NB: only fan as reconstructed
+        for _ in range(100):
+            trans_res = (
+                self.source.encoded.transports.sample_inner(n_samples=1)
+                .flatten()
+                .map_keys(lambda x: x[0])
             )
+            if trans_res.apply(
+                lambda values: all([res.method == "fan" for res in values])
+            ):
+                break
+        else:
+            raise ValueError("Oops, are you sure transport uses fan?")
+
+        return trans_res.map_values(
+            _parallel_transport_res_error,
+            atlas=self.source.global_atlas_point.as_pv_surface(),
+            dist_fnc=self.metric.dist,
         )
 
     def local_pairwise(self):
