@@ -116,3 +116,22 @@ class PairwiseDistances:
             labels=[func(label) for label in self.labels],
             data=self.data,
         )
+
+    @classmethod
+    def merge(cls, distances):
+        return Distances(
+            data=np.concatenate([dist.data for dist in distances]),
+            labels=[pair for dist in distances for pair in dist.pairs],
+        )
+
+
+class Distances:
+    # somewhere between PairwiseDistances and Dataset
+
+    def __init__(self, labels, data):
+        self.data = data
+        self.labels = labels
+
+    @property
+    def pairs(self):
+        return self.labels

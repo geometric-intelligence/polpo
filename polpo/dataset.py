@@ -158,6 +158,19 @@ class Dataset(DatasetMapping):
             dict((key, value) for key, value in self.items() if predicate(value))
         )
 
+    @classmethod
+    def merge(cls, datasets):
+        data = {}
+
+        for dataset in datasets:
+            overlap = data.keys() & dataset.keys()
+            if overlap:
+                raise ValueError(f"Duplicate keys: {overlap}")
+
+            data.update(dataset.items())
+
+        return cls(data)
+
 
 class NestedDataset(DatasetMapping):
     def __init__(self, data):

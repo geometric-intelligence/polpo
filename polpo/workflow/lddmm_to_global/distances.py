@@ -306,15 +306,17 @@ class PersistentEvaluator(TaskRunner):
         spec["save"](path, result)
 
 
-class _Results(Mapping):
-    def __init__(self, label_map=None):
-        self.label_map = None
-
+class _AttrAccessMixin:
     def __getattr__(self, name):
         try:
             return self[name]
         except KeyError:
             raise AttributeError(name) from None
+
+
+class _Results(_AttrAccessMixin, Mapping):
+    def __init__(self, label_map=None):
+        self.label_map = None
 
     def _transform(self, data):
         if self.label_map is None:
@@ -421,3 +423,48 @@ class DistanceResults(_Results):
     def refresh(self):
         self.clear_cache()
         self.__dict__.pop("manifest", None)
+
+    @classmethod
+    def combine(cls, results):
+        return MultiDistanceResults(results)
+
+
+class MultiDistanceResults(_AttrAccessMixin):
+    def __init__(self, results, prefix_key=None):
+        self._results = results
+        if prefix_key is None:
+
+            def prefix_key(label, key):
+                if isinstance(key, str):
+                    return f"{label}_{key}"
+
+                return (label,) + key
+
+        self._prefix_key = prefix_key
+
+    def with_label_map(self, label_map):
+        return self.__class__(
+            {key: res.with_label_map(label_map) for key, res in self._results.items()}
+        )
+
+    def __getitem__(self, task):
+        values = [
+            self._adapt(
+                label,
+                res[task],
+            )
+            for label, res in self._results.items()
+        ]
+        return self._merge(values)
+
+    def _adapt(self, label, value):
+        if isinstance(value, Dataset):
+            return value.map_keys(lambda key: self._prefix_key(label, key))
+
+        if isinstance(value, PairwiseDistances):
+            return value.map_labels(lambda key: self._prefix_key(label, key))
+
+        return value
+
+    def _merge(self, values):
+        return type(values[0]).merge(values)

@@ -66,6 +66,56 @@ def dist_hist(dist_res, ax=None, title="Distribution"):
     return ax
 
 
+def plot_distance_comparison(
+    x_dist,
+    y_dist,
+    group_by=None,
+    colors=None,
+    x_label="Local distance",
+    y_label="Global distance",
+    ax=None,
+    identity_line=True,
+):
+    if ax is None:
+        fig, ax = plt.subplots()
+
+    if x_dist.labels != y_dist.labels:
+        raise ValueError("Not same key order!")
+
+    x = x_dist.data
+    y = y_dist.data
+
+    if group_by is None or colors is None:
+        ax.scatter(x, y)
+    else:
+        categories = [group_by(pair) for pair in x_dist.pairs]
+        point_colors = [colors[category] for category in categories]
+
+        ax.scatter(x, y, c=point_colors)
+
+        handles = [
+            ax.scatter([], [], color=color, label=label)
+            for label, color in colors.items()
+        ]
+
+    ax.legend(handles=handles)
+
+    ax.set_xlabel(x_label)
+    ax.set_ylabel(y_label)
+
+    if identity_line:
+        lims = [
+            min(ax.get_xlim()[0], ax.get_ylim()[0]),
+            max(ax.get_xlim()[1], ax.get_ylim()[1]),
+        ]
+
+        ax.plot(lims, lims, "--", color="gray")
+        ax.set_xlim(lims)
+        ax.set_ylim(lims)
+
+    return ax
+
+
 def plot_volume_trends(view, subj_ids=None, ax=None, subj_colors=None):
     if ax is None:
         _, ax = plt.subplots()
