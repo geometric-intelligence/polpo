@@ -171,6 +171,18 @@ class Dataset(DatasetMapping):
 
         return cls(data)
 
+    @classmethod
+    def zip_many(cls, datasets, func):
+        if not datasets:
+            return cls({})
+
+        keys = datasets[0].keys()
+
+        if any(dataset.keys() != keys for dataset in datasets[1:]):
+            raise ValueError("Datasets do not have matching keys.")
+
+        return cls({key: func([dataset[key] for dataset in datasets]) for key in keys})
+
 
 class NestedDataset(DatasetMapping):
     def __init__(self, data):
@@ -391,3 +403,9 @@ class NestedDataset(DatasetMapping):
     def get_outer(self, outer_key):
         """Return the inner dataset associated with an outer key."""
         return Dataset(self.data[outer_key])
+
+    @classmethod
+    def zip_many(cls, datasets, func):
+        return Dataset.zip_many(
+            [dataset.flatten() for dataset in datasets], func
+        ).nest()

@@ -1,8 +1,11 @@
 from functools import cached_property
 from pathlib import Path
 
+import pyvista as pv
+
 from polpo.dataset import Dataset, NestedDataset
 from polpo.io.json import load_json
+from polpo.surface_mesh.core import PvSurface
 from polpo.surface_mesh.deformetrica.paths import LddmmPaths
 from polpo.utils import NestedKeyCodec
 
@@ -19,15 +22,11 @@ from .collect import (
 # TODO: some code to read errors e.g. missing meshes/failed registrations
 
 
-class LddmmToGlobalOutputView:
+class _OutputView:
     def __init__(self, output, decode_keys=False, codec=None):
-        # TODO: add possibility to set decoder in output? i.e. decode directly to time
         self._output = output
         self.decode_keys = decode_keys
         self.codec = codec
-
-    def with_codec(self, codec):
-        return type(self)(self._output, decode_keys=self.decode_keys, codec=codec)
 
     def _transform(self, data):
         if self.decode_keys:
@@ -41,6 +40,11 @@ class LddmmToGlobalOutputView:
 
         return data
 
+    def with_codec(self, codec):
+        return type(self)(self._output, decode_keys=self.decode_keys, codec=codec)
+
+
+class LddmmToGlobalOutputView(_OutputView):
     @cached_property
     def dataset(self):
         # original meshes after rigid alignment
@@ -162,3 +166,61 @@ class LddmmToGlobalOutput:
     @property
     def global_atlas_point(self):
         return self.global_atlas.template
+
+
+class MultiPoint:
+    def __init__(self, points):
+        self._points = points
+
+    def as_polydata(self):
+        return pv.merge([point.as_polydata() for point in self._points])
+
+    def as_pv_surface(self):
+        return PvSurface(self.as_polydata())
+
+
+class LddmmToGlobalMultiOutputView(_OutputView):
+    def _zip_and_transform(self, data):
+        data = NestedDataset.zip_many(data, func=lambda points: MultiPoint(points))
+        return self._transform(data)
+
+    @cached_property
+    def dataset(self):
+        return self._zip_and_transform(
+            [output.encoded.dataset for output in self._output]
+        )
+
+    @cached_property
+    def local_reconstructed_points(self):
+        return self._zip_and_transform(
+            [output.encoded.local_reconstructed_points for output in self._output]
+        )
+
+    @cached_property
+    def global_points(self):
+        return self._zip_and_transform(
+            [output.encoded.global_points for output in self._output]
+        )
+
+
+class LddmmToGlobalMultiOutput:
+    def __init__(self, outputs):
+        self.outputs = outputs
+
+    @cached_property
+    def encoded(self):
+        return LddmmToGlobalMultiOutputView(self, decode_keys=False)
+
+    @cached_property
+    def decoded(self):
+        return LddmmToGlobalMultiOutputView(self, decode_keys=True)
+
+    def __iter__(self):
+        return iter(self.outputs)
+
+    def __getitem__(self, index):
+        return self.outputs[index]
+
+    @property
+    def key_map(self):
+        return self[0].key_map
