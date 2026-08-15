@@ -1,9 +1,9 @@
+import math
+
 import numpy as np
 from matplotlib import colors as mcolors
 from matplotlib import pyplot as plt
 from matplotlib.lines import Line2D
-
-# TODO: TaskRunner?
 
 
 def _auto_bins(arrays):
@@ -98,7 +98,7 @@ def plot_distance_comparison(
             for label, color in colors.items()
         ]
 
-    ax.legend(handles=handles)
+        ax.legend(handles=handles)
 
     ax.set_xlabel(x_label)
     ax.set_ylabel(y_label)
@@ -253,3 +253,104 @@ def volume_hist(view, ax=None):
     ax.legend()
 
     return ax
+
+
+def plot_grid(
+    data,
+    plot,
+    select=None,
+    n_cols=2,
+    legend_position="bottom",
+    legend_wrap=1,
+    sharey=False,
+    **kwargs,
+):
+    if select is None:
+        select = lambda item: (item,)
+
+    n_rows = math.ceil(len(data) / n_cols)
+
+    fig, axes = plt.subplots(
+        n_rows,
+        n_cols,
+        squeeze=False,
+        sharey=sharey,
+    )
+    handles = labels = None
+
+    for index, (ax, (label, item)) in enumerate(zip(axes.flat, data.items())):
+        plot(*select(item), ax=ax, **kwargs)
+        ax.set_title(label)
+
+        row, col = divmod(index, n_cols)
+
+        if col != 0:
+            ax.tick_params(labelleft=not sharey)
+            ax.set_ylabel("")
+
+        if row != n_rows - 1:
+            ax.tick_params(labelbottom=False)
+            ax.set_xlabel("")
+
+        legend = ax.get_legend()
+
+        if legend is not None and handles is None:
+            handles = legend.legend_handles
+            labels = [text.get_text() for text in legend.get_texts()]
+
+        if legend is not None:
+            legend.remove()
+
+    for ax in list(axes.flat)[len(data) :]:
+        ax.set_visible(False)
+
+    if handles:
+        ncol = math.ceil(len(handles) / legend_wrap)
+
+        if legend_position == "bottom":
+            fig.legend(
+                handles,
+                labels,
+                loc="lower center",
+                ncol=ncol,
+            )
+            fig.tight_layout(rect=(0, 0.08, 1, 1))
+
+        elif legend_position == "right":
+            fig.tight_layout(rect=(0, 0, 0.82, 1))
+            fig.legend(
+                handles,
+                labels,
+                loc="center left",
+                bbox_to_anchor=(0.83, 0.5),
+                ncol=legend_wrap,
+            )
+
+        else:
+            raise ValueError(f"Unknown legend position: {legend_position!r}")
+
+    return fig, axes
+
+
+def dist_hist_grid(results, **kwargs):
+    return plot_grid(results, dist_hist, **kwargs)
+
+
+def plot_distance_comparison_grid(results, **kwargs):
+    def select(item):
+        return item.local_pairwise, item.global_pairwise
+
+    return plot_grid(
+        results,
+        plot_distance_comparison,
+        select,
+        **kwargs,
+    )
+
+
+def plot_volume_trends_grid(results, **kwargs):
+    return plot_grid(results, plot_volume_trends, **kwargs)
+
+
+def volume_hist_grid(results, **kwargs):
+    return plot_grid(results, volume_hist, **kwargs)
