@@ -2,16 +2,16 @@ import numpy as np
 
 
 class BCVBlock:
-    def __init__(self, row_idx, col_idx):
-        self.row_idx = row_idx
-        self.col_idx = col_idx
+    def __init__(self, heldout_rows, heldout_cols):
+        self.heldout_rows = heldout_rows
+        self.heldout_cols = heldout_cols
 
     def _partition(self, X):
         row_mask = np.zeros(X.shape[0], dtype=bool)
         col_mask = np.zeros(X.shape[1], dtype=bool)
 
-        row_mask[self.row_idx] = True
-        col_mask[self.col_idx] = True
+        row_mask[self.heldout_rows] = True
+        col_mask[self.heldout_cols] = True
 
         return (
             X[np.ix_(row_mask, col_mask)],
