@@ -6,9 +6,7 @@ def full_svd(X):
 
 
 class BCVBlock:
-    def __init__(self, heldout_rows, heldout_cols, center=False, svd=full_svd):
-        self.heldout_rows = heldout_rows
-        self.heldout_cols = heldout_cols
+    def __init__(self, center=False, svd=full_svd):
         self.center = center
         self.svd = svd
 
@@ -16,8 +14,8 @@ class BCVBlock:
         row_mask = np.zeros(X.shape[0], dtype=bool)
         col_mask = np.zeros(X.shape[1], dtype=bool)
 
-        row_mask[self.heldout_rows] = True
-        col_mask[self.heldout_cols] = True
+        row_mask[self.heldout_rows_] = True
+        col_mask[self.heldout_cols_] = True
 
         return row_mask, col_mask
 
@@ -29,7 +27,10 @@ class BCVBlock:
             X[np.ix_(~row_mask, ~col_mask)],
         )
 
-    def fit(self, X):
+    def fit(self, X, heldout_rows, heldout_cols):
+        self.heldout_rows_ = heldout_rows
+        self.heldout_cols_ = heldout_cols
+
         row_mask, col_mask = self._masks(X)
 
         if self.center:

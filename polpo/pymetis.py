@@ -1,7 +1,9 @@
 import pymetis
 
+from polpo.seed import resolve_seed
 
-def partition_graph(adj_mat, n_parts):
+
+def partition_graph(adj_mat, n_parts, seed=None):
     """Partition a graph into approximately balanced connected parts.
 
     Parameters
@@ -10,6 +12,9 @@ def partition_graph(adj_mat, n_parts):
         Sparse adjacency matrix of the graph.
     n_parts : int
         Number of partitions.
+    seed : int or None
+        Random seed used for mesh partitioning. If None, a seed is generated at
+        runtime.
 
     Returns
     -------
@@ -18,6 +23,8 @@ def partition_graph(adj_mat, n_parts):
     labels : array-like, shape (n_vertices,)
         Partition label assigned to each vertex.
     """
+    seed = resolve_seed(seed)
+
     adjacency = pymetis.CSRAdjacency(
         adj_mat.indptr,
         adj_mat.indices,
@@ -26,6 +33,6 @@ def partition_graph(adj_mat, n_parts):
     n_edge_cuts, labels = pymetis.part_graph(
         n_parts,
         adjacency=adjacency,
-        options=pymetis.Options(contig=True),
+        options=pymetis.Options(contig=True, seed=seed),
     )
     return n_edge_cuts, labels

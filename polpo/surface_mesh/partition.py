@@ -5,7 +5,7 @@ from polpo.pymetis import partition_graph
 from .topology import compute_vertex_adjacency
 
 
-def partition_vertices_balanced(faces, n_parts):
+def partition_vertices_balanced(faces, n_parts, seed=None):
     """Partition mesh vertices into approximately equal-sized connected patches.
 
     The mesh is represented by its vertex adjacency graph and partitioned using
@@ -19,6 +19,9 @@ def partition_vertices_balanced(faces, n_parts):
         Vertex indices of triangular faces.
     n_parts : int
         Number of vertex partitions.
+    seed : int or None
+        Random seed used for mesh partitioning. If None, a seed is generated at
+        runtime.
 
     Returns
     -------
@@ -28,7 +31,7 @@ def partition_vertices_balanced(faces, n_parts):
     """
     adj_mat = compute_vertex_adjacency(faces)
 
-    _, labels = partition_graph(adj_mat, n_parts)
+    _, labels = partition_graph(adj_mat, n_parts, seed=seed)
 
     return np.asarray(labels)
 

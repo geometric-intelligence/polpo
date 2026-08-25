@@ -86,9 +86,15 @@ class LddmmToGlobalOutputView(_OutputView):
 
     @cached_property
     def global_points(self):
-        # TODO: use to compute distances
         return self.global_shoots.map_values(
             lambda x: x.point,
+        )
+
+    @cached_property
+    def global_deltas(self):
+        template_vertices = self._output.global_atlas_point.as_polydata().points
+        return self.global_points.map_values(
+            lambda point: point.as_polydata().points - template_vertices
         )
 
     @cached_property
