@@ -1,10 +1,17 @@
 import numpy as np
 
+# TODO: check need to remove mean
+
+
+def full_svd(X):
+    return np.linalg.svd(X, full_matrices=False)
+
 
 class BCVBlock:
-    def __init__(self, heldout_rows, heldout_cols):
+    def __init__(self, heldout_rows, heldout_cols, svd=full_svd):
         self.heldout_rows = heldout_rows
         self.heldout_cols = heldout_cols
+        self.svd = svd
 
     def _partition(self, X):
         row_mask = np.zeros(X.shape[0], dtype=bool)
@@ -23,10 +30,7 @@ class BCVBlock:
     def fit(self, X):
         self.A_, self.B_, self.C_, self.D_ = self._partition(X)
 
-        self.U_, self.s_, self.Vt_ = np.linalg.svd(
-            self.D_,
-            full_matrices=False,
-        )
+        self.U_, self.s_, self.Vt_ = self.svd(self.D_)
 
         return self
 
@@ -40,6 +44,7 @@ class BCVBlock:
         # if constructing full matrix
         # D_pinv = V @ np.diag(1 / s) @ U.T
 
+        # TODO: need to make it more stable to avoid ZeroDivisionError?
         return (self.B_ @ V / s) @ (U.T @ self.C_)
 
     def approximation(self, rank):
@@ -83,6 +88,7 @@ class BCVBlock:
 
     def errors(self, max_rank=None, normalize=False):
         max_rank = self._resolve_max_rank(max_rank)
+        # TODO: vectorize?
 
         return np.array(
             [self.error(rank, normalize=normalize) for rank in range(1, max_rank + 1)]

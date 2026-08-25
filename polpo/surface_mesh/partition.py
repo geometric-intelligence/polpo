@@ -31,3 +31,19 @@ def partition_vertices_balanced(faces, n_parts):
     _, labels = partition_graph(adj_mat, n_parts)
 
     return np.asarray(labels)
+
+
+def labels_to_vertex_partitions(labels):
+    """Convert partition labels to index arrays.
+
+    Parameters
+    ----------
+    labels : array-like
+        Partition label for each item.
+
+    Returns
+    -------
+    vertex_partitions: list of ndarray
+        Indices belonging to each partition.
+    """
+    return [np.flatnonzero(labels == label) for label in np.unique(labels)]
