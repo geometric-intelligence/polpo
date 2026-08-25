@@ -52,7 +52,7 @@ class BCVBlock:
 
         if not 1 <= rank <= n_singular_values:
             raise ValueError(
-                f"rank must be between 1 and {n_singular_values},got {rank}."
+                f"rank must be between 1 and {n_singular_values}, got {rank}."
             )
 
         return rank
@@ -69,7 +69,7 @@ class BCVBlock:
         # if constructing full matrix
         # D_pinv = V @ np.diag(1 / s) @ U.T
 
-        s_inv = np.where(s > 1e-12, 1.0 / s, 0.0)
+        s_inv = np.divide(1.0, s, out=np.zeros_like(s), where=s > self._get_tol())
         return (self.B_ @ V * s_inv) @ (U.T @ self.C_)
 
     def approximation(self, rank=None):
@@ -83,10 +83,10 @@ class BCVBlock:
 
         return (U * s) @ Vt
 
-    def residual(self, rank):
+    def residual(self, rank=None):
         return self.A_ - self.predict(rank)
 
-    def error(self, rank, normalize=False):
+    def error(self, rank=None, normalize=False):
         # \mathrm{BCV}(k)=\left\|A-B D_k^{+} C\right\|_F^2
 
         error = np.linalg.norm(self.residual(rank), ord="fro") ** 2
@@ -111,7 +111,7 @@ class BCVBlock:
             BV,
             s,
             out=np.zeros_like(BV),
-            where=s > 1e-12,
+            where=s > self._get_tol(),
         )
 
         components = BV.T[:, :, None] * UTC[:, None, :]
@@ -129,3 +129,6 @@ class BCVBlock:
             errors /= self.A_.size
 
         return errors
+
+    def _get_tol(self):
+        return np.finfo(self.s_.dtype).eps * max(self.D_.shape) * self.s_[0]
