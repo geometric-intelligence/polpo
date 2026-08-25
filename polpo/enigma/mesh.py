@@ -1,6 +1,8 @@
+from importlib.resources import files
 from pathlib import Path
 
 import numpy as np
+import pyvista as pv
 
 import polpo.preprocessing.dict as ppdict
 import polpo.utils as putils
@@ -99,6 +101,17 @@ def read_ccbbm(filename, index_base=1):
 
     vertices = np.asarray(vertices)
     faces = np.asarray(faces, dtype=int)
+
+    return vertices, faces
+
+
+def load_template(name, as_polydata=True):
+    filename = files("polpo.enigma") / "resources" / f"atlas_{name_to_aseg_id(name)}.m"
+
+    vertices, faces = read_ccbbm(filename)
+
+    if as_polydata:
+        return pv.PolyData.from_regular_faces(points=vertices, faces=faces)
 
     return vertices, faces
 

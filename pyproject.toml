@@ -123,6 +123,7 @@ include = ["polpo", "polpo.*"]
 
 [tool.setuptools.package-data]
 polpo = ["*.png"]
+"polpo.enigma" = ["resources/*.m"]
 
 [tool.ruff]
 extend-include = ["*.ipynb"]
