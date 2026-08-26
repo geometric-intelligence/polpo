@@ -51,7 +51,7 @@ class LddmmToGlobalRunner(TaskRunner):
         dataset, atlas_keys, known_correspondences, metadata = self.prepare_inputs(key)
 
         protocol = LddmmToGlobal(
-            results_dir=self.results_dir / key,
+            results_dir=self.state_dir / key,
             metadata=metadata,
             known_correspondences=known_correspondences,
             **self.protocol_kwargs,

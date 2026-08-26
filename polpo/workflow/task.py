@@ -1,7 +1,12 @@
-from abc import ABC, abstractmethod
+from abc import ABC
 
 from polpo.io.json import load_json, save_json
 from polpo.time import Timer, utc_now
+
+
+def task(func):
+    func._is_task = True
+    return func
 
 
 class TaskRunner(ABC):
@@ -17,9 +22,12 @@ class TaskRunner(ABC):
     def manifest_path(self):
         return self.state_dir / "manifest.json"
 
-    @abstractmethod
     def tasks(self):
-        """Return a mapping from task names to callables."""
+        return {
+            name: getattr(self, name)
+            for name in dir(self)
+            if getattr(getattr(self, name), "_is_task", False)
+        }
 
     def set_resolved(self, **values):
         self.resolved_.update(values)
