@@ -45,7 +45,7 @@ def dist_hist(dist_res, ax=None, title="Distribution"):
 
     bins = _auto_bins(arrays)
 
-    for label, array in zip(["rec", "local", "global"], arrays):
+    for label, array in zip(["reconstruction", "local", "global"], arrays):
         ax.hist(
             array,
             bins=bins,
@@ -163,7 +163,7 @@ def plot_volume_trends(view, subj_ids=None, ax=None, subj_colors=None):
             color=color,
         )
 
-    ax.set_xlabel("Gestational week")
+    ax.set_xlabel("Week")
     ax.set_ylabel("Volume")
 
     condition_markers = {
@@ -234,7 +234,7 @@ def volume_hist(view, ax=None):
 
     bins = _auto_bins(arrays)
 
-    for label, array in zip(["rec", "local", "global"], arrays):
+    for label, array in zip(["reconstruction", "local", "global"], arrays):
         ax.hist(
             array,
             bins=bins,
@@ -245,7 +245,7 @@ def volume_hist(view, ax=None):
         )
 
     ax.set(
-        xlabel="Volumes",
+        xlabel="Volume",
         ylabel="Density",
         title="Distribution",
     )
