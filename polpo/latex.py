@@ -1,3 +1,8 @@
+import subprocess
+import tempfile
+from pathlib import Path
+
+
 def join_table_rows(rows):
     return "\\\\\n".join(rows)
 
@@ -22,9 +27,9 @@ def add_figure(figure_name, width=1.0):
 
 
 def add_subfigure(figure_name, width=1.0):
-    template = r"""\begin{{subfigure}}{{{width}\textwidth}}\hfill
+    template = r"""\begin{{subfigure}}{{{width}\textwidth}}
 \centering
-\includegraphics[width=1.\linewidth]{{{figure_name}}}
+\includegraphics[width=\linewidth]{{{figure_name}}}
 \end{{subfigure}}"""
     return template.format(
         figure_name=figure_name,
@@ -32,60 +37,147 @@ def add_subfigure(figure_name, width=1.0):
     )
 
 
-def add_subfigures(figure_names, width=None, n_cols=2, max_rows=None, caption=None):
+def add_subfigures(
+    figure_names,
+    width=None,
+    n_cols=2,
+    max_rows=None,
+    caption=None,
+):
     if width is None:
-        width = round(1 / n_cols, 2)
+        width = round(0.95 / n_cols, 2)
 
-    if max_rows is None:
-        max_rows = len(figure_names) + 1
+    figs_per_page = len(figure_names) if max_rows is None else n_cols * max_rows
 
-    caption = "" if caption is None else f"\\caption{{{caption}}}"
+    caption = "" if caption is None else f"\n\\caption{{{caption}}}"
 
-    template = r"""\begin{{figure}}[H]
+    template = r"""\begin{{figure}}[H]{continued}
 \centering
-{rows}
-{caption}
+{rows}{caption}
 \end{{figure}}"""
 
-    template_float = r"""\begin{{figure}}[H]\ContinuedFloat
-\centering
-{rows}
-{caption}
-\end{{figure}}"""
+    figures = []
 
-    text = ""
-    rows = []
-    n_figs = 0
-    for index, name in enumerate(figure_names):
-        row = index // n_cols
-        col = index % n_cols
-        if row > 0 and col == 0 and row % max_rows == 0:
-            rows_str = "".join(rows)
-            if n_figs > 0:
-                text += "\n\n"
-                text += template_float.format(rows=rows_str, caption=caption)
-            else:
-                text += template.format(rows=rows_str, caption=caption)
+    for start in range(0, len(figure_names), figs_per_page):
+        names = figure_names[start : start + figs_per_page]
 
-            rows = []
-            n_figs += 1
+        rows = []
+        for i, name in enumerate(names):
+            if i > 0:
+                if i % n_cols == 0:
+                    rows.append("\n\n\\vspace{0.5em}\n\n")
+                else:
+                    rows.append("\n\\hfill\n")
 
-        elif index > 0 and index % n_cols == 0:
-            rows.append("\n\n")
-            rows.append(r"\vspace{0.5em}")
-            rows.append("\n\n")
+            rows.append(add_subfigure(name, width))
 
-        rows.append(add_subfigure(name, width))
+        figures.append(
+            template.format(
+                continued="" if start == 0 else r"\ContinuedFloat",
+                rows="".join(rows),
+                caption=caption,
+            )
+        )
 
-    rows_str = "".join(rows)
-    if n_figs > 0:
-        text += "\n\n"
-        text += template_float.format(rows=rows_str, caption=caption)
-    else:
-        text += template.format(rows=rows_str, caption=caption)
-
-    return text
+    return "\n\n".join(figures)
 
 
 def add_subsection(name):
     return r"""\subsection{{{name}}}""".format(name=name)
+
+
+def compile_latex(body, filename, figures_path=None):
+    if figures_path is None:
+        figures_path = filename.parent
+
+    figures_path = Path(figures_path).resolve()
+    graphicspath = rf"\graphicspath{{{{{figures_path}/}}}}"
+
+    document = rf"""
+\documentclass{{article}}
+
+\usepackage{{graphicx}}
+\usepackage{{float}}
+\usepackage{{caption}}
+\usepackage{{subcaption}}
+
+{graphicspath}
+
+\pagestyle{{empty}}
+
+\begin{{document}}
+{body}
+\end{{document}}
+"""
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmpdir = Path(tmpdir)
+        tex_path = tmpdir / "document.tex"
+        tex_path.write_text(document)
+
+        subprocess.run(
+            [
+                "pdflatex",
+                "-interaction=nonstopmode",
+                "-halt-on-error",
+                tex_path.name,
+            ],
+            cwd=tmpdir,
+            check=True,
+        )
+
+        filename.write_bytes((tmpdir / "document.pdf").read_bytes())
+
+    return filename
+
+
+def make_latex_document(body, packages=None, preamble=None):
+    if packages is None:
+        packages = []
+
+    packages_text = "\n".join(rf"\usepackage{{{package}}}" for package in packages)
+
+    preamble = "" if preamble is None else preamble
+
+    return rf"""\documentclass{{article}}
+
+{packages_text}
+{preamble}
+
+\begin{{document}}
+{body}
+\end{{document}}
+"""
+
+
+def make_figure_document(body, figures_path):
+    preamble = rf"""
+\graphicspath{{{{{figures_path.resolve()}/}}}}
+\pagestyle{{empty}}
+"""
+
+    return make_latex_document(
+        body,
+        packages=["graphicx", "float", "caption", "subcaption"],
+        preamble=preamble,
+    )
+
+
+def compile_latex(text, filename):
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmpdir = Path(tmpdir)
+        tex_path = tmpdir / "document.tex"
+        tex_path.write_text(text)
+
+        subprocess.run(
+            [
+                "pdflatex",
+                "-interaction=nonstopmode",
+                "-halt-on-error",
+                tex_path.name,
+            ],
+            cwd=tmpdir,
+            check=True,
+        )
+
+        filename.write_bytes((tmpdir / "document.pdf").read_bytes())
