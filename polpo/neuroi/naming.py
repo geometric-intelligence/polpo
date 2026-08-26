@@ -11,20 +11,13 @@ SUBCORTICAL_STRUCTS = {
 }
 SUBCORTICAL_STRUCTS_LONG = {
     "BrStem": "Brain Stem",
-    "L_Thal": "Left Thalamus",
-    "L_Caud": "Left Caudate",
-    "L_Puta": "Left Putamen",
-    "L_Pall": "Left Pallidum",
-    "L_Hipp": "Left Hippocampus",
-    "L_Amyg": "Left Amygdala",
-    "L_Accu": "Left Accumbens",
-    "R_Thal": "Right Thalamus",
-    "R_Caud": "Right Caudate",
-    "R_Puta": "Right Putamen",
-    "R_Pall": "Right Pallidum",
-    "R_Hipp": "Right Hippocampus",
-    "R_Amyg": "Right Amygdala",
-    "R_Accu": "Right Accumbens",
+    "Thal": "Thalamus",
+    "Caud": "Caudate",
+    "Puta": "Putamen",
+    "Pall": "Pallidum",
+    "Hipp": "Hippocampus",
+    "Amyg": "Amygdala",
+    "Accu": "Accumbens",
 }
 
 SUBCORTICAL_NAME_TO_COLOR = {
@@ -46,8 +39,17 @@ SUBCORTICAL_NAME_TO_COLOR = {
 }
 
 
-def get_subcortical_struct_long_name(struct):
-    return SUBCORTICAL_STRUCTS_LONG[struct]
+def get_subcortical_struct_long_name(short_name):
+    side = None
+    if "_" in short_name:
+        side, short_name = short_name.split("_")
+
+    long_name = SUBCORTICAL_STRUCTS_LONG[short_name]
+    if side is None:
+        return long_name
+
+    side = "Left" if side == "L" else "Right"
+    return f"{side} {long_name}"
 
 
 def _get_all_subcortical_structs(
