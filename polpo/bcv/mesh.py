@@ -1,3 +1,6 @@
+from functools import partial
+from pathlib import Path
+
 import numpy as np
 
 from polpo.bcv import BCVBlock
@@ -9,11 +12,13 @@ from polpo.bcv.model_selection import (
     select_rank_one_se_grouped,
 )
 from polpo.dataset import Dataset
+from polpo.io.json import load_json, save_json
 from polpo.seed import resolve_seed
 from polpo.surface_mesh.partition import (
     labels_to_vertex_partitions,
     partition_vertices_balanced,
 )
+from polpo.workflow.task import TaskRunner
 
 
 def compute_held_out_cols(labels, dim=3):
@@ -121,7 +126,6 @@ class GroupedMeshRankSelection:
         self.rank_min_error_ = select_rank_min_error(fold_errors)
         self.rank_one_se_ = select_rank_one_se(fold_errors)
         self.rank_one_se_grouped_ = select_rank_one_se_grouped(fold_errors_grouped)
-        self.rank_ = self.rank_one_se_grouped_
 
         self.held_out_cols_ = held_out_cols
         self.held_out_rows_ = held_out_rows
@@ -129,6 +133,10 @@ class GroupedMeshRankSelection:
         self.blocks_ = blocks
 
         return self
+
+    @property
+    def rank_(self):
+        return self.rank_one_se_grouped_
 
     @property
     def errors_array_(self):
@@ -141,3 +149,149 @@ class GroupedMeshRankSelection:
             .reduce_outer(lambda values: np.stack(values))
             .apply(lambda values: np.stack(values))
         )
+
+
+class MeshRankSelectionResult:
+    """Results of mesh bi-cross-validation rank selection.
+
+    Parameters
+    ----------
+    errors : ndarray, shape (n_folds, n_ranks)
+        Cross-validation errors for each held-out block and candidate rank.
+    keys : list
+        Keys identifying the folds represented by the rows of ``errors``.
+    seed : int
+        Random seed used to construct the mesh partitions.
+    """
+
+    def __init__(
+        self,
+        errors,
+        keys,
+        n_parts,
+        n_groups,
+        center,
+        seed,
+    ):
+        self.errors = errors
+        self.keys = keys
+
+        self.n_parts = n_parts
+        self.n_groups = n_groups
+        self.center = center
+        self.seed = seed
+
+    @property
+    def rank(self):
+        return self.rank_one_se_grouped
+
+    @property
+    def rank_min_error(self):
+        return select_rank_min_error(self.errors)
+
+    @property
+    def rank_one_se(self):
+        return select_rank_one_se(self.errors)
+
+    @property
+    def rank_one_se_grouped(self):
+        return select_rank_one_se_grouped(self.errors_grouped)
+
+    @property
+    def errors_grouped(self):
+        return self.errors.reshape(-1, self.n_parts, self.errors.shape[-1])
+
+    @classmethod
+    def from_selection(cls, selection):
+        """Create results from a fitted ``GroupedMeshRankSelection``."""
+        return cls(
+            errors=selection.errors_array_,
+            keys=selection.errors_.keys_list(),
+            seed=selection.seed_,
+            center=selection.center,
+            n_parts=selection.n_parts,
+            n_groups=selection.n_groups,
+        )
+
+    def to_dir(self, results_dir):
+        """Write results to disk."""
+        results_dir.mkdir(parents=True, exist_ok=True)
+
+        np.save(results_dir / "errors.npy", self.errors)
+
+        save_json(
+            results_dir / "params.json",
+            {
+                "n_parts": self.n_parts,
+                "n_groups": self.n_groups,
+                "center": self.center,
+                "seed": self.seed,
+                "keys": self.keys,
+            },
+        )
+
+        return self
+
+    @classmethod
+    def from_dir(cls, results_dir):
+        """Load rank-selection results from disk."""
+        errors = np.load(results_dir / "errors.npy")
+        params = load_json(results_dir / "params.json")
+
+        return cls(
+            errors=errors,
+            **params,
+        )
+
+
+class GroupedMeshRankSelectionRunner(TaskRunner):
+    def __init__(
+        self,
+        items,
+        prepare_inputs,
+        results_dir=None,
+        get_results_dir=None,
+        state_dir=None,
+        **selection_kwargs,
+    ):
+        if results_dir is None and get_results_dir is None:
+            raise ValueError("Either results_dir or get_results_dir must be provided.")
+
+        if state_dir is None:
+            state_dir = (
+                Path(".rank_selection")
+                if results_dir is None
+                else Path(results_dir) / ".rank_selection"
+            )
+
+        super().__init__(state_dir)
+
+        self.items = items
+        self.prepare_inputs = prepare_inputs
+        self.results_dir = results_dir
+        self.get_results_dir = get_results_dir
+        self.selection_kwargs = selection_kwargs
+
+    def _resolve_results_dir(self, item):
+        if self.get_results_dir is not None:
+            return Path(self.get_results_dir(item))
+
+        return self.results_dir / item / "rank_selection"
+
+    def tasks(self):
+        return {item: partial(self._run, item) for item in self.items}
+
+    def _run(self, item):
+        faces, dataset = self.prepare_inputs(item)
+
+        selection = GroupedMeshRankSelection(
+            **self.selection_kwargs,
+        ).fit(
+            faces,
+            dataset,
+        )
+
+        results = MeshRankSelectionResult.from_selection(selection)
+
+        results_dir = self._resolve_results_dir(item)
+        results.to_dir(results_dir)

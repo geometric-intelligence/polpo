@@ -7,15 +7,15 @@ from polpo.time import Timer, utc_now
 class TaskRunner(ABC):
     MANIFEST_VERSION = 1
 
-    def __init__(self, results_dir, metadata=None):
-        self.results_dir = results_dir
+    def __init__(self, state_dir, metadata=None):
+        self.state_dir = state_dir
         self.metadata = metadata or None
         self.resolved_ = {}
         self.timer = Timer()
 
     @property
     def manifest_path(self):
-        return self.results_dir / "manifest.json"
+        return self.state_dir / "manifest.json"
 
     @abstractmethod
     def tasks(self):
@@ -77,7 +77,7 @@ class TaskRunner(ABC):
         if unknown:
             raise ValueError(f"Unknown tasks: {sorted(unknown)}")
 
-        self.results_dir.mkdir(parents=True, exist_ok=True)
+        self.state_dir.mkdir(parents=True, exist_ok=True)
         self.manifest_ = self._load_or_create_manifest()
 
         n_failed = 0

@@ -285,6 +285,7 @@ class PersistentEvaluator(TaskRunner):
 
         super().__init__(results_dir, metadata=evaluator.requested)
 
+        self.results_dir = results_dir
         self.evaluator = evaluator
         self.set_resolved(**evaluator.resolved)
 
