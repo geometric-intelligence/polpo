@@ -151,7 +151,7 @@ class GroupedMeshRankSelection:
         )
 
 
-class MeshRankSelectionResult:
+class GroupedMeshRankSelectionResult:
     """Results of mesh bi-cross-validation rank selection.
 
     Parameters
@@ -291,7 +291,7 @@ class GroupedMeshRankSelectionRunner(TaskRunner):
             dataset,
         )
 
-        results = MeshRankSelectionResult.from_selection(selection)
+        results = GroupedMeshRankSelectionRunner.from_selection(selection)
 
         results_dir = self._resolve_results_dir(item)
         results.to_dir(results_dir)
