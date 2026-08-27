@@ -1,35 +1,26 @@
 import numpy as np
-from matplotlib import pyplot as plt
+
+from polpo.plot.pyplot import plot_mean_band, plot_mean_errorbar
 
 
-def _rank_error_stats(fold_errors, error):
-    mean_errors = fold_errors.mean(axis=0)
-    std_errors = fold_errors.std(axis=0, ddof=1)
-
-    if error == "std":
-        errors = std_errors
-    elif error == "se":
-        errors = std_errors / np.sqrt(fold_errors.shape[0])
-    else:
-        raise ValueError("error must be 'std' or 'se'.")
-
-    ranks = np.arange(1, mean_errors.shape[0] + 1)
-    return ranks, mean_errors, errors
-
-
-def _plot_best_rank(ax, ranks, mean_errors, best_rank):
+def _plot_best_rank(ax, best_rank, line_index=-1):
     if best_rank is None:
         return
 
-    best_idx = best_rank - 1
+    line = ax.lines[line_index]
+    x, y = line.get_data()
+
+    index = np.where(x == best_rank)[0][0]
     ax.scatter(
-        ranks[best_idx],
-        mean_errors[best_idx],
+        x[index],
+        y[index],
         color="red",
         zorder=3,
         label=f"Best rank: {best_rank}",
     )
     ax.legend()
+
+    return ax
 
 
 def plot_rank_errors_band(
@@ -38,20 +29,15 @@ def plot_rank_errors_band(
     error="se",
     ax=None,
 ):
-    ranks, mean_errors, errors = _rank_error_stats(fold_errors, error)
+    ranks = np.arange(1, fold_errors.shape[1] + 1)
 
-    if ax is None:
-        _, ax = plt.subplots()
-
-    ax.plot(ranks, mean_errors)
-    ax.fill_between(
+    ax = plot_mean_band(
         ranks,
-        mean_errors - errors,
-        mean_errors + errors,
-        alpha=0.2,
+        fold_errors,
+        error=error,
+        ax=ax,
     )
-
-    _plot_best_rank(ax, ranks, mean_errors, best_rank)
+    _plot_best_rank(ax, best_rank, line_index=-1)
 
     ax.set_xlabel("Rank")
     ax.set_ylabel("BCV error")
@@ -65,20 +51,17 @@ def plot_rank_errors_errorbar(
     error="std",
     ax=None,
 ):
-    ranks, mean_errors, errors = _rank_error_stats(fold_errors, error)
+    ranks = np.arange(1, fold_errors.shape[1] + 1)
 
-    if ax is None:
-        _, ax = plt.subplots()
+    line_index = len(ax.lines) if ax is None else 0
 
-    ax.errorbar(
+    ax = plot_mean_errorbar(
         ranks,
-        mean_errors,
-        yerr=errors,
-        marker="o",
-        capsize=3,
+        fold_errors,
+        error=error,
+        ax=ax,
     )
-
-    _plot_best_rank(ax, ranks, mean_errors, best_rank)
+    _plot_best_rank(ax, best_rank, line_index=line_index)
 
     ax.set_xlabel("Rank")
     ax.set_ylabel("BCV error")

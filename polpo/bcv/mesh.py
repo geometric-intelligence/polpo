@@ -291,7 +291,7 @@ class GroupedMeshRankSelectionRunner(TaskRunner):
             dataset,
         )
 
-        results = GroupedMeshRankSelectionRunner.from_selection(selection)
+        results = GroupedMeshRankSelectionResult.from_selection(selection)
 
         results_dir = self._resolve_results_dir(item)
         results.to_dir(results_dir)

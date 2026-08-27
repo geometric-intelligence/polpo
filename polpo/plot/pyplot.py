@@ -1,3 +1,5 @@
+import math
+
 import numpy as np
 from matplotlib import pyplot as plt
 
@@ -5,6 +7,7 @@ from .base import Plotter
 
 
 class SlicesPlotter(Plotter):
+    # TODO: check volume.plot
     def __init__(self, cmap="gray", vertical=False):
         super().__init__()
         self.cmap = cmap
@@ -118,5 +121,140 @@ def grouped_barplot(
 
     ax.set_xticks(x)
     ax.set_xticklabels(groups, rotation=xtick_rotation)
+
+    return ax
+
+
+def plot_grid(
+    data,
+    plot,
+    select=None,
+    n_cols=2,
+    legend_position="bottom",
+    legend_wrap=1,
+    sharey=False,
+    figsize=None,
+    share_legend=True,
+    **kwargs,
+):
+    if select is None:
+        select = lambda item: (item,)
+
+    n_rows = math.ceil(len(data) / n_cols)
+
+    fig, axes = plt.subplots(
+        n_rows,
+        n_cols,
+        squeeze=False,
+        sharey=sharey,
+        figsize=figsize,
+    )
+
+    for index, (ax, (label, item)) in enumerate(zip(axes.flat, data.items())):
+        plot(*select(item), ax=ax, **kwargs)
+        ax.set_title(label)
+
+        row, col = divmod(index, n_cols)
+
+        if col != 0:
+            ax.tick_params(labelleft=not sharey)
+            ax.set_ylabel("")
+
+        if row != n_rows - 1:
+            ax.tick_params(labelbottom=False)
+            ax.set_xlabel("")
+
+    for ax in list(axes.flat)[len(data) :]:
+        ax.set_visible(False)
+
+    if not share_legend:
+        return fig, axes
+
+    legends = [
+        ax.get_legend()
+        for ax in list(axes.flat)[: len(data)]
+        if ax.get_legend() is not None
+    ]
+
+    if not legends:
+        return fig, axes
+
+    legend = legends[0]
+    handles = legend.legend_handles
+    labels = [text.get_text() for text in legend.get_texts()]
+
+    for legend in legends:
+        legend.remove()
+
+    ncol = math.ceil(len(handles) / legend_wrap)
+
+    if legend_position == "bottom":
+        fig.legend(
+            handles,
+            labels,
+            loc="lower center",
+            ncol=ncol,
+        )
+        fig.tight_layout(rect=(0, 0.08, 1, 1))
+
+    elif legend_position == "right":
+        fig.tight_layout(rect=(0, 0, 0.82, 1))
+        fig.legend(
+            handles,
+            labels,
+            loc="center left",
+            bbox_to_anchor=(0.83, 0.5),
+            ncol=legend_wrap,
+        )
+
+    else:
+        raise ValueError(f"Unknown legend position: {legend_position!r}")
+
+    return fig, axes
+
+
+def _mean_and_error(values, error, axis=0):
+    mean = values.mean(axis=axis)
+    std = values.std(axis=axis, ddof=1)
+
+    if error == "std":
+        return mean, std
+
+    if error == "se":
+        return mean, std / np.sqrt(values.shape[axis])
+
+    raise ValueError("error must be 'std' or 'se'.")
+
+
+def plot_mean_errorbar(x, values, error="std", axis=0, ax=None):
+    mean, errors = _mean_and_error(values, error, axis)
+
+    if ax is None:
+        _, ax = plt.subplots()
+
+    ax.errorbar(
+        x,
+        mean,
+        yerr=errors,
+        marker="o",
+        capsize=3,
+    )
+
+    return ax
+
+
+def plot_mean_band(x, values, error="se", axis=0, ax=None):
+    mean, errors = _mean_and_error(values, error, axis)
+
+    if ax is None:
+        _, ax = plt.subplots()
+
+    ax.plot(x, mean)
+    ax.fill_between(
+        x,
+        mean - errors,
+        mean + errors,
+        alpha=0.2,
+    )
 
     return ax
