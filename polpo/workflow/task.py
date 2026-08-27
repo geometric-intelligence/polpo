@@ -12,11 +12,12 @@ def task(func):
 class TaskRunner(ABC):
     MANIFEST_VERSION = 1
 
-    def __init__(self, state_dir, metadata=None):
+    def __init__(self, state_dir, metadata=None, verbose=True):
         self.state_dir = state_dir
         self.metadata = metadata or None
         self.resolved_ = {}
         self.timer = Timer()
+        self.verbose = verbose
 
     @property
     def manifest_path(self):
@@ -75,6 +76,10 @@ class TaskRunner(ABC):
             },
         }
 
+    def _log(self, message):
+        if self.verbose:
+            print(message)
+
     def run(self, tasks=None, overwrite=False, continue_on_error=True):
         available_tasks = self.tasks()
 
@@ -88,10 +93,16 @@ class TaskRunner(ABC):
         self.state_dir.mkdir(parents=True, exist_ok=True)
         self.manifest_ = self._load_or_create_manifest()
 
+        self._log(f"Running {self.__class__.__name__}")
+        self._log(f"State directory: {self.state_dir}")
+
         n_failed = 0
         for task in tasks:
             if not overwrite and self._is_complete(task):
+                self._log(f"[{task}] skipped (already completed)")
                 continue
+
+            self._log(f"[{task}] started")
 
             try:
                 with self.timer(task):
@@ -100,13 +111,20 @@ class TaskRunner(ABC):
                 n_failed += 1
                 self._mark_failed(task, error)
                 self._write_manifest()
+
+                self._log(f"[{task}] failed: {error}")
+
                 if not continue_on_error:
                     raise
 
                 continue
 
+            elapsed = self.timer.duration(task)
+
             self._mark_completed(task)
             self._write_manifest()
+
+            self._log(f"[{task}] completed in {elapsed:.2f} s")
 
         if n_failed == 0:
             status = "completed"
@@ -118,5 +136,7 @@ class TaskRunner(ABC):
         self.manifest_["status"] = status
         self.manifest_["finished_at"] = utc_now()
         self._write_manifest()
+
+        self._log(f"{self.__class__.__name__} finished: {status}")
 
         return self
