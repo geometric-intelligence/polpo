@@ -80,15 +80,25 @@ class TaskRunner(ABC):
         if self.verbose:
             print(message)
 
-    def run(self, tasks=None, overwrite=False, continue_on_error=True):
+    def run(
+        self,
+        tasks=None,
+        exclude_tasks=None,
+        overwrite=False,
+        continue_on_error=True,
+    ):
         available_tasks = self.tasks()
 
         if tasks is None:
             tasks = list(available_tasks)
 
-        unknown = set(tasks) - set(available_tasks)
+        exclude_tasks = [] if exclude_tasks is None else exclude_tasks
+
+        unknown = (set(tasks) | set(exclude_tasks)) - set(available_tasks)
         if unknown:
             raise ValueError(f"Unknown tasks: {sorted(unknown)}")
+
+        tasks = [task for task in tasks if task not in set(exclude_tasks)]
 
         self.state_dir.mkdir(parents=True, exist_ok=True)
         self.manifest_ = self._load_or_create_manifest()
