@@ -12,7 +12,7 @@ def _index2cols(header, index, output="LogJacs"):
 
 def _struct_subset2cols(header, struct_subset, output="LogJacs"):
     if struct_subset is None:
-        struct_subset = get_all_subcortical_structs(order=True)
+        struct_subset = get_all_subcortical_structs()
 
     enigma_indices = [name_to_aseg_id(struct) for struct in struct_subset]
 

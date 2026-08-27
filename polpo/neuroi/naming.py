@@ -52,33 +52,37 @@ def get_subcortical_struct_long_name(short_name):
     return f"{side} {long_name}"
 
 
-def _get_all_subcortical_structs(
-    structs, prefixed=True, only_bilateral=False, order=False
+def _expand_subcortical_structs(
+    structs,
+    prefixed=True,
+    only_bilateral=False,
+    interleave=False,
 ):
     if not prefixed:
         return structs
 
-    out = []
-    for prefix in ("L", "R"):
-        for struct in structs:
-            if struct == "BrStem":
-                if not only_bilateral:
-                    out.append(struct)
+    bilateral = [struct for struct in structs if struct != "BrStem"]
+    bilateral = sorted(bilateral)
 
-                continue
+    if interleave:
+        out = [f"{side}_{struct}" for struct in bilateral for side in ("L", "R")]
+    else:
+        out = [f"{side}_{struct}" for side in ("L", "R") for struct in bilateral]
 
-            out.append(f"{prefix}_{struct}")
-
-    if order:
-        return sorted(out)
+    if "BrStem" in structs and not only_bilateral:
+        out.append("BrStem")
 
     return out
 
 
-def get_all_subcortical_structs(prefixed=True, only_bilateral=False, order=False):
-    return _get_all_subcortical_structs(
+def get_all_subcortical_structs(
+    prefixed=True,
+    only_bilateral=False,
+    interleave=False,
+):
+    return _expand_subcortical_structs(
         SUBCORTICAL_STRUCTS,
         prefixed=prefixed,
         only_bilateral=only_bilateral,
-        order=order,
+        interleave=interleave,
     )
