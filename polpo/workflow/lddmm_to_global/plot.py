@@ -1,9 +1,8 @@
-import math
-
 import numpy as np
-from matplotlib import colors as mcolors
 from matplotlib import pyplot as plt
 from matplotlib.lines import Line2D
+
+from polpo.plot.pyplot import plot_grid
 
 
 def _auto_bins(arrays):
@@ -13,21 +12,11 @@ def _auto_bins(arrays):
     )
 
 
-def get_subject_colors(subj_ids):
-    color_ids = [
-        subj_id for subj_id in subj_ids if not str(subj_id).startswith(("3", "4"))
-    ]
+def get_outer_colors(outer_keys, cmap="tab20"):
+    outer_keys = list(outer_keys)
+    colors = plt.get_cmap(cmap).resampled(len(outer_keys))
 
-    tab10 = plt.colormaps["tab10"]
-    base_colors = [tab10(i) for i in range(tab10.N) if i != 7]
-
-    cmap = mcolors.ListedColormap(base_colors).resampled(len(color_ids))
-
-    colors = dict(zip(color_ids, cmap(range(len(color_ids)))))
-    colors.update(
-        {subj_id: "gray" for subj_id in subj_ids if str(subj_id).startswith(("3", "4"))}
-    )
-    return colors
+    return {key: colors(i) for i, key in enumerate(outer_keys)}
 
 
 def dist_hist(dist_res, ax=None, title="Distribution"):
@@ -116,7 +105,7 @@ def plot_distance_comparison(
     return ax
 
 
-def plot_volume_trends(view, subj_ids=None, ax=None, subj_colors=None):
+def plot_volume_trends(view, outer_keys=None, ax=None, outer_colors=None):
     if ax is None:
         _, ax = plt.subplots()
 
@@ -126,39 +115,39 @@ def plot_volume_trends(view, subj_ids=None, ax=None, subj_colors=None):
     )
     global_meshes = view.global_points.map_values(lambda x: x.as_pv_surface().volume)
 
-    one_subject = isinstance(subj_ids, str)
-    if subj_ids is None:
-        subj_ids = dataset.keys()
+    one_subject = isinstance(outer_keys, str)
+    if outer_keys is None:
+        outer_keys = dataset.keys()
     elif one_subject:
-        subj_ids = [subj_ids]
+        outer_keys = [outer_keys]
 
-    if subj_colors is None:
-        subj_colors = get_subject_colors(subj_ids)
+    if outer_colors is None:
+        outer_colors = get_outer_colors(outer_keys)
 
-    for index, subj_id in enumerate(subj_ids):
-        color = subj_colors[subj_id]
+    for index, outer_id in enumerate(outer_keys):
+        color = outer_colors[outer_id]
 
-        subj_data = dataset.get_outer(subj_id)
+        outer_data = dataset.get_outer(outer_id)
         ax.scatter(
-            subj_data.keys_list(),
-            subj_data.values_list(),
+            outer_data.keys_list(),
+            outer_data.values_list(),
             color=color,
             marker="o",
             facecolors="none",
         )
 
-        subj_data = local_meshes.get_outer(subj_id)
+        outer_data = local_meshes.get_outer(outer_id)
         ax.scatter(
-            subj_data.keys_list(),
-            subj_data.values_list(),
+            outer_data.keys_list(),
+            outer_data.values_list(),
             marker="x",
             color=color,
         )
 
-        subj_data = global_meshes.get_outer(subj_id)
+        outer_data = global_meshes.get_outer(outer_id)
         ax.scatter(
-            subj_data.keys_list(),
-            subj_data.values_list(),
+            outer_data.keys_list(),
+            outer_data.values_list(),
             marker="s",
             color=color,
         )
@@ -193,10 +182,10 @@ def plot_volume_trends(view, subj_ids=None, ax=None, subj_colors=None):
                 marker="o",
                 linestyle="none",
                 color=color,
-                label=subj_id,
+                label=outer_id,
                 markersize=8,
             )
-            for subj_id, color in subj_colors.items()
+            for outer_id, color in outer_colors.items()
         ] + handles
     ax.legend(
         handles=handles,
@@ -253,83 +242,6 @@ def volume_hist(view, ax=None):
     ax.legend()
 
     return ax
-
-
-def plot_grid(
-    data,
-    plot,
-    select=None,
-    n_cols=2,
-    legend_position="bottom",
-    legend_wrap=1,
-    sharey=False,
-    **kwargs,
-):
-    if select is None:
-        select = lambda item: (item,)
-
-    n_rows = math.ceil(len(data) / n_cols)
-
-    fig, axes = plt.subplots(
-        n_rows,
-        n_cols,
-        squeeze=False,
-        sharey=sharey,
-    )
-    handles = labels = None
-
-    for index, (ax, (label, item)) in enumerate(zip(axes.flat, data.items())):
-        plot(*select(item), ax=ax, **kwargs)
-        ax.set_title(label)
-
-        row, col = divmod(index, n_cols)
-
-        if col != 0:
-            ax.tick_params(labelleft=not sharey)
-            ax.set_ylabel("")
-
-        if row != n_rows - 1:
-            ax.tick_params(labelbottom=False)
-            ax.set_xlabel("")
-
-        legend = ax.get_legend()
-
-        if legend is not None and handles is None:
-            handles = legend.legend_handles
-            labels = [text.get_text() for text in legend.get_texts()]
-
-        if legend is not None:
-            legend.remove()
-
-    for ax in list(axes.flat)[len(data) :]:
-        ax.set_visible(False)
-
-    if handles:
-        ncol = math.ceil(len(handles) / legend_wrap)
-
-        if legend_position == "bottom":
-            fig.legend(
-                handles,
-                labels,
-                loc="lower center",
-                ncol=ncol,
-            )
-            fig.tight_layout(rect=(0, 0.08, 1, 1))
-
-        elif legend_position == "right":
-            fig.tight_layout(rect=(0, 0, 0.82, 1))
-            fig.legend(
-                handles,
-                labels,
-                loc="center left",
-                bbox_to_anchor=(0.83, 0.5),
-                ncol=legend_wrap,
-            )
-
-        else:
-            raise ValueError(f"Unknown legend position: {legend_position!r}")
-
-    return fig, axes
 
 
 def dist_hist_grid(results, **kwargs):
