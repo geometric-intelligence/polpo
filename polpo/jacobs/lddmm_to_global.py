@@ -3,6 +3,10 @@ import logging
 import polpo.preprocessing.dict as ppdict
 from polpo.dataset import Dataset, NestedDataset
 from polpo.jacobs.mesh import MeshDatasetLoader
+from polpo.neuroi.naming import (
+    get_all_subcortical_structs,
+    get_subcortical_struct_long_name,
+)
 from polpo.utils import NestedKeyCodec
 
 
@@ -94,3 +98,32 @@ def prepare_inputs(
         known_correspondences,
         metadata,
     )
+
+
+def find_experiment_dirs(outputs_dir, long_name=False, interleave=True):
+    all_structs = get_all_subcortical_structs(interleave=interleave)
+    order = {struct: i for i, struct in enumerate(all_structs)}
+
+    dirs = sorted(
+        [file for file in outputs_dir.iterdir() if file.is_dir() if file.name in order],
+        key=lambda file: order[file.name],
+    )
+
+    all_structs = get_all_subcortical_structs(interleave=False)
+
+    dirs = sorted(
+        [
+            file
+            for file in outputs_dir.iterdir()
+            if file.is_dir()
+            if file.name in all_structs
+        ],
+        key=lambda file: order[file.name],
+    )
+    structs = (
+        [get_subcortical_struct_long_name(dir_.name) for dir_ in dirs]
+        if long_name
+        else [dir_.name for dir_ in dirs]
+    )
+
+    return dict(zip(structs, dirs))
