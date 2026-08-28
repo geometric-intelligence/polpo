@@ -24,11 +24,14 @@ class TaskRunner(ABC):
         return self.state_dir / "manifest.json"
 
     def tasks(self):
-        return {
-            name: getattr(self, name)
-            for name in dir(self)
-            if getattr(getattr(self, name), "_is_task", False)
-        }
+        tasks = {}
+
+        for cls in reversed(type(self).mro()):
+            for name, attr in cls.__dict__.items():
+                if getattr(attr, "_is_task", False):
+                    tasks[name] = getattr(self, name)
+
+        return tasks
 
     def set_resolved(self, **values):
         self.resolved_.update(values)
