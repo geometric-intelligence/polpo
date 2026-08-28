@@ -132,13 +132,14 @@ def plot_grid(
     n_cols=2,
     legend_position="bottom",
     legend_wrap=1,
+    sharex=True,
     sharey=False,
     figsize=None,
     share_legend=True,
     **kwargs,
 ):
     if select is None:
-        select = lambda item: (item,)
+        select = lambda label, item: (item,)
 
     n_rows = math.ceil(len(data) / n_cols)
 
@@ -146,12 +147,14 @@ def plot_grid(
         n_rows,
         n_cols,
         squeeze=False,
+        sharex=sharex,
         sharey=sharey,
         figsize=figsize,
+        layout="constrained",
     )
 
     for index, (ax, (label, item)) in enumerate(zip(axes.flat, data.items())):
-        plot(*select(item), ax=ax, **kwargs)
+        plot(*select(label, item), ax=ax, **kwargs)
         ax.set_title(label)
 
         row, col = divmod(index, n_cols)
@@ -161,7 +164,7 @@ def plot_grid(
             ax.set_ylabel("")
 
         if row != n_rows - 1:
-            ax.tick_params(labelbottom=False)
+            ax.tick_params(labelbottom=not sharex)
             ax.set_xlabel("")
 
     for ax in list(axes.flat)[len(data) :]:

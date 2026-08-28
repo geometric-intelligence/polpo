@@ -249,7 +249,7 @@ def dist_hist_grid(results, **kwargs):
 
 
 def plot_distance_comparison_grid(results, **kwargs):
-    def select(item):
+    def select(label, item):
         return item.local_pairwise, item.global_pairwise
 
     return plot_grid(

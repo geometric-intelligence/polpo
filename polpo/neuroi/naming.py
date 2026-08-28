@@ -20,7 +20,12 @@ SUBCORTICAL_STRUCTS_LONG = {
     "Accu": "Accumbens",
 }
 
+SUBCORTICAL_STRUCTS_SHORT = {
+    long_name: short_name for short_name, long_name in SUBCORTICAL_STRUCTS_LONG.items()
+}
+
 SUBCORTICAL_NAME_TO_COLOR = {
+    # TODO: adapt
     "BrStem": (119, 159, 176, 0),
     "L_Thal": (0, 118, 14, 0),
     "R_Thal": (0, 118, 14, 0),
@@ -50,6 +55,20 @@ def get_subcortical_struct_long_name(short_name):
 
     side = "Left" if side == "L" else "Right"
     return f"{side} {long_name}"
+
+
+def get_subcortical_struct_short_name(long_name):
+    side = None
+    if " " in long_name:
+        side, long_name = long_name.split(" ", 1)
+
+    short_name = SUBCORTICAL_STRUCTS_SHORT[long_name]
+
+    if side is None:
+        return short_name
+
+    side = "L" if side == "Left" else "R"
+    return f"{side}_{short_name}"
 
 
 def _expand_subcortical_structs(

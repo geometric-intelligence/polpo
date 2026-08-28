@@ -183,3 +183,21 @@ def read_mni_obj(filename):
     ).reshape(n_faces, 3)
 
     return vertices, faces
+
+
+_TEMPLATE_N_VERTICES = {
+    "Accu": 930,
+    "Amyg": 1368,
+    "Caud": 2502,
+    "Hipp": 2502,
+    "Pall": 1254,
+    "Puta": 2502,
+    "Thal": 2502,
+}
+
+
+def get_template_n_vertices(struct):
+    if "_" in struct:
+        struct = struct.split("_")[1]
+
+    return _TEMPLATE_N_VERTICES[struct]
