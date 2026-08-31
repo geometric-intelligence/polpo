@@ -1,4 +1,3 @@
-from functools import partial
 from pathlib import Path
 
 import numpy as np
@@ -18,7 +17,7 @@ from polpo.surface_mesh.partition import (
     labels_to_vertex_partitions,
     partition_vertices_balanced,
 )
-from polpo.workflow.task import TaskRunner
+from polpo.workflow.task import TaskRunner, task
 
 
 def compute_held_out_cols(labels, dim=3):
@@ -244,54 +243,62 @@ class GroupedMeshRankSelectionResult:
         )
 
 
-class GroupedMeshRankSelectionRunner(TaskRunner):
+class _BaseGroupedMeshRankSelectionRunner(TaskRunner):
     def __init__(
         self,
-        items,
-        prepare_inputs,
-        results_dir=None,
-        get_results_dir=None,
+        results_dir,
         state_dir=None,
         **selection_kwargs,
     ):
-        if results_dir is None and get_results_dir is None:
-            raise ValueError("Either results_dir or get_results_dir must be provided.")
-
         if state_dir is None:
             state_dir = (
-                Path(".rank_selection")
-                if results_dir is None
-                else Path(results_dir) / ".rank_selection"
+                Path(".rank_selection") if results_dir is None else Path(results_dir)
             )
 
         super().__init__(state_dir)
 
-        self.items = items
-        self.prepare_inputs = prepare_inputs
         self.results_dir = results_dir
-        self.get_results_dir = get_results_dir
         self.selection_kwargs = selection_kwargs
 
-    def _resolve_results_dir(self, item):
-        if self.get_results_dir is not None:
-            return Path(self.get_results_dir(item))
-
-        return self.results_dir / item / "rank_selection"
-
-    def tasks(self):
-        return {item: partial(self._run, item) for item in self.items}
-
-    def _run(self, item):
-        faces, dataset = self.prepare_inputs(item)
+    @task
+    def select_rank(self):
+        mesh_faces, dataset = self.prepare_inputs()
 
         selection = GroupedMeshRankSelection(
             **self.selection_kwargs,
-        ).fit(
-            faces,
-            dataset,
-        )
+        ).fit(mesh_faces, dataset)
 
         results = GroupedMeshRankSelectionResult.from_selection(selection)
+        results.to_dir(self.results_dir)
 
-        results_dir = self._resolve_results_dir(item)
-        results.to_dir(results_dir)
+
+class LazyGroupedMeshRankSelectionRunner(_BaseGroupedMeshRankSelectionRunner):
+    def __init__(
+        self,
+        prepare_inputs,
+        results_dir,
+        state_dir=None,
+        **selection_kwargs,
+    ):
+        super().__init__(results_dir, state_dir, **selection_kwargs)
+        self._prepare_inputs = prepare_inputs
+
+    def prepare_inputs(self):
+        return self._prepare_inputs()
+
+
+class GroupedMeshRankSelectionRunner(_BaseGroupedMeshRankSelectionRunner):
+    def __init__(
+        self,
+        mesh_faces,
+        dataset,
+        results_dir,
+        state_dir=None,
+        **selection_kwargs,
+    ):
+        super().__init__(results_dir, state_dir, **selection_kwargs)
+        self.mesh_faces = mesh_faces
+        self.dataset = dataset
+
+    def prepare_inputs(self):
+        return self.mesh_faces, self.dataset
