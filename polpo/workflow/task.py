@@ -1,7 +1,12 @@
+import logging
 from abc import ABC
 
 from polpo.io.json import load_json, save_json
 from polpo.time import Timer, utc_now
+
+
+def _get_default_logger(runner):
+    return logging.getLogger(type(runner).__module__)
 
 
 def task(func):
@@ -34,18 +39,18 @@ class TaskRunner(ABC):
         Directory where the runner state and manifest are stored.
     metadata : dict
         Metadata to include in the manifest.
-    verbose : bool
-        Whether to print execution progress.
+    logger : logging.Logger
+        Logger used to report execution progress.
     """
 
     MANIFEST_VERSION = 1
 
-    def __init__(self, state_dir, metadata=None, verbose=True):
+    def __init__(self, state_dir, metadata=None, logger=None):
         self.state_dir = state_dir
         self.metadata = metadata or None
         self.resolved_ = {}
         self.timer = Timer()
-        self.verbose = verbose
+        self.logger = logger or _get_default_logger(self)
 
     @property
     def manifest_path(self):
@@ -131,11 +136,6 @@ class TaskRunner(ABC):
             },
         }
 
-    def _log(self, message):
-        """Print a message when verbose output is enabled."""
-        if self.verbose:
-            print(message)
-
     def _resolve_tasks(self, tasks, exclude_tasks):
         """Resolve and validate the tasks selected for execution.
 
@@ -191,16 +191,16 @@ class TaskRunner(ABC):
         self.state_dir.mkdir(parents=True, exist_ok=True)
         self.manifest_ = self._load_or_create_manifest()
 
-        self._log(f"Running {self.__class__.__name__}")
-        self._log(f"State directory: {self.state_dir}")
+        self.logger.info("Running %s", self.__class__.__name__)
+        self.logger.info("State directory: %s", self.state_dir)
 
         n_failed = 0
         for task_name, task in tasks.items():
             if not overwrite and self._is_complete(task_name):
-                self._log(f"[{task_name}] skipped (already completed)")
+                self.logger.info("[%s] skipped (already completed)", task_name)
                 continue
 
-            self._log(f"[{task_name}] started")
+            self.logger.info("[%s] started", task_name)
 
             try:
                 with self.timer(task_name):
@@ -210,7 +210,12 @@ class TaskRunner(ABC):
                 self._mark_failed(task_name, error)
                 self._write_manifest()
 
-                self._log(f"[{task_name}] failed: {error}")
+                self.logger.error(
+                    "[%s] failed: %s",
+                    task_name,
+                    error,
+                    exc_info=self.logger.isEnabledFor(logging.DEBUG),
+                )
 
                 if not continue_on_error:
                     raise
@@ -222,7 +227,11 @@ class TaskRunner(ABC):
             self._mark_completed(task_name)
             self._write_manifest()
 
-            self._log(f"[{task_name}] completed in {elapsed:.2f} s")
+            self.logger.info(
+                "[%s] completed in %.2f s",
+                task_name,
+                elapsed,
+            )
 
         if n_failed == 0:
             status = "completed"
@@ -235,7 +244,11 @@ class TaskRunner(ABC):
         self.manifest_["finished_at"] = utc_now()
         self._write_manifest()
 
-        self._log(f"{self.__class__.__name__} finished: {status}")
+        self.logger.info(
+            "%s finished: %s",
+            self.__class__.__name__,
+            status,
+        )
 
         return self
 
@@ -284,13 +297,17 @@ class CompositeTaskRunner(TaskRunner):
         Directory where the composite runner state and manifest are stored.
     metadata : dict
         Metadata to include in the composite manifest.
-    verbose : bool
-        Whether to print execution progress.
+    logger : logging.Logger
+        Logger used to report execution progress.
     """
 
-    def __init__(self, runners, state_dir, metadata=None, verbose=True):
+    def __init__(self, runners, state_dir, metadata=None, logger=None):
         self.runners = runners
-        super().__init__(state_dir, metadata=metadata, verbose=verbose)
+        super().__init__(state_dir, metadata=metadata, logger=logger)
+
+        for name, runner in self.runners.items():
+            if runner.logger == _get_default_logger(runner):
+                runner.logger = self.logger.getChild(name)
 
     def tasks(self):
         """Return the child runners.
