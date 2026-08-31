@@ -83,13 +83,7 @@ class TaskRunner(ABC):
         if self.verbose:
             print(message)
 
-    def run(
-        self,
-        tasks=None,
-        exclude_tasks=None,
-        overwrite=False,
-        continue_on_error=True,
-    ):
+    def _resolve_tasks(self, tasks, exclude_tasks):
         available_tasks = self.tasks()
 
         if tasks is None:
@@ -101,8 +95,11 @@ class TaskRunner(ABC):
         if unknown:
             raise ValueError(f"Unknown tasks: {sorted(unknown)}")
 
-        tasks = [task for task in tasks if task not in set(exclude_tasks)]
+        return {
+            task: available_tasks[task] for task in tasks if task not in exclude_tasks
+        }
 
+    def _run_tasks(self, tasks, overwrite, continue_on_error):
         self.state_dir.mkdir(parents=True, exist_ok=True)
         self.manifest_ = self._load_or_create_manifest()
 
@@ -110,34 +107,34 @@ class TaskRunner(ABC):
         self._log(f"State directory: {self.state_dir}")
 
         n_failed = 0
-        for task in tasks:
-            if not overwrite and self._is_complete(task):
-                self._log(f"[{task}] skipped (already completed)")
+        for task_name, task in tasks.items():
+            if not overwrite and self._is_complete(task_name):
+                self._log(f"[{task_name}] skipped (already completed)")
                 continue
 
-            self._log(f"[{task}] started")
+            self._log(f"[{task_name}] started")
 
             try:
-                with self.timer(task):
-                    available_tasks[task]()
+                with self.timer(task_name):
+                    task()
             except Exception as error:
                 n_failed += 1
-                self._mark_failed(task, error)
+                self._mark_failed(task_name, error)
                 self._write_manifest()
 
-                self._log(f"[{task}] failed: {error}")
+                self._log(f"[{task_name}] failed: {error}")
 
                 if not continue_on_error:
                     raise
 
                 continue
 
-            elapsed = self.timer.duration(task)
+            elapsed = self.timer.duration(task_name)
 
-            self._mark_completed(task)
+            self._mark_completed(task_name)
             self._write_manifest()
 
-            self._log(f"[{task}] completed in {elapsed:.2f} s")
+            self._log(f"[{task_name}] completed in {elapsed:.2f} s")
 
         if n_failed == 0:
             status = "completed"
@@ -153,3 +150,66 @@ class TaskRunner(ABC):
         self._log(f"{self.__class__.__name__} finished: {status}")
 
         return self
+
+    def run(
+        self,
+        tasks=None,
+        exclude_tasks=None,
+        overwrite=False,
+        continue_on_error=True,
+    ):
+        tasks = self._resolve_tasks(tasks, exclude_tasks)
+        return self._run_tasks(tasks, overwrite, continue_on_error)
+
+
+class CompositeTaskRunner(TaskRunner):
+    def __init__(self, runners, state_dir, metadata=None, verbose=True):
+        super().__init__(state_dir, metadata=metadata, verbose=verbose)
+        self.runners = runners
+
+    def tasks(self):
+        return self.runners
+
+    def _make_runner_task(
+        self,
+        runner,
+        overwrite=False,
+        continue_on_error=False,
+    ):
+        def run():
+            runner.run(
+                overwrite=overwrite,
+                continue_on_error=continue_on_error,
+            )
+
+            if runner.manifest_["status"] != "completed":
+                raise RuntimeError(
+                    f"{runner.__class__.__name__} finished with "
+                    f"status {runner.manifest_['status']!r}"
+                )
+
+        return run
+
+    def run(
+        self,
+        tasks=None,
+        exclude_tasks=None,
+        overwrite=False,
+        continue_on_error=False,
+    ):
+        tasks = self._resolve_tasks(tasks, exclude_tasks)
+
+        tasks = {
+            name: self._make_runner_task(
+                runner,
+                overwrite=overwrite,
+                continue_on_error=continue_on_error,
+            )
+            for name, runner in tasks.items()
+        }
+
+        return self._run_tasks(
+            tasks,
+            overwrite=overwrite,
+            continue_on_error=continue_on_error,
+        )
