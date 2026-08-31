@@ -5,11 +5,39 @@ from polpo.time import Timer, utc_now
 
 
 def task(func):
+    """Mark a method as a runnable task.
+
+    Parameters
+    ----------
+    func : callable
+        Method to mark as a task.
+
+    Returns
+    -------
+    func : callable
+        The marked method.
+    """
     func._is_task = True
     return func
 
 
 class TaskRunner(ABC):
+    """Run named tasks with persistent state and failure tracking.
+
+    Tasks are methods decorated with :func:`task`. Their execution state is
+    stored in a manifest, allowing completed tasks to be skipped on subsequent
+    runs.
+
+    Parameters
+    ----------
+    state_dir : path-like
+        Directory where the runner state and manifest are stored.
+    metadata : dict
+        Metadata to include in the manifest.
+    verbose : bool
+        Whether to print execution progress.
+    """
+
     MANIFEST_VERSION = 1
 
     def __init__(self, state_dir, metadata=None, verbose=True):
@@ -21,9 +49,20 @@ class TaskRunner(ABC):
 
     @property
     def manifest_path(self):
+        """Path to the runner manifest."""
         return self.state_dir / "manifest.json"
 
     def tasks(self):
+        """Return the available tasks.
+
+        Tasks are collected from methods decorated with :func:`task`, including
+        tasks inherited from base classes.
+
+        Returns
+        -------
+        tasks : dict
+            Mapping from task names to bound task methods.
+        """
         tasks = {}
 
         for cls in reversed(type(self).mro()):
@@ -34,9 +73,17 @@ class TaskRunner(ABC):
         return tasks
 
     def set_resolved(self, **values):
+        """Store resolved values in the runner state.
+
+        Parameters
+        ----------
+        **values
+            Values to include in the manifest under ``resolved``.
+        """
         self.resolved_.update(values)
 
     def _new_manifest(self):
+        """Create a new runner manifest."""
         return {
             "version": self.MANIFEST_VERSION,
             "metadata": self.metadata,
@@ -47,21 +94,25 @@ class TaskRunner(ABC):
         }
 
     def _load_or_create_manifest(self):
+        """Load the existing manifest or create a new one."""
         if self.manifest_path.exists():
             return load_json(self.manifest_path)
 
         return self._new_manifest()
 
     def _write_manifest(self):
+        """Write the current runner state to the manifest."""
         self.manifest_["resolved"] = dict(self.resolved_)
         self.manifest_["updated_at"] = utc_now()
         save_json(self.manifest_path, self.manifest_)
 
     def _is_complete(self, task):
+        """Return whether a task is marked as completed."""
         task_info = self.manifest_["tasks"].get(task, {})
         return task_info.get("status") == "completed"
 
     def _mark_completed(self, task):
+        """Mark a task as completed in the manifest."""
         self.manifest_["tasks"][task] = {
             "status": "completed",
             "finished_at": utc_now(),
@@ -69,6 +120,7 @@ class TaskRunner(ABC):
         }
 
     def _mark_failed(self, task, error):
+        """Mark a task as failed in the manifest."""
         self.manifest_["status"] = "failed"
         self.manifest_["tasks"][task] = {
             "status": "failed",
@@ -80,10 +132,30 @@ class TaskRunner(ABC):
         }
 
     def _log(self, message):
+        """Print a message when verbose output is enabled."""
         if self.verbose:
             print(message)
 
     def _resolve_tasks(self, tasks, exclude_tasks):
+        """Resolve and validate the tasks selected for execution.
+
+        Parameters
+        ----------
+        tasks : sequence of str or None
+            Names of tasks to run. If None, all available tasks are selected.
+        exclude_tasks : sequence of str or None
+            Names of tasks to exclude from execution.
+
+        Returns
+        -------
+        tasks : dict
+            Mapping from selected task names to tasks.
+
+        Raises
+        ------
+        ValueError
+            If a requested or excluded task is not available.
+        """
         available_tasks = self.tasks()
 
         if tasks is None:
@@ -100,6 +172,22 @@ class TaskRunner(ABC):
         }
 
     def _run_tasks(self, tasks, overwrite, continue_on_error):
+        """Run resolved tasks and update their execution state.
+
+        Parameters
+        ----------
+        tasks : dict
+            Mapping from task names to callable tasks.
+        overwrite : bool
+            Whether to rerun tasks already marked as completed.
+        continue_on_error : bool
+            Whether to continue running tasks after a task fails.
+
+        Returns
+        -------
+        runner : TaskRunner
+            This runner.
+        """
         self.state_dir.mkdir(parents=True, exist_ok=True)
         self.manifest_ = self._load_or_create_manifest()
 
@@ -158,16 +246,60 @@ class TaskRunner(ABC):
         overwrite=False,
         continue_on_error=True,
     ):
+        """Run selected tasks.
+
+        Parameters
+        ----------
+        tasks : sequence of str
+            Names of tasks to run. By default, all available tasks are run.
+        exclude_tasks : sequence of str
+            Names of tasks to exclude.
+        overwrite : bool
+            Whether to rerun tasks already marked as completed.
+        continue_on_error : bool
+            Whether to continue running remaining tasks after a task fails.
+
+        Returns
+        -------
+        runner : TaskRunner
+            This runner.
+        """
         tasks = self._resolve_tasks(tasks, exclude_tasks)
         return self._run_tasks(tasks, overwrite, continue_on_error)
 
 
 class CompositeTaskRunner(TaskRunner):
+    """Run a collection of task runners as tasks of a parent runner.
+
+    Each child runner is represented as a task of the composite runner.
+
+    A child runner is considered successful only if its final manifest status
+    is ``"completed"``.
+
+    Parameters
+    ----------
+    runners : dict
+        Mapping from task names to :class:`TaskRunner` instances.
+    state_dir : path-like
+        Directory where the composite runner state and manifest are stored.
+    metadata : dict
+        Metadata to include in the composite manifest.
+    verbose : bool
+        Whether to print execution progress.
+    """
+
     def __init__(self, runners, state_dir, metadata=None, verbose=True):
-        super().__init__(state_dir, metadata=metadata, verbose=verbose)
         self.runners = runners
+        super().__init__(state_dir, metadata=metadata, verbose=verbose)
 
     def tasks(self):
+        """Return the child runners.
+
+        Returns
+        -------
+        tasks : dict
+            Mapping from task names to child runners.
+        """
         return self.runners
 
     def _make_runner_task(
@@ -176,6 +308,28 @@ class CompositeTaskRunner(TaskRunner):
         overwrite=False,
         continue_on_error=False,
     ):
+        """Create a task that executes a child runner.
+
+        Parameters
+        ----------
+        runner : TaskRunner
+            Child runner to execute.
+        overwrite : bool
+            Whether to rerun completed tasks in the child runner.
+        continue_on_error : bool
+            Whether the child runner should continue after a task fails.
+
+        Returns
+        -------
+        task : callable
+            Task that executes the child runner.
+
+        Raises
+        ------
+        RuntimeError
+            If the child runner does not finish with status ``"completed"``.
+        """
+
         def run():
             runner.run(
                 overwrite=overwrite,
@@ -195,8 +349,28 @@ class CompositeTaskRunner(TaskRunner):
         tasks=None,
         exclude_tasks=None,
         overwrite=False,
-        continue_on_error=False,
+        continue_on_error=True,
     ):
+        """Run selected child runners.
+
+        Parameters
+        ----------
+        tasks : sequence of str
+            Names of child runners to run. By default, all are run.
+        exclude_tasks : sequence of str
+            Names of child runners to exclude.
+        overwrite : bool
+            Whether to rerun completed tasks in both the composite and child
+            runners.
+        continue_on_error : bool
+            Whether to continue after failures, both within child runners and
+            across child runners.
+
+        Returns
+        -------
+        runner : CompositeTaskRunner
+            This runner.
+        """
         tasks = self._resolve_tasks(tasks, exclude_tasks)
 
         tasks = {
