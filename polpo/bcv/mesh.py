@@ -119,12 +119,7 @@ class GroupedMeshRankSelection:
             )
         )
 
-        fold_errors = self.errors_array_
-        fold_errors_grouped = self.errors_array_grouped_
-
-        self.rank_min_error_ = select_rank_min_error(fold_errors)
-        self.rank_one_se_ = select_rank_one_se(fold_errors)
-        self.rank_one_se_grouped_ = select_rank_one_se_grouped(fold_errors_grouped)
+        self.result_ = GroupedMeshRankSelectionResult.from_selection(self)
 
         self.held_out_cols_ = held_out_cols
         self.held_out_rows_ = held_out_rows
@@ -135,19 +130,7 @@ class GroupedMeshRankSelection:
 
     @property
     def rank_(self):
-        return self.rank_one_se_grouped_
-
-    @property
-    def errors_array_(self):
-        return self.errors_.apply(lambda values: np.stack(values))
-
-    @property
-    def errors_array_grouped_(self):
-        return (
-            self.errors_.nest()
-            .reduce_outer(lambda values: np.stack(values))
-            .apply(lambda values: np.stack(values))
-        )
+        return self.result_.rank
 
 
 class GroupedMeshRankSelectionResult:
@@ -204,7 +187,7 @@ class GroupedMeshRankSelectionResult:
     def from_selection(cls, selection):
         """Create results from a fitted ``GroupedMeshRankSelection``."""
         return cls(
-            errors=selection.errors_array_,
+            errors=selection.errors_.apply(lambda values: np.stack(values)),
             keys=selection.errors_.keys_list(),
             seed=selection.seed_,
             center=selection.center,
@@ -287,5 +270,4 @@ class GroupedMeshRankSelectionRunner(TaskRunner):
             **self.selection_kwargs,
         ).fit(mesh_faces, dataset)
 
-        results = GroupedMeshRankSelectionResult.from_selection(selection)
-        results.to_dir(self.results_dir)
+        selection.result_.to_dir(self.results_dir)
