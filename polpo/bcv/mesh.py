@@ -243,9 +243,10 @@ class GroupedMeshRankSelectionResult:
         )
 
 
-class _BaseGroupedMeshRankSelectionRunner(TaskRunner):
+class GroupedMeshRankSelectionRunner(TaskRunner):
     def __init__(
         self,
+        prepare_inputs,
         results_dir,
         state_dir=None,
         **selection_kwargs,
@@ -257,8 +258,26 @@ class _BaseGroupedMeshRankSelectionRunner(TaskRunner):
 
         super().__init__(state_dir)
 
+        self.prepare_inputs = prepare_inputs
+
         self.results_dir = results_dir
         self.selection_kwargs = selection_kwargs
+
+    @classmethod
+    def from_data(
+        cls,
+        mesh_faces,
+        dataset,
+        results_dir,
+        state_dir=None,
+        **selection_kwargs,
+    ):
+        return cls(
+            prepare_inputs=lambda: (mesh_faces, dataset),
+            results_dir=results_dir,
+            state_dir=state_dir,
+            **selection_kwargs,
+        )
 
     @task
     def select_rank(self):
@@ -270,35 +289,3 @@ class _BaseGroupedMeshRankSelectionRunner(TaskRunner):
 
         results = GroupedMeshRankSelectionResult.from_selection(selection)
         results.to_dir(self.results_dir)
-
-
-class LazyGroupedMeshRankSelectionRunner(_BaseGroupedMeshRankSelectionRunner):
-    def __init__(
-        self,
-        prepare_inputs,
-        results_dir,
-        state_dir=None,
-        **selection_kwargs,
-    ):
-        super().__init__(results_dir, state_dir, **selection_kwargs)
-        self._prepare_inputs = prepare_inputs
-
-    def prepare_inputs(self):
-        return self._prepare_inputs()
-
-
-class GroupedMeshRankSelectionRunner(_BaseGroupedMeshRankSelectionRunner):
-    def __init__(
-        self,
-        mesh_faces,
-        dataset,
-        results_dir,
-        state_dir=None,
-        **selection_kwargs,
-    ):
-        super().__init__(results_dir, state_dir, **selection_kwargs)
-        self.mesh_faces = mesh_faces
-        self.dataset = dataset
-
-    def prepare_inputs(self):
-        return self.mesh_faces, self.dataset
