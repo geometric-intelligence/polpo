@@ -1,4 +1,5 @@
 import logging
+import platform
 from abc import ABC
 
 from polpo.io.json import load_json, save_json
@@ -91,6 +92,8 @@ class TaskRunner(ABC):
         """Create a new runner manifest."""
         return {
             "version": self.MANIFEST_VERSION,
+            "runner": f"{type(self).__module__}.{type(self).__qualname__}",
+            "machine": platform.node(),
             "metadata": self.metadata,
             "resolved": self.resolved_,
             "status": "running",
