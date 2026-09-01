@@ -255,6 +255,24 @@ class TaskRunner(ABC):
 
         return self
 
+    def reset(self):
+        """Reset the runner execution state.
+
+        Removes the persisted manifest and clears runtime state. Result artifacts
+        produced by tasks are left unchanged.
+
+        Returns
+        -------
+        runner : TaskRunner
+            This runner.
+        """
+        self.manifest_path.unlink(missing_ok=True)
+
+        self.resolved_ = {}
+        self.timer = Timer()
+
+        return self
+
     def run(
         self,
         tasks=None,
@@ -363,6 +381,15 @@ class CompositeTaskRunner(TaskRunner):
                 )
 
         return run
+
+    def reset(self):
+        """Reset this runner and all child runners."""
+        super().reset()
+
+        for runner in self.runners.values():
+            runner.reset()
+
+        return self
 
     def run(
         self,
