@@ -18,6 +18,21 @@ _KEY_TYPE_NAMES = {key_type: key_type.__name__ for key_type in _KEY_ENCODERS}
 
 
 def _encode_keys(keys):
+    """Encode keys for storage in a NumPy archive.
+
+    Parameters
+    ----------
+    keys : iterable
+        Scalar or tuple keys. All keys must have the same structure and
+        component types. Supported component types are ``str``, ``int``,
+        ``float``, and ``bool``.
+
+    Returns
+    -------
+    encoded : dict
+        Arrays containing the encoded keys and metadata required to restore
+        their original types and structure.
+    """
     keys = list(keys)
 
     if not keys:
@@ -57,6 +72,19 @@ def _encode_keys(keys):
 
 
 def _decode_keys(archive):
+    """Decode keys stored in a NumPy archive.
+
+    Parameters
+    ----------
+    archive : mapping
+        NumPy archive containing ``keys``, ``key_types``, and
+        ``keys_are_tuples``.
+
+    Returns
+    -------
+    keys : list
+        Decoded scalar or tuple keys.
+    """
     encoded_keys = archive["keys"].tolist()
     type_names = archive["key_types"].tolist()
     keys_are_tuples = bool(archive["keys_are_tuples"])
@@ -75,6 +103,18 @@ def _decode_keys(archive):
 
 
 def save_indexed_array(path, keys, data):
+    """Save an array together with keys indexing its first axis.
+
+    Parameters
+    ----------
+    path : path-like
+        Output ``.npz`` path.
+    keys : iterable
+        Keys identifying entries along the first axis of ``data``. Keys may
+        be scalars or fixed-length tuples with supported component types.
+    data : array-like
+        Data to save. Its first axis is indexed by ``keys``.
+    """
     encoded_keys = _encode_keys(keys)
 
     np.savez_compressed(
@@ -87,12 +127,26 @@ def save_indexed_array(path, keys, data):
 
 
 def load_indexed_array(path):
+    """Load an array and its index keys from a NumPy archive.
+
+    Parameters
+    ----------
+    path : path-like
+        Input ``.npz`` path.
+
+    Returns
+    -------
+    keys : list
+        Keys indexing the first axis of ``data``.
+    data : ndarray
+        Stored data array.
+    """
     with np.load(path, allow_pickle=False) as data:
         return _decode_keys(data), data["data"]
 
 
 def save_dict_as_array(path, data):
-    """Save a key-indexed dictionary as an array and ordered keys.
+    """Save a key-indexed mapping as an array and ordered keys.
 
     Parameters
     ----------
@@ -100,7 +154,7 @@ def save_dict_as_array(path, data):
         Output ``.npz`` path.
     data : mapping
         Mapping from keys to values. All values must have compatible shapes.
-        Dictionary insertion order determines the array indexing.
+        Mapping insertion order determines the array indexing.
     """
     return save_indexed_array(
         path,
@@ -110,5 +164,67 @@ def save_dict_as_array(path, data):
 
 
 def load_dict(path):
+    """Load a key-indexed array as a dictionary.
+
+    Parameters
+    ----------
+    path : path-like
+        Input ``.npz`` path.
+
+    Returns
+    -------
+    data : dict
+        Mapping from the stored keys to entries along the first axis of the
+        stored array.
+    """
     keys, data = load_indexed_array(path)
     return dict(zip(keys, data))
+
+
+def save_indexed_arrays(path, keys, data):
+    """Save multiple arrays together with keys indexing their first axis.
+
+    Parameters
+    ----------
+    path : path-like
+        Output ``.npz`` path.
+    keys : iterable
+        Keys identifying entries along the first axis of each array.
+    data : dict
+        Mapping from names to arrays. The first axis of each array is indexed
+        by ``keys``.
+    """
+    encoded_keys = _encode_keys(keys)
+
+    np.savez_compressed(
+        path,
+        **encoded_keys,
+        **data,
+        data_names=np.asarray(list(data), dtype=str),
+        representation="condensed_mapping",
+        format_version=1,
+    )
+
+
+def load_indexed_arrays(path):
+    """Load multiple arrays and their common index keys.
+
+    Parameters
+    ----------
+    path : path-like
+        Input ``.npz`` path.
+
+    Returns
+    -------
+    keys : list
+        Keys indexing the first axis of the stored arrays.
+    data : dict
+        Mapping from names to stored arrays.
+    """
+    with np.load(path, allow_pickle=False) as archive:
+        keys = _decode_keys(archive)
+        data_names = archive["data_names"].tolist()
+
+        data = {name: archive[name] for name in data_names}
+
+    return keys, data
