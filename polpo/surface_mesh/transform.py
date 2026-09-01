@@ -8,6 +8,7 @@ from geomstats.metric_geometry.vectorization import (
 
 from polpo.preprocessing.mesh.conversion import PvFromData
 from polpo.surface_mesh.core import PvSurface
+from polpo.transform import InvertibleTransform
 
 
 def _output_as_array(out, to_list):
@@ -50,14 +51,6 @@ class PvSurfaceToVertices:
         return gs.asarray(image_tangent_vec)
 
 
-class InvertibleTransform:
-    def transform(self, x):
-        raise NotImplementedError
-
-    def inverse_transform(self, x):
-        raise NotImplementedError
-
-
 class DeltaTransform(InvertibleTransform):
     """Transform meshes to and from flattened template-relative deltas.
 
@@ -84,7 +77,7 @@ class DeltaTransform(InvertibleTransform):
         self.template = template
         self.n_vertices = len(template.vertices)
 
-    def transform(self, meshes):
+    def __call__(self, meshes):
         """Transform meshes into flattened vertex deltas.
 
         Parameters
@@ -110,7 +103,7 @@ class DeltaTransform(InvertibleTransform):
             batch_shape + (3 * self.n_vertices,),
         )
 
-    def inverse_transform(self, deltas):
+    def inverse(self, deltas):
         """Transform flattened vertex deltas back into meshes.
 
         Parameters
@@ -143,18 +136,3 @@ class DeltaTransform(InvertibleTransform):
             return meshes[0]
 
         return meshes.reshape(batch_shape)
-
-
-class CompositeTransform(InvertibleTransform):
-    def __init__(self, transforms):
-        self.transforms = transforms
-
-    def transform(self, x):
-        for transform in self.transforms:
-            x = transform.transform(x)
-        return x
-
-    def inverse_transform(self, x):
-        for transform in reversed(self.transforms):
-            x = transform.inverse_transform(x)
-        return x
