@@ -50,7 +50,14 @@ class PCAReconstructionEvaluator(TaskRunner):
         if state_dir is None:
             state_dir = results_dir
 
-        super().__init__(state_dir)
+        super().__init__(
+            state_dir,
+            metadata={
+                "ks": ks,
+                "metrics": list(metrics),
+                "transform": transform.__class__.__name__,
+            },
+        )
 
         self.dataset = dataset
         self.transform = transform
