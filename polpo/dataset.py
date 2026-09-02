@@ -409,3 +409,23 @@ class NestedDataset(DatasetMapping):
         return Dataset.zip_many(
             [dataset.flatten() for dataset in datasets], func
         ).nest()
+
+    def to_dataframe(
+        dataset,
+        outer_col="subject",
+        inner_col="time",
+        value_col="Y",
+    ):
+        import pandas as pd
+
+        return pd.DataFrame(
+            [
+                {
+                    outer_col: outer_key,
+                    inner_col: inner_key,
+                    value_col: value,
+                }
+                for outer_key in dataset.keys()
+                for inner_key, value in dataset.get_outer(outer_key).items()
+            ]
+        )
