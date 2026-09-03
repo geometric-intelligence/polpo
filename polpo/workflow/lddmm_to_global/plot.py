@@ -2,7 +2,10 @@ import numpy as np
 from matplotlib import pyplot as plt
 from matplotlib.lines import Line2D
 
+from polpo.dataset.plot import get_outer_colors, plot_nested
 from polpo.plot.pyplot import plot_grid
+
+# TODO: remove grid functions?
 
 
 def _auto_bins(arrays):
@@ -10,13 +13,6 @@ def _auto_bins(arrays):
         np.concatenate(arrays),
         bins="auto",
     )
-
-
-def get_outer_colors(outer_keys, cmap="tab20"):
-    outer_keys = list(outer_keys)
-    colors = plt.get_cmap(cmap).resampled(len(outer_keys))
-
-    return {key: colors(i) for i, key in enumerate(outer_keys)}
 
 
 def dist_hist(dist_res, ax=None, title="Distribution"):
@@ -109,48 +105,49 @@ def plot_volume_trends(view, outer_keys=None, ax=None, outer_colors=None):
     if ax is None:
         _, ax = plt.subplots()
 
-    dataset = view.dataset.map_values(lambda x: x.as_pv_surface().volume)
-    local_meshes = view.local_reconstructed_points.map_values(
-        lambda x: x.as_pv_surface().volume
-    )
-    global_meshes = view.global_points.map_values(lambda x: x.as_pv_surface().volume)
+    if outer_colors is None:
+        outer_colors = get_outer_colors(view.keys())
 
     one_subject = isinstance(outer_keys, str)
     if outer_keys is None:
-        outer_keys = dataset.keys()
+        outer_keys = view.dataset.keys()
     elif one_subject:
         outer_keys = [outer_keys]
 
-    if outer_colors is None:
-        outer_colors = get_outer_colors(outer_keys)
+    dataset = view.dataset.select_outer(outer_keys).map_values(
+        lambda x: x.as_pv_surface().volume
+    )
+    local_meshes = view.local_reconstructed_points.select_outer(outer_keys).map_values(
+        lambda x: x.as_pv_surface().volume
+    )
+    global_meshes = view.global_points.select_outer(outer_keys).map_values(
+        lambda x: x.as_pv_surface().volume
+    )
 
-    for index, outer_id in enumerate(outer_keys):
-        color = outer_colors[outer_id]
+    plot_nested(
+        dataset,
+        ax=ax,
+        outer_colors=outer_colors,
+        kind="scatter",
+        marker="o",
+        facecolors="none",
+    )
 
-        outer_data = dataset.get_outer(outer_id)
-        ax.scatter(
-            outer_data.keys_list(),
-            outer_data.values_list(),
-            color=color,
-            marker="o",
-            facecolors="none",
-        )
+    plot_nested(
+        local_meshes,
+        ax=ax,
+        outer_colors=outer_colors,
+        kind="scatter",
+        marker="x",
+    )
 
-        outer_data = local_meshes.get_outer(outer_id)
-        ax.scatter(
-            outer_data.keys_list(),
-            outer_data.values_list(),
-            marker="x",
-            color=color,
-        )
-
-        outer_data = global_meshes.get_outer(outer_id)
-        ax.scatter(
-            outer_data.keys_list(),
-            outer_data.values_list(),
-            marker="s",
-            color=color,
-        )
+    plot_nested(
+        global_meshes,
+        ax=ax,
+        outer_colors=outer_colors,
+        kind="scatter",
+        marker="s",
+    )
 
     ax.set_xlabel("Week")
     ax.set_ylabel("Volume")
@@ -258,10 +255,6 @@ def plot_distance_comparison_grid(results, **kwargs):
         select,
         **kwargs,
     )
-
-
-def plot_volume_trends_grid(results, **kwargs):
-    return plot_grid(results, plot_volume_trends, **kwargs)
 
 
 def volume_hist_grid(results, **kwargs):

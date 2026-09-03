@@ -404,6 +404,17 @@ class NestedDataset(DatasetMapping):
         """Return the inner dataset associated with an outer key."""
         return Dataset(self.data[outer_key])
 
+    def select_outer(self, keys):
+        keys = set(keys)
+
+        return type(self)(
+            {
+                outer_key: inner_data
+                for outer_key, inner_data in self.data.items()
+                if outer_key in keys
+            }
+        )
+
     @classmethod
     def zip_many(cls, datasets, func):
         return Dataset.zip_many(
