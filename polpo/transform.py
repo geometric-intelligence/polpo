@@ -28,6 +28,9 @@ def _as_invertible_transform(transform):
     if callable(transform) and hasattr(transform, "inverse"):
         return transform
 
+    if hasattr(transform, "fit_transform") and hasattr(transform, "get_params"):
+        return SKTransformAdapter(transform)
+
     if hasattr(transform, "transform") and hasattr(transform, "inverse_transform"):
         return TransformAdapter(transform)
 
@@ -35,6 +38,29 @@ def _as_invertible_transform(transform):
         "Expected an invertible transform or an object defining "
         "'transform' and 'inverse_transform'."
     )
+
+
+class SingleSampleBatchMixin:
+    def __call__(self, x):
+        single = x.ndim == 1
+        if single:
+            x = x[None, :]
+
+        out = super().__call__(x)
+        return out[0] if single else out
+
+    def inverse(self, x):
+        single = x.ndim == 1
+        if single:
+            x = x[None, :]
+
+        out = super().inverse(x)
+        return out[0] if single else out
+
+
+class SKTransformAdapter(SingleSampleBatchMixin, TransformAdapter):
+    # TODO: disambiguate with TransformerAdapter in sklearn.adapter
+    pass
 
 
 class CompositeTransform(InvertibleTransform):
