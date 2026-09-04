@@ -2,7 +2,6 @@ import shutil
 from pathlib import Path
 
 import numpy as np
-import torch
 
 import polpo.deformetrica as pdefo
 
@@ -16,6 +15,12 @@ from .core import (
     Velocity,
 )
 from .paths import LddmmPaths
+
+try:
+    # TODO: make it work with no torch
+    import torch
+except ImportError:
+    pass
 
 
 class LddmmMetric:
