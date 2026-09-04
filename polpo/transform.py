@@ -25,7 +25,7 @@ class TransformAdapter:
 
 
 def _as_invertible_transform(transform):
-    if callable(transform) and hasattr(transform, "inverse"):
+    if callable(transform):
         return transform
 
     if hasattr(transform, "fit_transform") and hasattr(transform, "get_params"):
