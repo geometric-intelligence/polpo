@@ -261,3 +261,42 @@ def plot_mean_band(x, values, error="se", axis=0, ax=None):
     )
 
     return ax
+
+
+def _auto_bins(arrays):
+    return np.histogram_bin_edges(
+        np.concatenate(arrays),
+        bins="auto",
+    )
+
+
+def plot_hists(
+    data,
+    ax=None,
+    density=True,
+    histtype="bar",
+    ylabel=None,
+    **kwargs,
+):
+    if ax is None:
+        _, ax = plt.subplots()
+
+    if ylabel is None:
+        ylabel = "Density" if density else "Count"
+
+    bins = _auto_bins(list(data.values()))
+
+    for label, array in data.items():
+        ax.hist(
+            array,
+            bins=bins,
+            density=density,
+            histtype=histtype,
+            label=label,
+            **kwargs,
+        )
+
+    ax.set_ylabel(ylabel)
+
+    ax.legend()
+    return ax

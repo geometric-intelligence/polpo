@@ -3,100 +3,29 @@ from matplotlib import pyplot as plt
 from matplotlib.lines import Line2D
 
 from polpo.dataset.plot import get_outer_colors, plot_nested
-from polpo.plot.pyplot import plot_grid
-
-# TODO: remove grid functions?
+from polpo.plot.pyplot import plot_hists
 
 
-def _auto_bins(arrays):
-    return np.histogram_bin_edges(
-        np.concatenate(arrays),
-        bins="auto",
+def dist_hist(dist_res, ax=None, title="Distribution", **kwargs):
+    data = {
+        "reconstruction": dist_res.local_reconstruction_error.apply(np.array),
+        "local": dist_res.local_pairwise.data,
+        "global": dist_res.global_pairwise.data,
+    }
+
+    ax = plot_hists(
+        data,
+        ax=ax,
+        density=True,
+        histtype="bar",
+        edgecolor="black",
+        **kwargs,
     )
-
-
-def dist_hist(dist_res, ax=None, title="Distribution"):
-    if ax is None:
-        fig, ax = plt.subplots()
-
-    rec_local_dists = dist_res.local_reconstruction_error.apply(np.array)
-    local_pair_dists = dist_res.local_pairwise.data
-    global_pair_dists = dist_res.global_pairwise.data
-
-    arrays = [rec_local_dists, local_pair_dists, global_pair_dists]
-
-    density = True
-    hist_type = "bar"
-
-    bins = _auto_bins(arrays)
-
-    for label, array in zip(["reconstruction", "local", "global"], arrays):
-        ax.hist(
-            array,
-            bins=bins,
-            edgecolor="black",
-            histtype=hist_type,
-            density=density,
-            label=label,
-        )
 
     ax.set(
         xlabel="Distance",
-        ylabel="Density",
         title=title,
     )
-
-    ax.legend()
-
-    return ax
-
-
-def plot_distance_comparison(
-    x_dist,
-    y_dist,
-    group_by=None,
-    colors=None,
-    x_label="Local distance",
-    y_label="Global distance",
-    ax=None,
-    identity_line=True,
-):
-    if ax is None:
-        fig, ax = plt.subplots()
-
-    if x_dist.labels != y_dist.labels:
-        raise ValueError("Not same key order!")
-
-    x = x_dist.data
-    y = y_dist.data
-
-    if group_by is None or colors is None:
-        ax.scatter(x, y)
-    else:
-        categories = [group_by(pair) for pair in x_dist.pairs]
-        point_colors = [colors[category] for category in categories]
-
-        ax.scatter(x, y, c=point_colors)
-
-        handles = [
-            ax.scatter([], [], color=color, label=label)
-            for label, color in colors.items()
-        ]
-
-        ax.legend(handles=handles)
-
-    ax.set_xlabel(x_label)
-    ax.set_ylabel(y_label)
-
-    if identity_line:
-        lims = [
-            min(ax.get_xlim()[0], ax.get_ylim()[0]),
-            max(ax.get_xlim()[1], ax.get_ylim()[1]),
-        ]
-
-        ax.plot(lims, lims, "--", color="gray")
-        ax.set_xlim(lims)
-        ax.set_ylim(lims)
 
     return ax
 
@@ -193,7 +122,7 @@ def plot_volume_trends(view, outer_keys=None, ax=None, outer_colors=None):
     return ax
 
 
-def volume_hist(view, ax=None):
+def volume_hist(view, ax=None, **kwargs):
     if ax is None:
         fig, ax = plt.subplots()
 
@@ -213,49 +142,21 @@ def volume_hist(view, ax=None):
         .values_list()
     )
 
-    arrays = [volumes, volumes_rec, volumes_global]
+    data = {
+        "reconstruction": volumes,
+        "local": volumes_rec,
+        "global": volumes_global,
+    }
 
-    density = True
-    hist_type = "bar"
-
-    bins = _auto_bins(arrays)
-
-    for label, array in zip(["reconstruction", "local", "global"], arrays):
-        ax.hist(
-            array,
-            bins=bins,
-            edgecolor="black",
-            histtype=hist_type,
-            density=density,
-            label=label,
-        )
-
-    ax.set(
-        xlabel="Volume",
-        ylabel="Density",
-        title="Distribution",
-    )
-
-    ax.legend()
-
-    return ax
-
-
-def dist_hist_grid(results, **kwargs):
-    return plot_grid(results, dist_hist, **kwargs)
-
-
-def plot_distance_comparison_grid(results, **kwargs):
-    def select(label, item):
-        return item.local_pairwise, item.global_pairwise
-
-    return plot_grid(
-        results,
-        plot_distance_comparison,
-        select,
+    ax = plot_hists(
+        data,
+        ax=ax,
+        density=True,
+        histtype="bar",
+        edgecolor="black",
         **kwargs,
     )
 
+    ax.set_xlabel("Volume")
 
-def volume_hist_grid(results, **kwargs):
-    return plot_grid(results, volume_hist, **kwargs)
+    return ax
