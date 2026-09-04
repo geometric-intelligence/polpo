@@ -67,6 +67,28 @@ class Dataset(DatasetMapping):
         data = {key: func(value, *args, **kwargs) for key, value in self.data.items()}
         return self._new(data)
 
+    def map_items(self, func, /, *args, **kwargs):
+        """Apply ``func`` independently to every dataset item.
+
+        Parameters
+        ----------
+        func : callable
+            Function applied to each key-value pair.
+        *args
+            Additional positional arguments passed to ``func``.
+        **kwargs
+            Additional keyword arguments passed to ``func``.
+
+        Returns
+        -------
+        Dataset
+            Dataset with the same keys and transformed values.
+        """
+        data = {
+            key: func(key, value, *args, **kwargs) for key, value in self.data.items()
+        }
+        return self._new(data)
+
     def map_keys(self, func, /, *args, on_collision="raise", **kwargs):
         """Apply ``func`` to each key while preserving values."""
         data = {}
@@ -415,6 +437,15 @@ class NestedDataset(DatasetMapping):
             }
         )
 
+    def group_outer(self, grouper):
+        groups = {}
+
+        for outer_key, outer_data in self.iter_outer():
+            group = grouper(outer_key)
+            groups.setdefault(group, {})[outer_key] = outer_data
+
+        return Dataset({group: type(self)(data) for group, data in groups.items()})
+
     @classmethod
     def zip_many(cls, datasets, func):
         return Dataset.zip_many(
@@ -426,6 +457,7 @@ class NestedDataset(DatasetMapping):
         outer_col="subject",
         inner_col="time",
         value_col="Y",
+        **constants,
     ):
         import pandas as pd
 
@@ -435,8 +467,23 @@ class NestedDataset(DatasetMapping):
                     outer_col: outer_key,
                     inner_col: inner_key,
                     value_col: value,
+                    **constants,
                 }
                 for outer_key in dataset.keys()
                 for inner_key, value in dataset.get_outer(outer_key).items()
             ]
+        )
+
+    @classmethod
+    def from_dataframe(cls, data, outer_col, inner_col, value_col):
+        if data.duplicated([outer_col, inner_col]).any():
+            raise ValueError(
+                f"Columns {outer_col!r} and {inner_col!r} do not uniquely identify rows."
+            )
+
+        return cls(
+            {
+                outer_value: dict(zip(group[inner_col], group[value_col]))
+                for outer_value, group in data.groupby(outer_col, sort=False)
+            }
         )

@@ -300,3 +300,16 @@ def plot_hists(
 
     ax.legend()
     return ax
+
+
+def add_hline(ax, y=0.0, linewidth=0.8, linestyle="--", color="gray", **kwargs):
+    for ax_ in np.atleast_1d(ax).ravel():
+        ax_.axhline(
+            y,
+            linewidth=linewidth,
+            linestyle=linestyle,
+            color=color,
+            **kwargs,
+        )
+
+    return ax
