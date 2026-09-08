@@ -2,7 +2,7 @@ import numpy as np
 from matplotlib import pyplot as plt
 from matplotlib.lines import Line2D
 
-from polpo.dataset.plot import get_outer_colors, plot_nested
+from polpo.dataset.plot import get_colors, plot_nested
 from polpo.plot.pyplot import plot_hists
 
 
@@ -35,7 +35,7 @@ def plot_volume_trends(view, outer_keys=None, ax=None, outer_colors=None):
         _, ax = plt.subplots()
 
     if outer_colors is None:
-        outer_colors = get_outer_colors(view.keys())
+        outer_colors = get_colors(view.keys())
 
     one_subject = isinstance(outer_keys, str)
     if outer_keys is None:
