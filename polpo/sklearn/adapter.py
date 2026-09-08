@@ -4,36 +4,43 @@ from collections.abc import Iterable
 
 from sklearn.base import BaseEstimator, TransformerMixin, clone
 from sklearn.pipeline import FeatureUnion, Pipeline
+from sklearn.utils.metaestimators import available_if
 from sklearn.utils.validation import check_is_fitted
 
 
+def _has_inverse(adapter):
+    return hasattr(adapter.transform, "inverse")
+
+
 class TransformerAdapter(TransformerMixin, BaseEstimator):
-    """Adapts a step with TransformerMixin behavior.
+    """Adapt a stateless callable to the sklearn transformer API."""
 
-    Makes any callable compatible with `sklearn.TransformerMixin`.
-    Assumes callable does not need to be fitted.
+    def __init__(self, transform):
+        self.transform = transform
 
-    Parameters
-    ----------
-    step : callable
-        Step to be adapted.
-    """
-
-    def __init__(self, step):
-        self.step = step
-        super().__init__()
+    def __sklearn_clone__(self):
+        return TransformerAdapter(self.transform)
 
     def fit(self, X, y=None):
-        self.is_fitted_ = True
         return self
 
     def transform(self, X):
-        return self.step(X)
+        return self.transform(X)
+
+    @available_if(_has_inverse)
+    def inverse_transform(self, X):
+        return self.transform.inverse(X)
+
+
+def adapt_transform(transformer):
+    if hasattr(transformer, "fit") and hasattr(transformer, "transform"):
+        return transformer
+
+    return TransformerAdapter(transformer)
 
 
 class MapTransformer(TransformerMixin, BaseEstimator):
-    # TODO: create one with base step?
-    # TODO: allow parallel?
+    # TODO: remove
 
     def __init__(self, par_steps):
         self.par_steps = par_steps
@@ -67,6 +74,8 @@ class AdapterPipeline(Pipeline):
     steps : list
         Steps to be adapted.
     """
+
+    # TODO: remove
 
     def __init__(self, steps):
         self._unadapted_steps = steps
