@@ -1,12 +1,12 @@
 """Workflow for evaluating truncated mesh prediction models."""
 
-import json
 import traceback
 from datetime import datetime, timezone
 
 import numpy as np
 from sklearn.model_selection import LeaveOneGroupOut
 
+from polpo.io.json import save_json
 from polpo.sklearn.model_selection import (
     assemble_predictions,
     cross_fit,
@@ -48,6 +48,7 @@ class TruncatedCVEvaluator:
         truncations,
         metrics,
         prepare_data,
+        fit_diagnostics=None,
         cv=None,
         results_dir=None,
         n_jobs=None,
@@ -59,6 +60,7 @@ class TruncatedCVEvaluator:
         self.timer = Timer()
 
         self.estimator = estimator
+        self.fit_diagnostics = fit_diagnostics
         self.cv = cv
         self.truncations = list(truncations)
         self.metrics = metrics
@@ -67,25 +69,17 @@ class TruncatedCVEvaluator:
         self.n_jobs = n_jobs
         self.metadata = metadata or {}
 
-        self.reset()
+    def _reset_state(self):
+        self.status_ = "running"
+        self.current_stage_ = None
+        self.failed_stage_ = None
+        self.error_ = None
 
-    def reset(self):
-        """Reset protocol state."""
-        self.timer.reset()
-
-        self.params_ = {
-            "version": self.PROTOCOL_VERSION,
-            "metadata": self.metadata,
-            "truncations": self.truncations,
-            "metrics": list(self.metrics),
-            "estimator": repr(self.estimator),
-            "cv": repr(self.cv),
-            "n_jobs": self.n_jobs,
-        }
-
-        self.results_ = {
-            "started_at": datetime.now(timezone.utc).isoformat(),
-        }
+        self.cross_fit_result_ = None
+        self.fit_diagnostics_ = None
+        self.held_out_groups_ = None
+        self.distances_ = None
+        self.keys_ = None
 
     def fit(self, X, y, groups):
         """Fit the maximal estimator across cross-validation folds."""
@@ -138,81 +132,98 @@ class TruncatedCVEvaluator:
         return distances
 
     def write(self):
-        """Write protocol parameters, results, timings, and distances."""
         if self.results_dir is None:
             return
 
-        self.results_dir.mkdir(parents=True, exist_ok=True)
+        save_json(self.results_dir / "params.json", self.to_params())
+        save_json(self.results_dir / "results.json", self.to_results())
 
-        with open(self.results_dir / "params.json", "w") as file:
-            json.dump(self.params_, file, indent=2)
+        if self.fit_diagnostics_ is not None:
+            save_json(
+                self.results_dir / "fit_diagnostics.json",
+                self.fit_diagnostics_,
+            )
 
-        with open(self.results_dir / "results.json", "w") as file:
-            json.dump(self.results_, file, indent=2)
-
-        with open(self.results_dir / "time.json", "w") as file:
-            json.dump(self.timer.as_dict(), file, indent=2)
-
-        if hasattr(self, "distances_"):
+        if self.distances_ is not None:
             np.savez_compressed(
                 self.results_dir / "distances.npz",
                 **self.distances_,
             )
 
+    def to_params(self):
+        return {
+            "version": self.PROTOCOL_VERSION,
+            "truncations": self.truncations,
+            "metrics": list(self.metrics),
+            "estimator": repr(self.estimator),
+            "cv": repr(self.cv),
+            "n_jobs": self.n_jobs,
+            "metadata": self.metadata,
+        }
+
+    def to_results(self):
+        results = {
+            "status": self.status_,
+            "keys": list(self.keys_) if self.keys_ is not None else None,
+            "held_out_groups": (
+                list(self.held_out_groups_)
+                if self.held_out_groups_ is not None
+                else None
+            ),
+        }
+
+        if self.status_ == "failed":
+            results["failed_stage"] = self.failed_stage_
+            results["error"] = self.error_
+
+        return results
+
     def _record_failure(self, error):
-        self.results_.update(
-            {
-                "status": "failed",
-                "failed_stage": self.current_stage_,
-                "finished_at": datetime.now(timezone.utc).isoformat(),
-                "error": {
-                    "type": type(error).__name__,
-                    "message": str(error),
-                    "traceback": traceback.format_exc(),
-                },
-            }
-        )
+        self.status_ = "failed"
+        self.failed_stage_ = self.current_stage_
+        self.error_ = {
+            "type": type(error).__name__,
+            "message": str(error),
+            "traceback": traceback.format_exc(),
+        }
 
     def run(self, dataset):
         """Run truncated cross-validated mesh prediction evaluation."""
-        self.reset()
+        self._reset_state()
 
-        self.results_["status"] = "running"
+        self.timer.start_run()
 
         try:
             with self.timer("run"):
                 self.current_stage_ = "data_preparation"
-                X, y, groups, keys = self.prepare_data(dataset)
+                X, y, groups, self.keys_ = self.prepare_data(dataset)
 
                 self.current_stage_ = "cross_fit"
-                cross_fit_result = self.fit(X, y, groups)
+                self.cross_fit_result_ = self.fit(X, y, groups)
+
+                self.held_out_groups_ = [
+                    np.unique(groups[test_indices]).item()
+                    for test_indices in self.cross_fit_result_.test_indices
+                ]
+
+                if self.fit_diagnostics is not None:
+                    self.fit_diagnostics_ = self.fit_diagnostics(self.cross_fit_result_)
 
                 self.current_stage_ = "evaluation"
-                distances = self.evaluate(
-                    cross_fit_result,
+                self.distances_ = self.evaluate(
+                    self.cross_fit_result_,
                     X,
                     y,
                 )
 
-                self.current_stage_ = "completed"
+                self.status_ = self.current_stage_ = "completed"
 
         except Exception as error:
             self._record_failure(error)
-            self.write()
             raise
 
-        self.results_.update(
-            {
-                "status": "completed",
-                "finished_at": datetime.now(timezone.utc).isoformat(),
-                "keys": list(keys),
-            }
-        )
-
-        self.cross_fit_result_ = cross_fit_result
-        self.distances_ = distances
-        self.keys_ = keys
-
-        self.write()
+        finally:
+            self.timer.stop_run()
+            self.write()
 
         return self
