@@ -10,7 +10,7 @@ def utc_now():
 
 class Timer:
     def __init__(self):
-        self.events = {}
+        self.reset()
 
     def start(self, key):
         if key in self.events and "start" in self.events[key]:
@@ -40,7 +40,11 @@ class Timer:
         return event["duration"]
 
     def as_dict(self):
-        return copy.deepcopy(self.events)
+        return {
+            "started_at": self.started_at,
+            "finished_at": self.finished_at,
+            "events": copy.deepcopy(self.events),
+        }
 
     @contextmanager
     def __call__(self, key):
@@ -53,5 +57,15 @@ class Timer:
 
     def reset(self):
         self.events = {}
+        self.started_at = None
+        self.finished_at = None
+        return self
 
+    def start_run(self):
+        self.reset()
+        self.started_at = utc_now()
+        return self
+
+    def stop_run(self):
+        self.finished_at = utc_now()
         return self
