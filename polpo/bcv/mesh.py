@@ -1,5 +1,3 @@
-from pathlib import Path
-
 import numpy as np
 
 from polpo.bcv import BCVBlock
@@ -17,7 +15,6 @@ from polpo.surface_mesh.partition import (
     labels_to_vertex_partitions,
     partition_vertices_balanced,
 )
-from polpo.workflow.task import TaskRunner, task
 
 
 def compute_held_out_cols(labels, dim=3):
@@ -70,6 +67,7 @@ def vertices_to_cols(vertices, dim=3):
 
 
 class GroupedMeshRankSelection:
+    # TODO: is the splitter notion missing here?
     def __init__(self, n_parts=10, n_groups=1, center=False, seed=None):
         self.n_parts = n_parts
         self.n_groups = n_groups
@@ -224,50 +222,3 @@ class GroupedMeshRankSelectionResult:
             errors=errors,
             **params,
         )
-
-
-class GroupedMeshRankSelectionRunner(TaskRunner):
-    def __init__(
-        self,
-        prepare_inputs,
-        results_dir,
-        state_dir=None,
-        **selection_kwargs,
-    ):
-        if state_dir is None:
-            state_dir = (
-                Path(".rank_selection") if results_dir is None else Path(results_dir)
-            )
-
-        super().__init__(state_dir)
-
-        self.prepare_inputs = prepare_inputs
-
-        self.results_dir = results_dir
-        self.selection_kwargs = selection_kwargs
-
-    @classmethod
-    def from_data(
-        cls,
-        mesh_faces,
-        dataset,
-        results_dir,
-        state_dir=None,
-        **selection_kwargs,
-    ):
-        return cls(
-            prepare_inputs=lambda: (mesh_faces, dataset),
-            results_dir=results_dir,
-            state_dir=state_dir,
-            **selection_kwargs,
-        )
-
-    @task
-    def select_rank(self):
-        mesh_faces, dataset = self.prepare_inputs()
-
-        selection = GroupedMeshRankSelection(
-            **self.selection_kwargs,
-        ).fit(mesh_faces, dataset)
-
-        selection.result_.to_dir(self.results_dir)
