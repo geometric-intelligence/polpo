@@ -1,3 +1,9 @@
+"""Extensions for sklearn decomposition estimators.
+
+This module provides utilities for reusing fitted decomposition models,
+including lower-rank truncated views of fitted PCA estimators.
+"""
+
 from sklearn.decomposition import PCA
 
 
