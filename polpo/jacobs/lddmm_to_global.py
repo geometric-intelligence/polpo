@@ -1,13 +1,13 @@
 import logging
 
 import polpo.preprocessing.dict as ppdict
-from polpo.dataset import Dataset, NestedDataset
+from polpo.dataset import Dataset, NestedDataset, NestedKeyMap
 from polpo.jacobs.mesh import MeshDatasetLoader
+from polpo.jacobs.tabular import get_key_to_week
 from polpo.neuroi.naming import (
     get_all_subcortical_structs,
     get_subcortical_struct_long_name,
 )
-from polpo.utils import NestedKeyCodec
 
 
 def prepare_inputs(
@@ -84,7 +84,7 @@ def prepare_inputs(
     dataset = dataset.drop_outer(missing_pre)
 
     # encode dataset keys for manageable folder names
-    key_codec = NestedKeyCodec.from_dataset(dataset)
+    key_codec = NestedKeyMap.from_dataset(dataset)
 
     metadata["key_map"] = key_codec.to_dict()
     mapped_atlas_keys = metadata["atlas_keys"] = key_codec.encode_nested_keys(
@@ -93,7 +93,7 @@ def prepare_inputs(
 
     known_correspondences = True if derivative == "enigma" else False
     return (
-        key_codec.encode_dataset(dataset),
+        dataset.map_keys(key_codec.encode),
         mapped_atlas_keys,
         known_correspondences,
         metadata,
@@ -127,3 +127,8 @@ def find_experiment_dirs(outputs_dir, long_name=False, interleave=True):
     )
 
     return dict(zip(structs, dirs))
+
+
+def get_output_week_view(source):
+    key2week_codec = NestedKeyMap.from_inner_key_map(get_key_to_week())
+    return source.decoded.with_key_map(key2week_codec)

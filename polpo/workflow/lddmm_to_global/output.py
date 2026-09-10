@@ -3,11 +3,10 @@ from pathlib import Path
 
 import pyvista as pv
 
-from polpo.dataset import Dataset, NestedDataset
+from polpo.dataset import Dataset, NestedDataset, NestedKeyMap
 from polpo.io.json import load_json
 from polpo.surface_mesh.core import PvSurface
 from polpo.surface_mesh.deformetrica.paths import LddmmPaths
-from polpo.utils import NestedKeyCodec
 
 from .collect import (
     collect_atlases,
@@ -23,25 +22,20 @@ from .collect import (
 
 
 class _OutputView:
-    def __init__(self, output, decode_keys=False, codec=None):
+    def __init__(self, output, key_map=None):
         self._output = output
-        self.decode_keys = decode_keys
-        self.codec = codec
+        self.key_map = key_map
 
     def _transform(self, data):
-        if self.decode_keys:
-            if isinstance(data, NestedDataset):
-                data = data.map_keys(self._output.key_map.decode)
-            else:
-                data = data.map_keys(self._output.key_map.decode_outer)
-
-        if self.codec is not None:
-            data = data.map_keys(self.codec)
+        if self.key_map is not None:
+            data = data.map_keys(self.key_map)
 
         return data
 
-    def with_codec(self, codec):
-        return type(self)(self._output, decode_keys=self.decode_keys, codec=codec)
+    def with_key_map(self, key_map):
+        if self.key_map is not None:
+            key_map = self.key_map.chain_with(key_map)
+        return type(self)(self._output, key_map=key_map)
 
 
 class LddmmToGlobalOutputView(_OutputView):
@@ -136,11 +130,11 @@ class LddmmToGlobalOutput:
 
     @cached_property
     def encoded(self):
-        return LddmmToGlobalOutputView(self, decode_keys=False)
+        return LddmmToGlobalOutputView(self, key_map=None)
 
     @cached_property
     def decoded(self):
-        return LddmmToGlobalOutputView(self, decode_keys=True)
+        return LddmmToGlobalOutputView(self, key_map=self.key_map.invert())
 
     @cached_property
     def params(self):
@@ -159,7 +153,7 @@ class LddmmToGlobalOutput:
 
     @cached_property
     def key_map(self):
-        return NestedKeyCodec.from_key_map(self.params["metadata"]["key_map"])
+        return NestedKeyMap.from_dict(self.params["metadata"]["key_map"])
 
     @cached_property
     def encoded_keys(self):
@@ -215,11 +209,11 @@ class LddmmToGlobalMultiOutput:
 
     @cached_property
     def encoded(self):
-        return LddmmToGlobalMultiOutputView(self, decode_keys=False)
+        return LddmmToGlobalMultiOutputView(self, key_map=None)
 
     @cached_property
     def decoded(self):
-        return LddmmToGlobalMultiOutputView(self, decode_keys=True)
+        return LddmmToGlobalMultiOutputView(self, key_map=self.key_map.invert())
 
     def __iter__(self):
         return iter(self.outputs)
