@@ -40,11 +40,12 @@ class Timer:
         return event["duration"]
 
     def as_dict(self):
-        return {
+        dict_ = {
             "started_at": self.started_at,
             "finished_at": self.finished_at,
-            "events": copy.deepcopy(self.events),
         }
+        dict_.update(copy.deepcopy(self.events))
+        return dict_
 
     @contextmanager
     def __call__(self, key):

@@ -60,9 +60,9 @@ DISTANCE_TASKS = dict(
 )
 
 
-def varifold_metric_from_results(data, backend="auto"):
+def varifold_metric_from_results(data, engine="auto"):
     sigma = data["kernel_tuning"]["sigma_var"]
-    return VarifoldMetric(sigma=sigma, backend=backend)
+    return VarifoldMetric(sigma=sigma, engine=engine)
 
 
 def _reconstruction_error(registration_res, dist_fnc):

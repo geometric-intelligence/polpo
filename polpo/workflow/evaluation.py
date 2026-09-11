@@ -25,28 +25,14 @@ class TruncatedCVEvaluationRunner(TaskRunner):
         self.results_dir = results_dir
         self.evaluation_kwargs = evaluation_kwargs
 
-    @classmethod
-    def from_data(
-        cls,
-        dataset,
-        results_dir,
-        state_dir=None,
-        **evaluation_kwargs,
-    ):
-        """Create a runner from data already available in memory."""
-        return cls(
-            prepare_inputs=lambda: dataset,
-            results_dir=results_dir,
-            state_dir=state_dir,
-            **evaluation_kwargs,
-        )
-
     @task
     def evaluate(self):
         """Run the evaluation and persist its result."""
-        dataset = self.prepare_inputs()
+        dataset, estimator, metrics = self.prepare_inputs()
 
         evaluator = TruncatedCVEvaluator(
+            estimator=estimator,
+            metrics=metrics,
             **self.evaluation_kwargs,
         ).fit(dataset)
 
