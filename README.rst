@@ -1,7 +1,7 @@
 POLPO
 =====
 
-A `Geometric Intelligence Lab <https://gi.ece.ucsb.edu/>`_'s collection of weakly-related tools.
+Shape analysis tools.
 
 
 Installation
